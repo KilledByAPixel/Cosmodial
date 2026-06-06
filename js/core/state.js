@@ -27,6 +27,8 @@ export function createState() {
   const emit = () => { for (const fn of listeners) fn(state); };
 
   return {
+    // Returns the current state snapshot. Treat it as READ-ONLY — do not mutate the
+    // returned object or its nested members; use the setters, which replace state immutably.
     getState: () => state,
     subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     setAim(az, alt) {
@@ -38,17 +40,20 @@ export function createState() {
       emit();
     },
     setLocation(lat, lng, label) {
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return; // ignore invalid coordinates
       state = { ...state, location: { lat, lng, label } };
       if (typeof localStorage !== 'undefined') {
         try { localStorage.setItem(STORE_KEY, JSON.stringify(state.location)); } catch { /* ignore */ }
       }
       emit();
     },
+    // Pass live=true (e.g. setTime(null, true)) to return to live "now" mode.
     setTime(instant, live = false) {
       state = { ...state, time: { instant, live } };
       emit();
     },
     setFlag(name, value) {
+      if (!(name in state.flags)) throw new Error(`Unknown flag: ${name}`);
       state = { ...state, flags: { ...state.flags, [name]: value } };
       emit();
     },

@@ -38,3 +38,36 @@ test('setLocation updates state without requiring localStorage', () => {
   assert.equal(loc.lat, 30.27);
   assert.equal(loc.label, 'Austin, TX');
 });
+
+test('subscribers receive the updated state object', () => {
+  const s = createState();
+  let received = null;
+  s.subscribe((st) => { received = st; });
+  s.setFov(20);
+  assert.equal(received.fov, 20);
+});
+
+test('setFlag updates known flags and rejects unknown ones', () => {
+  const s = createState();
+  s.setFlag('night', true);
+  assert.equal(s.getState().flags.night, true);
+  s.setFlag('lines', false);
+  assert.equal(s.getState().flags.lines, false);
+  assert.throws(() => s.setFlag('nightMode', true), /Unknown flag/);
+});
+
+test('setTime sets the instant and live flag', () => {
+  const s = createState();
+  s.setTime(1234567890, false);
+  assert.equal(s.getState().time.instant, 1234567890);
+  assert.equal(s.getState().time.live, false);
+  s.setTime(null, true);
+  assert.equal(s.getState().time.live, true);
+});
+
+test('setLocation ignores non-finite coordinates', () => {
+  const s = createState();
+  s.setLocation(40, -100, 'Valid');
+  s.setLocation(NaN, NaN, 'Bad');
+  assert.equal(s.getState().location.label, 'Valid'); // unchanged by the bad call
+});
