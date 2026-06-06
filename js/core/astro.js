@@ -27,7 +27,7 @@ export function precessToDate(raDegJ2000, decDegJ2000, time) {
 // Alt/az (degrees) for a fixed star given its J2000 RA/Dec (degrees).
 export function altAzOfStar(raDegJ2000, decDegJ2000, observer, time) {
   const ofDate = precessToDate(raDegJ2000, decDegJ2000, time);
-  const hor = Astronomy.Horizon(time, observer, ofDate.ra / 15, ofDate.dec, 'normal'); // ra in HOURS
+  const hor = Astronomy.Horizon(time, observer, ofDate.ra / 15, ofDate.dec, 'normal'); // precessToDate returns degrees; ÷15 converts RA back to hours for Horizon
   return { alt: hor.altitude, az: hor.azimuth };
 }
 
