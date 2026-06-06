@@ -1,0 +1,19 @@
+# Dependencies (only ever used by one-off tools/ scripts, never at runtime)
+node_modules/
+package-lock.json
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/*
+!.vscode/settings.json
+
+# Logs / temp
+*.log
+tmp/
+.cache/
+
+# Large intermediate data-prep downloads (the trimmed JSON in /data is committed; raw dumps are not)
+tools/cache/
+*.csv
