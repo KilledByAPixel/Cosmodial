@@ -19,6 +19,13 @@ function norm(v) {
 
 // Gnomonic projection of a sky point (az, alt) onto the canvas.
 // cam: { az, alt, fov, width, height }. Returns { x, y, visible }.
+// NOTE: visible:true means the point is in the front hemisphere (in front of the camera),
+// NOT necessarily within the canvas bounds — callers must still bounds-check x/y against
+// width/height. Culled points return { x: NaN, y: NaN } deliberately, so that a caller who
+// forgets the visible-check renders a no-op (ctx.arc(NaN,...) draws nothing) rather than a
+// spurious dot at a sentinel coordinate.
+// TODO(perf): for per-frame rendering of thousands of stars, extract a createProjector(cam)
+// factory that precomputes F/right/up/focal once and returns (az, alt) => {x, y, visible}.
 export function project(az, alt, cam) {
   const F = vec(cam.az, cam.alt);                 // forward (into screen)
   // Screen-up reference is the zenith, except when looking near-vertical.

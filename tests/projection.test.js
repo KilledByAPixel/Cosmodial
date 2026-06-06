@@ -36,3 +36,8 @@ test('looking straight up does not divide by zero', () => {
   const p = project(90, 85, { az: 0, alt: 90, fov: 60, ...VIEW });
   assert.ok(Number.isFinite(p.x) && Number.isFinite(p.y));
 });
+
+test('looking straight down does not divide by zero', () => {
+  const p = project(90, -85, { az: 0, alt: -90, fov: 60, ...VIEW });
+  assert.ok(Number.isFinite(p.x) && Number.isFinite(p.y));
+});
