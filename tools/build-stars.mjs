@@ -30,6 +30,7 @@ function parseCSVLine(line) {
 }
 const round = (v, p) => { const f = 10 ** p; return Math.round(v * f) / f; };
 
+console.log('Downloading HYG catalog (~35 MB)...');
 const res = await fetch(HYG_URL);
 if (!res.ok) throw new Error(`HYG download failed: ${res.status} ${res.statusText} — verify HYG_URL`);
 const text = await res.text();
