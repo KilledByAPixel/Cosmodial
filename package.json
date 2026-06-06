@@ -1,0 +1,8 @@
+{
+  "name": "skyscope",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A simple, free, offline-first telescope/stargazing web app.",
+  "license": "MIT"
+}
