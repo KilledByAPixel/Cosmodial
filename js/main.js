@@ -18,16 +18,25 @@ let markers = [];      // Sun/Moon/planet markers { altaz, label, color, radius 
 let figures = [];        // editable source: [{name, abbr, lines:[[[ra,dec],[ra,dec]],...]}] (2-point segments)
 let constellations = []; // derived render data: [{name, label:{alt,az}, lines:[[{alt,az},...]]}]
 let originalFigures = [];   // pristine split from the file, for reset
+let loadedRaw = [];   // the raw constellations.json array as loaded (basis for localStorage validity)
 let selected = null;        // first star picked in edit mode (a skyObjects entry)
 let editIndex = 0;          // index into figures[] of the currently active constellation
 let prevEdit = false;       // tracks previous edit-mode state to detect enter/exit transitions
 const FIGURES_KEY = 'skyscope.figures.v2';
 const labelOf = (f) => circularCentroid(f.lines.flat()); // [ra,dec] label position for a figure
 
-function loadSavedFigures() {
+// Use saved in-browser edits only if they were based on the SAME committed file. If
+// data/constellations.json has since changed (e.g. you edited/committed it directly), the file
+// wins and the stale local edits are discarded.
+function loadSavedFigures(currentFile) {
   if (typeof localStorage === 'undefined') return null;
-  try { const raw = localStorage.getItem(FIGURES_KEY); return raw ? JSON.parse(raw) : null; }
-  catch { return null; }
+  try {
+    const raw = localStorage.getItem(FIGURES_KEY);
+    if (!raw) return null;
+    const saved = JSON.parse(raw);
+    if (saved && JSON.stringify(saved.base) === JSON.stringify(currentFile)) return saved.figures;
+    return null;
+  } catch { return null; }
 }
 
 // Recompute alt/az for every object. Depends only on time + location (no UI for those yet, so
@@ -73,7 +82,7 @@ function render() {
     : (st.flags.lines ? constellations : []);
   drawScene(ctx, {
     stars: skyObjects,
-    markers,
+    markers: st.flags.edit ? [] : markers,   // hide Sun/Moon/planets in edit mode so they don't overlap stars
     constellations: visibleCons,
     cam,
     edit: st.flags.edit,
@@ -85,9 +94,8 @@ function render() {
 const requestRender = createRenderScheduler(render, (cb) => requestAnimationFrame(cb));
 
 function saveFigures() {
-  if (typeof localStorage !== 'undefined') {
-    try { localStorage.setItem(FIGURES_KEY, JSON.stringify(figures)); } catch { /* ignore */ }
-  }
+  if (typeof localStorage === 'undefined') return;
+  try { localStorage.setItem(FIGURES_KEY, JSON.stringify({ base: loadedRaw, figures })); } catch { /* ignore */ }
 }
 
 function onEditTap(x, y) {
@@ -97,11 +105,9 @@ function onEditTap(x, y) {
   const st = store.getState();
   const cam = { az: st.aim.az, alt: st.aim.alt, fov: st.fov, ...view };
   const projector = createProjector(cam);
-  // Clickable: stars tagged to this constellation, PLUS any star already used by this figure
-  // (e.g. Alpheratz, catalogued under Andromeda but a corner of the Great Square of Pegasus).
-  const inFigure = new Set(active.lines.flat().map(([ra, dec]) => `${ra},${dec}`));
+  // Any visible star is clickable; the toggled edge is added to the ACTIVE figure regardless of
+  // which constellation the star is catalogued under (so shared/neighbouring stars can be added).
   const projected = skyObjects
-    .filter((s) => s.con === active.abbr || inFigure.has(`${s.ra},${s.dec}`))
     .map((s) => { const p = projector(s.altaz.az, s.altaz.alt); return { x: p.x, y: p.y, visible: p.visible, ref: s }; });
   const star = pickNearest(projected, x, y, 14);
   if (!star) { selected = null; requestRender(); return; }
@@ -189,7 +195,8 @@ async function boot() {
   } catch (err) {
     console.error('[skyscope] Failed to load constellations:', err);
   }
-  const saved = loadSavedFigures();
+  loadedRaw = loaded;
+  const saved = loadSavedFigures(loaded);
   figures = saved || splitSegments(loaded);
   originalFigures = splitSegments(loaded);
   computeSky();                 // must run before subscribe/first render so the sky isn't blank
