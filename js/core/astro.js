@@ -55,3 +55,28 @@ export function bodyAngularRadiusDeg(body, observer, time) {
   const eq = Astronomy.Equator(body, time, observer, true, true);
   return (Math.asin(Math.min(1, r / eq.dist)) * 180) / Math.PI;
 }
+
+// Build a reusable J2000->alt/az converter for a fixed (observer, time): the EQJ->EQD precession
+// rotation is computed ONCE here instead of once per star (computeSky calls this on ~15.6k stars).
+export function makeStarAltAz(observer, time) {
+  const rot = Astronomy.Rotation_EQJ_EQD(time);
+  return (raDegJ2000, decDegJ2000) => {
+    const sphere = new Astronomy.Spherical(decDegJ2000, raDegJ2000, 1.0); // (lat=dec, lon=ra, dist)
+    const vecEqd = Astronomy.RotateVector(rot, Astronomy.VectorFromSphere(sphere, time));
+    const eqd = Astronomy.EquatorFromVector(vecEqd);                       // ra HOURS, dec deg
+    const hor = Astronomy.Horizon(time, observer, eqd.ra, eqd.dec, 'normal');
+    return { alt: hor.altitude, az: hor.azimuth };
+  };
+}
+
+// Tonight's sunset and the following sunrise (JS Dates) for the observer. Searches from local noon
+// of refDate so the "tonight" window is stable regardless of the hour called. Either may be null at
+// extreme latitudes where the Sun doesn't cross the horizon.
+export function nightWindow(observer, refDate) {
+  const noon = new Date(refDate);
+  noon.setHours(12, 0, 0, 0);
+  const t = Astronomy.MakeTime(noon);
+  const set = Astronomy.SearchRiseSet(Body.Sun, observer, -1, t, 2);            // next sunset
+  const rise = set ? Astronomy.SearchRiseSet(Body.Sun, observer, +1, set, 2) : null; // sunrise after it
+  return { sunset: set ? set.date : null, sunrise: rise ? rise.date : null };
+}
