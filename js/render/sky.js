@@ -1,5 +1,6 @@
 import { createProjector } from '../core/projection.js';
 import { starSize, bvToRGB, zoomScale, colorBrightness } from './starstyle.js';
+import { drawConstellations } from './constellations.js';
 
 const STAR_MARGIN = 22; // px; covers the largest zoomed star disc (STAR_MAX_R * MAX_ZOOM_SCALE) at the edge
 const STAR_LABEL_MAG = 2.5; // only label the brightest named stars, to keep the view uncluttered
@@ -77,9 +78,10 @@ function drawReticle(ctx, cam) {
   ctx.stroke();
 }
 
-export function drawScene(ctx, { stars, markers, cam }) {
+export function drawScene(ctx, { stars, markers, constellations = [], cam }) {
   const projector = createProjector(cam);
   clear(ctx, cam.width, cam.height);
+  drawConstellations(ctx, projector, constellations, cam);
   drawStars(ctx, stars, projector, cam);
   drawMarkers(ctx, markers, projector);
   drawReticle(ctx, cam);

@@ -13,6 +13,8 @@ const store = createState();
 let stars = [];        // raw catalogue from stars.json
 let skyObjects = [];   // { altaz, mag, bv, name } for the current time/location
 let markers = [];      // Sun/Moon/planet markers { altaz, label, color, radius }
+let constellationData = [];   // raw RA/Dec polylines from constellations.json
+let constellations = [];      // cached alt/az for the current time/location
 
 // Recompute alt/az for every object. Depends only on time + location (no UI for those yet, so
 // this runs once at boot; Plan 4's time controls will call it again when the clock changes — and
@@ -38,13 +40,23 @@ function computeSky() {
     { altaz: altAzOfBody(Body.Sun, observer, time), label: 'Sun', color: '#ffd27f', radius: 6 },
     ...planetMarkers,
   ];
+  constellations = constellationData.map((c) => ({
+    name: c.name,
+    label: altAzOfStar(c.label[0], c.label[1], observer, time),
+    lines: c.lines.map((poly) => poly.map(([ra, dec]) => altAzOfStar(ra, dec, observer, time))),
+  }));
 }
 
 function render() {
   const view = resizeCanvas(canvas);
   const st = store.getState();
   const cam = { az: st.aim.az, alt: st.aim.alt, fov: st.fov, width: view.width, height: view.height };
-  drawScene(ctx, { stars: skyObjects, markers, cam });
+  drawScene(ctx, {
+    stars: skyObjects,
+    markers,
+    constellations: st.flags.lines ? constellations : [],
+    cam,
+  });
   drawHud(ctx, cam);
 }
 
@@ -57,6 +69,12 @@ async function boot() {
     stars = await res.json();
   } catch (err) {
     console.error('[skyscope] Failed to load star catalogue:', err);
+  }
+  try {
+    const cres = await fetch('./data/constellations.json');
+    if (cres.ok) constellationData = await cres.json();
+  } catch (err) {
+    console.error('[skyscope] Failed to load constellations:', err);
   }
   computeSky();                 // must run before subscribe/first render so the sky isn't blank
   store.subscribe(requestRender);
