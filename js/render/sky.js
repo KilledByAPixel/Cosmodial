@@ -1,5 +1,5 @@
 import { createProjector } from '../core/projection.js';
-import { magnitudeToRadius, magnitudeToOpacity, bvToRGB, zoomScale } from './starstyle.js';
+import { magnitudeToRadius, bvToRGB, zoomScale, colorBrightness } from './starstyle.js';
 
 const STAR_MARGIN = 14; // px; covers the largest zoomed star disc (maxR * MAX_ZOOM_SCALE) overlapping the edge
 const STAR_LABEL_MAG = 2.5; // only label the brightest named stars, to keep the view uncluttered
@@ -36,7 +36,7 @@ function drawStars(ctx, stars, projector, cam) {
         p.x < -STAR_MARGIN || p.x > cam.width + STAR_MARGIN ||
         p.y < -STAR_MARGIN || p.y > cam.height + STAR_MARGIN) continue;
     const c = bvToRGB(s.bv);
-    ctx.globalAlpha = magnitudeToOpacity(s.mag);
+    ctx.globalAlpha = colorBrightness(c);
     ctx.fillStyle = `rgb(${c.r}, ${c.g}, ${c.b})`;
     ctx.beginPath();
     ctx.arc(p.x, p.y, magnitudeToRadius(s.mag) * zs, 0, Math.PI * 2);

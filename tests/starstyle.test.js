@@ -1,18 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { magnitudeToRadius, magnitudeToOpacity, bvToRGB, zoomScale } from '../js/render/starstyle.js';
+import { magnitudeToRadius, bvToRGB, zoomScale, colorBrightness } from '../js/render/starstyle.js';
 
-test('brighter stars (smaller mag) are larger and more opaque', () => {
+test('brighter stars (smaller mag) are larger', () => {
   assert.ok(magnitudeToRadius(0) > magnitudeToRadius(5));
-  assert.ok(magnitudeToOpacity(0) > magnitudeToOpacity(5));
 });
 
-test('radius and opacity stay within sane bounds', () => {
-  for (const m of [-1.5, 0, 3, 6]) {
+test('radius stays within sane bounds', () => {
+  for (const m of [-1.5, 0, 3, 6, 7]) {
     const r = magnitudeToRadius(m);
-    const o = magnitudeToOpacity(m);
     assert.ok(r >= 0.4 && r <= 4, `radius ${r} out of bounds for mag ${m}`);
-    assert.ok(o > 0 && o <= 1, `opacity ${o} out of bounds for mag ${m}`);
   }
 });
 
@@ -35,7 +32,10 @@ test('zoomScale grows stars as FOV shrinks, capped at the max', () => {
   assert.equal(zoomScale(1), 4, 'capped at the max zoom scale');
 });
 
-test('stars stay near max brightness (magnitude shown by size, not dimming)', () => {
-  assert.ok(magnitudeToOpacity(7) >= 0.9, 'even the faintest stars are near full brightness');
-  assert.equal(magnitudeToOpacity(0), 1, 'brightest stars are full opacity');
+test('colorBrightness: white stars are brightest, saturated stars a touch dimmer', () => {
+  const white = colorBrightness({ r: 255, g: 255, b: 255 });
+  const red = colorBrightness({ r: 255, g: 150, b: 100 });
+  assert.ok(Math.abs(white - 0.9) < 1e-9, 'white (unsaturated) sits at the base brightness 0.9');
+  assert.ok(red < white, 'a strongly-coloured star is dimmer than white');
+  assert.ok(red >= 0.6 && red <= white, 'but still bright, not heavily dimmed');
 });
