@@ -293,6 +293,20 @@ async function boot() {
   attachInput(canvas, store, { onTap, onAction: onEditAction });
   const controls = document.getElementById('controls');
   if (controls) controls.append(buildLocationControl(store), buildTimeControls(store));
+  const nightBtn = document.createElement('button');
+  nightBtn.type = 'button';
+  nightBtn.className = 'night-toggle';
+  nightBtn.textContent = '🌙 Night';
+  nightBtn.addEventListener('click', () => store.setFlag('night', !store.getState().flags.night));
+  if (controls) controls.append(nightBtn);
+  const applyNight = () => {
+    const on = store.getState().flags.night;
+    document.body.classList.toggle('night', on);
+    nightBtn.classList.toggle('on', on);
+    nightBtn.setAttribute('aria-pressed', String(on));
+  };
+  store.subscribe(applyNight);
+  applyNight();
   guide = buildGuide(store, { onFind: onFindObject });
   const guideHost = document.getElementById('guide-host');
   if (guideHost) guideHost.append(guide.el);
