@@ -1,25 +1,38 @@
 import { clamp } from '../core/angles.js';
 
-const BRIGHTEST_MAG = -1.5; // ~Sirius; the bright end of the magnitude normalization range
-const REF_FOV = 60;         // baseline (naked-eye) FOV; star zoom-scale is 1 here
-const MAX_ZOOM_SCALE = 4;   // cap so zoomed-in stars stay dots, not big blobs
+const REF_FOV = 60;           // baseline (naked-eye) FOV; zoom scale is 1 here
+const MAX_ZOOM_SCALE = 4;     // cap so zoomed-in stars don't balloon
 
-// Apparent magnitude -> point radius in pixels. Brighter (smaller mag) -> larger.
-// Magnitude is conveyed by SIZE (not by dimming): faint stars are small but still bright.
-export function magnitudeToRadius(mag, { maxMag = 7, minR = 0.6, maxR = 3.2 } = {}) {
-  const t = clamp((maxMag - mag) / (maxMag - BRIGHTEST_MAG), 0, 1); // mag in [BRIGHTEST_MAG, maxMag] -> t in [1, 0]
-  return minR + (maxR - minR) * Math.pow(t, 0.8);
-}
+// --- Star size/brightness tunables (tweak to taste against a real sky chart) ---
+const STAR_BASE_R = 2.4;      // radius (px) of a magnitude-0 star at the widest FOV
+const STAR_MAG_SHRINK = 0.58; // radius multiplier per +1 magnitude (each fainter mag is smaller)
+const STAR_MAX_R = 5;         // cap radius (px, at base zoom) so the brightest stars pop, not bloat
+const STAR_MIN_R = 0.7;       // below this, stop shrinking and fade via alpha instead
+const STAR_DIM_EXP = 1.5;     // how steeply sub-pixel (faint) stars fade out
 
-// Star-size multiplier as you zoom in: 1 at the widest FOV, growing sub-linearly (sqrt of the
-// zoom factor) so zooming feels like magnification, capped so stars never balloon.
+// Zoom multiplier: 1 at the widest FOV, growing sub-linearly so zooming magnifies, capped.
 export function zoomScale(fov, { refFov = REF_FOV, maxScale = MAX_ZOOM_SCALE } = {}) {
   return clamp(Math.sqrt(refFov / fov), 1, maxScale);
 }
 
-// Opacity for a star, from its RGB colour. Stars render near max brightness; a strongly-coloured
-// (saturated) star is drawn a touch dimmer than a white one, since a saturated dot otherwise reads
-// as harshly bright. base = brightness of a white star; colorPenalty = how much saturation dims it.
+// A star's rendered { radius, alpha } from magnitude. Brightness is conveyed mostly by SIZE: bright
+// stars are large and pop; each fainter magnitude is exponentially smaller. Once a star would be
+// smaller than STAR_MIN_R it stops shrinking and instead fades via alpha — so faint stars are tiny
+// dim specks (not over-large, not abruptly gone). `zoom` (from zoomScale) magnifies the size, so
+// zooming in reveals faint stars as larger, brighter dots.
+export function starSize(mag, zoom = 1) {
+  let radius = STAR_BASE_R * Math.pow(STAR_MAG_SHRINK, mag) * zoom;
+  radius = Math.min(radius, STAR_MAX_R * zoom);
+  let alpha = 1;
+  if (radius < STAR_MIN_R) {
+    alpha = clamp(Math.pow(radius / STAR_MIN_R, STAR_DIM_EXP), 0, 1);
+    radius = STAR_MIN_R;
+  }
+  return { radius, alpha };
+}
+
+// Opacity multiplier from a star's RGB colour: white stars brightest, saturated stars a touch
+// dimmer (a saturated dot otherwise reads as harshly bright). Multiplies the magnitude alpha.
 export function colorBrightness({ r, g, b }, { base = 0.9, colorPenalty = 0.3 } = {}) {
   const max = Math.max(r, g, b), min = Math.min(r, g, b);
   const sat = max > 0 ? (max - min) / max : 0;
