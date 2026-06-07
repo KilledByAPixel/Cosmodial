@@ -3,6 +3,7 @@
 // (altitude increases). fov is the horizontal field of view; width is the canvas CSS width.
 export function dragToAimDelta(dx, dy, fov, width) {
   const degPerPx = fov / width;
+  // || 0 coerces -0 -> 0 so negative zero never leaks into the store / strict-equality checks.
   return { dAz: (-dx * degPerPx) || 0, dAlt: (dy * degPerPx) || 0 };
 }
 
@@ -12,6 +13,7 @@ export function attachInput(canvas, store) {
   const pointers = new Map(); // pointerId -> { x, y }
 
   canvas.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return; // ignore right/middle mouse buttons
     canvas.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   });
