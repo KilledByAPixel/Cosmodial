@@ -2,6 +2,7 @@ import { wrap360, clamp } from './angles.js';
 
 export const MIN_FOV = 1;    // telescope
 export const MAX_FOV = 60;   // naked-eye-ish
+export const MAX_ALT = 89;   // clamp pitch just below the zenith to avoid the gimbal-lock singularity
 const STORE_KEY = 'skyscope.location';
 
 // Default location (used until the user sets one): Austin, TX.
@@ -32,7 +33,7 @@ export function createState() {
     getState: () => state,
     subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     setAim(az, alt) {
-      state = { ...state, aim: { az: wrap360(az), alt: clamp(alt, -90, 90) } };
+      state = { ...state, aim: { az: wrap360(az), alt: clamp(alt, -MAX_ALT, MAX_ALT) } };
       emit();
     },
     setFov(fov) {

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createState, MIN_FOV, MAX_FOV } from '../js/core/state.js';
+import { createState, MIN_FOV, MAX_FOV, MAX_ALT } from '../js/core/state.js';
 
 test('subscribers are notified on change and can unsubscribe', () => {
   const s = createState();
@@ -17,10 +17,10 @@ test('setAim wraps azimuth and clamps altitude', () => {
   const s = createState();
   s.setAim(370, 100);
   assert.equal(s.getState().aim.az, 10);
-  assert.equal(s.getState().aim.alt, 90);
+  assert.equal(s.getState().aim.alt, MAX_ALT);
   s.setAim(-10, -200);
   assert.equal(s.getState().aim.az, 350);
-  assert.equal(s.getState().aim.alt, -90);
+  assert.equal(s.getState().aim.alt, -MAX_ALT);
 });
 
 test('setFov clamps to [MIN_FOV, MAX_FOV]', () => {
@@ -70,4 +70,11 @@ test('setLocation ignores non-finite coordinates', () => {
   s.setLocation(40, -100, 'Valid');
   s.setLocation(NaN, NaN, 'Bad');
   assert.equal(s.getState().location.label, 'Valid'); // unchanged by the bad call
+});
+
+test('altitude is clamped just below vertical to avoid the zenith singularity', () => {
+  assert.equal(MAX_ALT, 89);
+  const s = createState();
+  s.setAim(0, 89.9);
+  assert.ok(s.getState().aim.alt <= 89, 'cannot aim into the gimbal-lock zone');
 });
