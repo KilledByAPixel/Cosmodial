@@ -19,6 +19,7 @@ function render() {
     altaz: altAzOfStar(s.ra, s.dec, observer, time),
     mag: s.mag,
     bv: s.bv,
+    name: s.name,
   }));
 
   // M0 validation markers: Sun and Moon as labeled dots.

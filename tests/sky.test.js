@@ -4,7 +4,7 @@ import { drawScene } from '../js/render/sky.js';
 
 // Minimal Canvas 2D context stub: records draw calls, accepts the properties sky.js sets.
 function stubCtx() {
-  const calls = { arc: 0, fill: 0, fillRect: 0, fillText: 0, stroke: 0, moveTo: 0, lineTo: 0, beginPath: 0 };
+  const calls = { arc: 0, fill: 0, fillRect: 0, fillText: 0, stroke: 0, moveTo: 0, lineTo: 0, beginPath: 0, texts: [] };
   return {
     calls,
     set fillStyle(_) {}, get fillStyle() { return ''; },
@@ -19,7 +19,7 @@ function stubCtx() {
     moveTo() { calls.moveTo++; },
     lineTo() { calls.lineTo++; },
     stroke() { calls.stroke++; },
-    fillText() { calls.fillText++; },
+    fillText(text) { calls.fillText++; calls.texts.push(text); },
   };
 }
 
@@ -27,8 +27,8 @@ test('drawScene renders stars/markers without throwing and draws them', () => {
   const ctx = stubCtx();
   const cam = { az: 180, alt: 45, fov: 60, width: 800, height: 600 };
   const stars = [
-    { altaz: { alt: 50, az: 180 }, mag: 1.0, bv: 0.0 },   // in front -> drawn
-    { altaz: { alt: 50, az: 178 }, mag: 3.5, bv: 1.4 },   // in front -> drawn
+    { altaz: { alt: 50, az: 180 }, mag: 1.0, bv: 0.0, name: 'Sirius' },   // bright + named -> drawn + labeled
+    { altaz: { alt: 50, az: 178 }, mag: 3.5, bv: 1.4, name: 'DimStar' },  // named but too dim -> drawn, NOT labeled
     { altaz: { alt: -10, az: 180 }, mag: 2.0, bv: -0.2 }, // below horizon -> skipped
     { altaz: { alt: 50, az: 0 }, mag: 2.0, bv: 0.5 },     // opposite azimuth -> projects off-screen
   ];
@@ -38,4 +38,7 @@ test('drawScene renders stars/markers without throwing and draws them', () => {
   assert.ok(ctx.calls.fillRect >= 1, 'should clear the background');
   assert.ok(ctx.calls.arc >= 3, 'should draw the two visible stars plus the marker');
   assert.ok(ctx.calls.stroke >= 1, 'should draw the reticle');
+  assert.ok(ctx.calls.texts.includes('Sirius'), 'should label the bright named star');
+  assert.ok(ctx.calls.texts.includes('Moon'), 'should label the Moon marker');
+  assert.ok(!ctx.calls.texts.includes('DimStar'), 'should NOT label named stars dimmer than the threshold');
 });

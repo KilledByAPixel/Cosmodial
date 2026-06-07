@@ -2,6 +2,9 @@ import { project } from '../core/projection.js';
 import { magnitudeToRadius, magnitudeToOpacity, bvToRGB } from './starstyle.js';
 
 const STAR_MARGIN = 4; // px; keep stars whose disc overlaps the edge even if the centre is just outside
+const STAR_LABEL_MAG = 2.5; // only label the brightest named stars, to keep the view uncluttered
+const STAR_LABEL_COLOR = 'rgba(150, 190, 230, 0.9)';
+const LABEL_FONT = '11px system-ui, sans-serif';
 
 export function resizeCanvas(canvas) {
   const dpr = window.devicePixelRatio || 1;
@@ -22,8 +25,9 @@ function clear(ctx, width, height) {
   ctx.fillRect(0, 0, width, height);
 }
 
-// stars: array of { altaz: {alt, az}, mag, bv }
+// stars: array of { altaz: {alt, az}, mag, bv, name }
 function drawStars(ctx, stars, cam) {
+  ctx.font = LABEL_FONT;
   for (const s of stars) {
     if (s.altaz.alt < 0) continue; // below the horizon
     const p = project(s.altaz.az, s.altaz.alt, cam);
@@ -36,6 +40,12 @@ function drawStars(ctx, stars, cam) {
     ctx.beginPath();
     ctx.arc(p.x, p.y, magnitudeToRadius(s.mag), 0, Math.PI * 2);
     ctx.fill();
+    // Label only the brightest named stars so they can be matched against a sky chart.
+    if (s.name && s.mag <= STAR_LABEL_MAG) {
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = STAR_LABEL_COLOR;
+      ctx.fillText(s.name, p.x + 6, p.y - 6);
+    }
   }
   ctx.globalAlpha = 1;
 }
