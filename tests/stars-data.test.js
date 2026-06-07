@@ -11,7 +11,7 @@ test('stars.json is a sane magnitude-limited catalog', async () => {
     assert.ok(Number.isFinite(s.dec) && s.dec >= -90 && s.dec <= 90, `bad dec ${s.dec}`);
     assert.ok(Number.isFinite(s.mag) && s.mag <= 7.0, `bad mag ${s.mag}`);
   }
-  // A few bright named stars should survive a mag<=6 cut.
+  // A few bright named stars should survive a mag<=7 cut.
   const names = new Set(stars.map((s) => s.name).filter(Boolean));
   assert.ok(names.has('Sirius'), 'Sirius should be present');
 

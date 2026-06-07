@@ -11,6 +11,8 @@ export function magnitudeToRadius(mag, { maxMag = 7, minR = 0.85, maxR = 3.2 } =
 }
 
 // Apparent magnitude -> opacity (0..1). Floor kept high so even faint stars read clearly.
+// Note: with the 0.6 floor, everything fainter than ~mag 4 renders at the floor, so the visible
+// gradient spans roughly the bright half (mag ~ -1.5..4); maxMag mainly bounds magnitudeToRadius.
 export function magnitudeToOpacity(mag, { maxMag = 7 } = {}) {
   return clamp(1 - mag / (maxMag + 3), 0.6, 1);
 }
