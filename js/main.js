@@ -114,15 +114,14 @@ function centerOnActive() {
 
 function onEditToggle() {
   const e = store.getState().flags.edit;
-  if (e && !prevEdit) {            // entered edit mode
+  if (e === prevEdit) return;      // no edit-mode transition (also stops re-entrancy below)
+  prevEdit = e;                    // set BEFORE centerOnActive() so its setAim->emit re-entry bails here
+  selected = null;                 // clear selection on entering AND exiting edit mode
+  if (e) {                         // entered edit mode
     if (editIndex >= figures.length) editIndex = 0;
-    selected = null;
     centerOnActive();
     if (figures[editIndex]) console.log(`[skyscope] editing: ${figures[editIndex].name}`);
-  } else if (!e && prevEdit) {     // exited edit mode
-    selected = null;
   }
-  prevEdit = e;
 }
 
 function onEditAction(action) {
