@@ -9,6 +9,7 @@ export function dragToAimDelta(dx, dy, fov, width) {
 
 // Mouse-wheel zoom: scale FOV multiplicatively. Scrolling up (deltaY<0) zooms IN (smaller FOV).
 // Returns the new, UNCLAMPED FOV; state.setFov clamps to [MIN_FOV, MAX_FOV].
+// step=0.0015: a mouse wheel (~±100/notch) gives ~16% FOV change per notch; trackpads accumulate smoothly.
 export function wheelToFov(currentFov, wheelDeltaY, step = 0.0015) {
   return currentFov * Math.exp(wheelDeltaY * step);
 }
@@ -36,13 +37,14 @@ export function attachInput(canvas, store) {
     if (e.pointerType === 'mouse' && e.button !== 0) return; // ignore right/middle mouse buttons
     canvas.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    // pointerdown always fires before the next pointermove, so the pointer map is consistent here.
     if (pointers.size === 2) pinch = { startDist: twoPointerDist(), startFov: store.getState().fov };
   };
 
   const onMove = (e) => {
     const prev = pointers.get(e.pointerId);
     if (!prev) return;
-    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); // keep both fingers current so a 2->1 lift resumes drag without a jump
     if (pointers.size === 2 && pinch) { // pinch-zoom takes over from drag
       store.setFov(pinchToFov(pinch.startFov, pinch.startDist, twoPointerDist()));
       return;
