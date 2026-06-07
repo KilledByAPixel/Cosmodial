@@ -10,7 +10,10 @@ import { createRenderScheduler } from './core/scheduler.js';
 import { attachInput } from './ui/input.js';
 import { splitSegments, toggleEdge, pickNearest, circularCentroid, exportFigures } from './edit/figures.js';
 import { createProjector } from './core/projection.js';
-import { openCard } from './ui/card.js';
+import { openCard, colorWord } from './ui/card.js';
+import { rankCandidates } from './guide/ranking.js';
+import { buildGuide } from './ui/guide.js';
+import { animateSlew } from './ui/slew.js';
 
 const canvas = document.getElementById('sky');
 const ctx = canvas.getContext('2d');
@@ -23,6 +26,7 @@ let figures = [];        // editable source: [{name, abbr, lines:[[[ra,dec],[ra,
 let constellations = []; // derived render data: [{name, label:{alt,az}, lines:[[{alt,az},...]]}]
 let originalFigures = [];   // pristine split from the file, for reset
 let loadedRaw = [];   // the raw constellations.json array as loaded (basis for localStorage validity)
+let guide = null;
 let skyDirty = true; // next render recomputes the sky first (coalesces scrub/tick/edit recomputes)
 let selected = null;        // first star picked in edit mode (a skyObjects entry)
 let editIndex = 0;          // index into figures[] of the currently active constellation
@@ -58,15 +62,12 @@ function computeSky() {
     mag: s.mag, bv: s.bv, name: s.name,
     id: s.id, ra: s.ra, dec: s.dec, con: s.con, dist: s.dist,
   }));
-  const planetMarkers = PLANETS.map((p) => ({
-    altaz: altAzOfBody(p.body, observer, time),
-    label: p.name,
-    color: p.color,
-    radius: planetRadius(bodyMagnitude(p.body, time)),
-    body: p.body,
-  }));
+  const planetMarkers = PLANETS.map((p) => {
+    const mag = bodyMagnitude(p.body, time);
+    return { altaz: altAzOfBody(p.body, observer, time), label: p.name, color: p.color, radius: planetRadius(mag), body: p.body, mag };
+  });
   markers = [
-    { altaz: altAzOfBody(Body.Moon, observer, time), label: 'Moon', color: '#e8e8e8', angularRadiusDeg: bodyAngularRadiusDeg(Body.Moon, observer, time), body: Body.Moon },
+    { altaz: altAzOfBody(Body.Moon, observer, time), label: 'Moon', color: '#e8e8e8', angularRadiusDeg: bodyAngularRadiusDeg(Body.Moon, observer, time), body: Body.Moon, mag: bodyMagnitude(Body.Moon, time) },
     { altaz: altAzOfBody(Body.Sun, observer, time), label: 'Sun', color: '#ffd27f', angularRadiusDeg: bodyAngularRadiusDeg(Body.Sun, observer, time), body: Body.Sun },
     ...planetMarkers,
   ];
@@ -78,6 +79,11 @@ function computeSky() {
       lines: f.lines.map((seg) => seg.map(([ra, dec]) => toAltAz(ra, dec))),
     };
   });
+  if (guide) {
+    const sun = markers.find((m) => m.label === 'Sun');
+    const isDay = !!sun && sun.altaz.alt > -0.833;
+    guide.setPicks(buildPicks(), { isDay });
+  }
 }
 
 function render() {
@@ -144,6 +150,32 @@ function onIdentifyTap(x, y) {
   const projected = candidates.map((o) => { const p = projector(o.altaz.az, o.altaz.alt); return { x: p.x, y: p.y, visible: p.visible, ref: o }; });
   const hit = pickNearest(projected, x, y, 18);
   if (hit) openCard(hit, { observer, time, currentYear: new Date().getFullYear() });
+}
+
+// Candidate pool for the guide: bright named stars up + the Moon + naked-eye planets up.
+function buildPicks() {
+  const stars = skyObjects
+    .filter((s) => s.name && s.altaz.alt >= 0 && s.mag <= 2.5)
+    .map((s) => ({ kind: 'star', name: s.name, mag: s.mag, bv: s.bv, con: s.con, dist: s.dist, altaz: s.altaz, why: `a bright ${colorWord(s.bv)} star` }));
+  const bodies = markers
+    .filter((m) => m.label !== 'Sun' && m.altaz.alt >= 0)
+    .map((m) => ({
+      kind: m.label === 'Moon' ? 'moon' : 'planet',
+      name: m.label, label: m.label, body: m.body, mag: m.mag, altaz: m.altaz,
+      why: m.label === 'Moon' ? 'our nearest neighbour' : 'a wandering planet, easy with the naked eye',
+    }));
+  return rankCandidates([...bodies, ...stars]);
+}
+
+// Find: animate the view to center the pick, then open its card.
+function onFindObject(pick) {
+  const st = store.getState();
+  const observer = makeObserver(st.location.lat, st.location.lng);
+  const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
+  const targetFov = Math.max(12, Math.min(st.fov, 20)); // ease in a notch
+  animateSlew(store, { az: pick.altaz.az, alt: pick.altaz.alt, fov: targetFov }, {
+    onDone: () => openCard(pick, { observer, time, currentYear: new Date().getFullYear() }),
+  });
 }
 
 function onTap(x, y) {
@@ -242,6 +274,9 @@ async function boot() {
   attachInput(canvas, store, { onTap, onAction: onEditAction });
   const controls = document.getElementById('controls');
   if (controls) controls.append(buildLocationControl(store), buildTimeControls(store));
+  guide = buildGuide(store, { onFind: onFindObject });
+  const guideHost = document.getElementById('guide-host');
+  if (guideHost) guideHost.append(guide.el);
   requestRender();
 }
 
