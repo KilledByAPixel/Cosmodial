@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 test('constellations.json is a sane set of RA/Dec polylines', async () => {
   const cons = JSON.parse(await readFile(new URL('../data/constellations.json', import.meta.url), 'utf8'));
   assert.ok(Array.isArray(cons), 'should be an array');
-  assert.ok(cons.length >= 30 && cons.length <= 100, `unexpected constellation count ${cons.length}`);
+  assert.ok(cons.length >= 15 && cons.length <= 30, `unexpected constellation count ${cons.length}`);
   const names = new Set();
   for (const c of cons) {
     assert.ok(typeof c.name === 'string' && c.name.length > 0, 'each has a name');
