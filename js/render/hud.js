@@ -7,7 +7,7 @@ const CARDINALS = [
 const STRIP_SPAN_DEG = 180; // the compass ribbon shows this much azimuth across the full width
 const POINTS8 = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 
-// Shortest signed angle from->to in (-180, 180].
+// Shortest signed angle from->to in [-180, 180).
 function signedDelta(from, to) {
   return ((to - from + 540) % 360) - 180;
 }
@@ -37,6 +37,8 @@ function drawHorizon(ctx, cam) {
   ctx.strokeStyle = 'rgba(120, 160, 200, 0.35)';
   ctx.lineWidth = 1;
   ctx.beginPath();
+  // Sample the horizon across ±90° of azimuth around the aim (the visible half); the projector
+  // culls points not actually in view, so the line only appears when altitude 0 is on screen.
   let started = false;
   for (let d = -90; d <= 90; d += 2) {
     const p = projector(cam.az + d, 0);
