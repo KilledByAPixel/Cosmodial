@@ -1,5 +1,8 @@
 import { createState } from './core/state.js';
 import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg } from './core/astro.js';
+import { makeStarAltAz } from './core/astro.js';
+import { buildLocationControl } from './ui/location.js';
+import { buildTimeControls } from './ui/time-controls.js';
 import { PLANETS, planetRadius } from './render/planets.js';
 import { drawScene, resizeCanvas } from './render/sky.js';
 import { drawHud } from './render/hud.js';
@@ -19,6 +22,7 @@ let figures = [];        // editable source: [{name, abbr, lines:[[[ra,dec],[ra,
 let constellations = []; // derived render data: [{name, label:{alt,az}, lines:[[{alt,az},...]]}]
 let originalFigures = [];   // pristine split from the file, for reset
 let loadedRaw = [];   // the raw constellations.json array as loaded (basis for localStorage validity)
+let skyDirty = true; // next render recomputes the sky first (coalesces scrub/tick/edit recomputes)
 let selected = null;        // first star picked in edit mode (a skyObjects entry)
 let editIndex = 0;          // index into figures[] of the currently active constellation
 let prevEdit = false;       // tracks previous edit-mode state to detect enter/exit transitions
@@ -39,15 +43,17 @@ function loadSavedFigures(currentFile) {
   } catch { return null; }
 }
 
-// Recompute alt/az for every object. Depends only on time + location (no UI for those yet, so
-// this runs once at boot; Plan 4's time controls will call it again when the clock changes — and
-// must call requestRender() afterward, since time isn't in the store and nothing re-renders on its own).
+// Recompute alt/az for every object from the current time + location. Called only from render()
+// when skyDirty is set (via requestRecompute), so location/time/scrub/edit changes and the live
+// tick all coalesce into one recompute per frame. The EQJ->EQD precession is computed once here
+// (makeStarAltAz) rather than per star.
 function computeSky() {
   const st = store.getState();
   const observer = makeObserver(st.location.lat, st.location.lng);
   const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
+  const toAltAz = makeStarAltAz(observer, time);
   skyObjects = stars.map((s) => ({
-    altaz: altAzOfStar(s.ra, s.dec, observer, time),
+    altaz: toAltAz(s.ra, s.dec),
     mag: s.mag, bv: s.bv, name: s.name,
     id: s.id, ra: s.ra, dec: s.dec, con: s.con,
   }));
@@ -66,13 +72,14 @@ function computeSky() {
     const [lra, ldec] = labelOf(f);
     return {
       name: f.name,
-      label: altAzOfStar(lra, ldec, observer, time),
-      lines: f.lines.map((seg) => seg.map(([ra, dec]) => altAzOfStar(ra, dec, observer, time))),
+      label: toAltAz(lra, ldec),
+      lines: f.lines.map((seg) => seg.map(([ra, dec]) => toAltAz(ra, dec))),
     };
   });
 }
 
 function render() {
+  if (skyDirty) { computeSky(); skyDirty = false; }
   const view = resizeCanvas(canvas);
   const st = store.getState();
   const cam = { az: st.aim.az, alt: st.aim.alt, fov: st.fov, width: view.width, height: view.height };
@@ -92,6 +99,8 @@ function render() {
 }
 
 const requestRender = createRenderScheduler(render, (cb) => requestAnimationFrame(cb));
+
+function requestRecompute() { skyDirty = true; requestRender(); }
 
 function saveFigures() {
   if (typeof localStorage === 'undefined') return;
@@ -114,10 +123,9 @@ function onEditTap(x, y) {
   if (!selected) { selected = star; requestRender(); return; }
   if (selected.id === star.id) { selected = null; requestRender(); return; }
   active.lines = toggleEdge(active.lines, [selected.ra, selected.dec], [star.ra, star.dec]);
-  computeSky();
   saveFigures();
   selected = null;
-  requestRender();
+  requestRecompute();
 }
 
 function centerOnActive() {
@@ -149,8 +157,7 @@ function onEditAction(action) {
     figures = originalFigures.map((f) => ({ name: f.name, abbr: f.abbr, lines: f.lines.map((s) => s.map((p) => [...p])) }));
     if (typeof localStorage !== 'undefined') { try { localStorage.removeItem(FIGURES_KEY); } catch { /* ignore */ } }
     selected = null;
-    computeSky();
-    requestRender();
+    requestRecompute();
   } else if (action === 'next' || action === 'prev') {
     if (!figures.length) return;
     editIndex = (editIndex + (action === 'next' ? 1 : -1) + figures.length) % figures.length;
@@ -199,11 +206,19 @@ async function boot() {
   const saved = loadSavedFigures(loaded);
   figures = saved || splitSegments(loaded);
   originalFigures = splitSegments(loaded);
-  computeSky();                 // must run before subscribe/first render so the sky isn't blank
   store.subscribe(requestRender);
+  let prevLocTime = '';
+  store.subscribe(() => {
+    const s = store.getState();
+    const key = `${s.location.lat},${s.location.lng}|${s.time.live ? 'live' : s.time.instant}`;
+    if (key !== prevLocTime) { prevLocTime = key; requestRecompute(); }
+  });
+  setInterval(() => { if (store.getState().time.live) requestRecompute(); }, 30000); // keep live sky current
   store.subscribe(onEditToggle);
   window.addEventListener('resize', requestRender);
   attachInput(canvas, store, { onTap: onEditTap, onAction: onEditAction });
+  const controls = document.getElementById('controls');
+  if (controls) controls.append(buildLocationControl(store), buildTimeControls(store));
   requestRender();
 }
 

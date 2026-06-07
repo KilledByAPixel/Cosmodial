@@ -80,6 +80,8 @@ export function attachInput(canvas, store, opts = {}) {
   };
 
   const onKey = (e) => {
+    const tag = e.target && e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) return;
     const flag = toggleKeyAction(e.key);
     if (flag) { store.setFlag(flag, !store.getState().flags[flag]); return; }
     if (store.getState().flags.edit && opts.onAction) {

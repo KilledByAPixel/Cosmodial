@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeObserver, altAzOfStar, altAzOfBody, precessToDate, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg } from '../js/core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, precessToDate, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, makeStarAltAz, nightWindow } from '../js/core/astro.js';
 
 // Angular separation (deg) between two equatorial points given in degrees.
 function sepDeg(ra1, dec1, ra2, dec2) {
@@ -66,4 +66,23 @@ test('bodyAngularRadiusDeg ~0.25 deg for Sun/Moon, null for planets', () => {
   assert.ok(sun > 0.2 && sun < 0.3, `sun angular radius ${sun} should be ~0.27`);
   assert.ok(moon > 0.2 && moon < 0.32, `moon angular radius ${moon} should be ~0.25`);
   assert.equal(bodyAngularRadiusDeg(Body.Jupiter, obs, t), null);
+});
+
+test('makeStarAltAz matches altAzOfStar (precession computed once, reused)', () => {
+  const obs = makeObserver(40, -105);
+  const t = makeTime(new Date('2026-06-07T06:00:00Z'));
+  const conv = makeStarAltAz(obs, t);
+  const a = conv(101.287, -16.716);                      // Sirius (J2000)
+  const b = altAzOfStar(101.287, -16.716, obs, t);
+  assert.ok(Math.abs(a.alt - b.alt) < 1e-9, `alt ${a.alt} vs ${b.alt}`);
+  assert.ok(Math.abs(a.az - b.az) < 1e-9, `az ${a.az} vs ${b.az}`);
+});
+
+test('nightWindow returns a sunset and the following sunrise', () => {
+  const obs = makeObserver(30.27, -97.74); // Austin
+  const { sunset, sunrise } = nightWindow(obs, new Date('2026-06-07T18:00:00Z'));
+  assert.ok(sunset instanceof Date && sunrise instanceof Date, 'both are Dates');
+  assert.ok(sunrise.getTime() > sunset.getTime(), 'sunrise is after sunset');
+  const hrs = (sunrise.getTime() - sunset.getTime()) / 3.6e6;
+  assert.ok(hrs > 6 && hrs < 14, `night length ${hrs}h is plausible`);
 });

@@ -2,3 +2,24 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: #05070d; overflow: hidden; }
 #sky { display: block; width: 100vw; height: 100vh; touch-action: none; }
+
+#controls {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center;
+  padding: 8px 12px; font: 13px system-ui, sans-serif; color: #cdd6e6;
+  background: linear-gradient(to top, rgba(5,7,13,0.92), rgba(5,7,13,0.0));
+  user-select: none;
+}
+#controls .ctrl { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+#controls button, #controls input {
+  font: inherit; color: #cdd6e6; background: #121826; border: 1px solid #2a3550;
+  border-radius: 6px; padding: 4px 8px;
+}
+#controls button { cursor: pointer; }
+#controls button:hover { background: #1b2336; }
+#controls input[type="range"] { width: 180px; padding: 0; }
+#controls input.bad { border-color: #c5524a; }
+#controls .ctrl-label { opacity: 0.8; }
+#controls .now-badge { min-width: 130px; opacity: 0.7; }
+#controls .now-badge.live { color: #8fdcb0; opacity: 1; }
+@media (max-width: 640px) { #controls { font-size: 12px; gap: 6px 10px; } #controls input[type="range"] { width: 120px; } }
