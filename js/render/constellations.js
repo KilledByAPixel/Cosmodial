@@ -18,13 +18,14 @@ export function drawConstellations(ctx, projector, constellations, cam) {
   for (const con of constellations) {
     for (const poly of con.lines) {
       ctx.beginPath();
-      let pen = false; // whether the path currently has a live point to draw from
+      let pen = false;  // whether the path currently has a live point to draw from
+      let drew = false; // whether any segment was actually added this polyline
       for (const vertex of poly) {
         const p = visiblePoint(vertex, projector);
         if (!p) { pen = false; continue; } // break the line on a culled/below-horizon vertex
-        if (!pen) { ctx.moveTo(p.x, p.y); pen = true; } else { ctx.lineTo(p.x, p.y); }
+        if (!pen) { ctx.moveTo(p.x, p.y); pen = true; } else { ctx.lineTo(p.x, p.y); drew = true; }
       }
-      ctx.stroke();
+      if (drew) ctx.stroke(); // skip the no-op stroke when the whole polyline is off-screen
     }
   }
   // Labels on top of the figures, only when on-screen.

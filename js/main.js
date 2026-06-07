@@ -72,7 +72,8 @@ async function boot() {
   }
   try {
     const cres = await fetch('./data/constellations.json');
-    if (cres.ok) constellationData = await cres.json();
+    if (!cres.ok) throw new Error(`constellations.json: HTTP ${cres.status}`);
+    constellationData = await cres.json();
   } catch (err) {
     console.error('[skyscope] Failed to load constellations:', err);
   }
