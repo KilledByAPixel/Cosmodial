@@ -10,6 +10,7 @@ test('constellations.json is a sane set of RA/Dec polylines', async () => {
   for (const c of cons) {
     assert.ok(typeof c.name === 'string' && c.name.length > 0, 'each has a name');
     names.add(c.name);
+    assert.ok(typeof c.abbr === 'string' && c.abbr.length >= 2 && c.abbr.length <= 4, `${c.name} needs an abbr`);
     assert.ok(Array.isArray(c.label) && c.label.length === 2, `${c.name} needs a [ra,dec] label`);
     assert.ok(c.label[0] >= 0 && c.label[0] < 360 && c.label[1] >= -90 && c.label[1] <= 90, `${c.name} label out of range`);
     assert.ok(Array.isArray(c.lines) && c.lines.length > 0, `${c.name} needs lines`);

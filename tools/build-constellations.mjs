@@ -27,6 +27,8 @@ const NAMES = {
   Vir: 'Virgo', Vol: 'Volans', Vul: 'Vulpecula',
 };
 
+const NAME_TO_ABBR = Object.fromEntries(Object.entries(NAMES).map(([abbr, name]) => [name, abbr]));
+
 // Curated subset of well-known / navigation constellations to ship.
 const CURATED = new Set([
   'Andromeda', 'Aquila', 'Auriga', 'Bootes', 'Canis Major', 'Canis Minor', 'Cassiopeia', 'Cepheus',
@@ -66,6 +68,22 @@ function resolve(name) {
   return p;
 }
 
+// Angular separation (deg) between two RA/Dec points.
+function sepDeg(ra1, d1, ra2, d2) {
+  const r = Math.PI / 180;
+  const a = Math.sin(d1 * r) * Math.sin(d2 * r) + Math.cos(d1 * r) * Math.cos(d2 * r) * Math.cos((ra1 - ra2) * r);
+  return Math.acos(Math.min(1, Math.max(-1, a))) / r;
+}
+// Snap a [ra,dec] vertex to the exact coords of the nearest catalog star within 0.5 deg (else unchanged).
+function snapToStar([ra, dec]) {
+  let best = null, bd = 0.5;
+  for (const s of stars) {
+    const d = sepDeg(ra, dec, s.ra, s.dec);
+    if (d < bd) { bd = d; best = s; }
+  }
+  return best ? [best.ra, best.dec] : [ra, dec];
+}
+
 // Label position: circular mean RA (handles 0h/360h wrap) + plain mean Dec.
 function centroid(pts) {
   const sin = pts.reduce((s, p) => s + Math.sin(p[0] * Math.PI / 180), 0);
@@ -85,7 +103,7 @@ const out = [];
 for (const [name, segs] of Object.entries(OVERRIDES)) {
   if (!CURATED.has(name)) continue;
   const lines = segs.map(([a, b]) => [resolve(a), resolve(b)]);
-  out.push({ name, label: centroid(lines.flat()), lines });
+  out.push({ name, abbr: NAME_TO_ABBR[name] || name, label: centroid(lines.flat()), lines });
 }
 
 // 2) d3-celestial figures for the rest of the curated set.
@@ -104,7 +122,14 @@ for (const f of geo.features || []) {
     if (pts.length >= 2) lines.push(pts);
   }
   if (!lines.length) continue;
-  out.push({ name, label: centroid(allPts), lines });
+  out.push({ name, abbr: f.id, label: centroid(allPts), lines });
+}
+
+// Snap every figure vertex to exact star coordinates so editor clicks (which use catalog coords)
+// match the segment endpoints precisely, then recompute the label from the snapped points.
+for (const c of out) {
+  c.lines = c.lines.map((seg) => seg.map((p) => snapToStar(p)));
+  c.label = centroid(c.lines.flat());
 }
 
 out.sort((a, b) => a.name.localeCompare(b.name));

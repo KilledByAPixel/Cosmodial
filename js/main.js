@@ -5,6 +5,8 @@ import { drawScene, resizeCanvas } from './render/sky.js';
 import { drawHud } from './render/hud.js';
 import { createRenderScheduler } from './core/scheduler.js';
 import { attachInput } from './ui/input.js';
+import { splitSegments, toggleEdge, pickNearest, circularCentroid, exportFigures } from './edit/figures.js';
+import { createProjector } from './core/projection.js';
 
 const canvas = document.getElementById('sky');
 const ctx = canvas.getContext('2d');
@@ -13,8 +15,29 @@ const store = createState();
 let stars = [];        // raw catalogue from stars.json
 let skyObjects = [];   // { altaz, mag, bv, name } for the current time/location
 let markers = [];      // Sun/Moon/planet markers { altaz, label, color, radius }
-let constellationData = [];   // raw RA/Dec polylines from constellations.json
-let constellations = [];      // cached alt/az for the current time/location
+let figures = [];        // editable source: [{name, abbr, lines:[[[ra,dec],[ra,dec]],...]}] (2-point segments)
+let constellations = []; // derived render data: [{name, label:{alt,az}, lines:[[{alt,az},...]]}]
+let originalFigures = [];   // pristine split from the file, for reset
+let loadedRaw = [];   // the raw constellations.json array as loaded (basis for localStorage validity)
+let selected = null;        // first star picked in edit mode (a skyObjects entry)
+let editIndex = 0;          // index into figures[] of the currently active constellation
+let prevEdit = false;       // tracks previous edit-mode state to detect enter/exit transitions
+const FIGURES_KEY = 'skyscope.figures.v2';
+const labelOf = (f) => circularCentroid(f.lines.flat()); // [ra,dec] label position for a figure
+
+// Use saved in-browser edits only if they were based on the SAME committed file. If
+// data/constellations.json has since changed (e.g. you edited/committed it directly), the file
+// wins and the stale local edits are discarded.
+function loadSavedFigures(currentFile) {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(FIGURES_KEY);
+    if (!raw) return null;
+    const saved = JSON.parse(raw);
+    if (saved && JSON.stringify(saved.base) === JSON.stringify(currentFile)) return saved.figures;
+    return null;
+  } catch { return null; }
+}
 
 // Recompute alt/az for every object. Depends only on time + location (no UI for those yet, so
 // this runs once at boot; Plan 4's time controls will call it again when the clock changes — and
@@ -25,9 +48,8 @@ function computeSky() {
   const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
   skyObjects = stars.map((s) => ({
     altaz: altAzOfStar(s.ra, s.dec, observer, time),
-    mag: s.mag,
-    bv: s.bv,
-    name: s.name,
+    mag: s.mag, bv: s.bv, name: s.name,
+    id: s.id, ra: s.ra, dec: s.dec, con: s.con,
   }));
   const planetMarkers = PLANETS.map((p) => ({
     altaz: altAzOfBody(p.body, observer, time),
@@ -40,27 +62,122 @@ function computeSky() {
     { altaz: altAzOfBody(Body.Sun, observer, time), label: 'Sun', color: '#ffd27f', angularRadiusDeg: bodyAngularRadiusDeg(Body.Sun, observer, time) },
     ...planetMarkers,
   ];
-  constellations = constellationData.map((c) => ({
-    name: c.name,
-    label: altAzOfStar(c.label[0], c.label[1], observer, time),
-    lines: c.lines.map((poly) => poly.map(([ra, dec]) => altAzOfStar(ra, dec, observer, time))),
-  }));
+  constellations = figures.map((f) => {
+    const [lra, ldec] = labelOf(f);
+    return {
+      name: f.name,
+      label: altAzOfStar(lra, ldec, observer, time),
+      lines: f.lines.map((seg) => seg.map(([ra, dec]) => altAzOfStar(ra, dec, observer, time))),
+    };
+  });
 }
 
 function render() {
   const view = resizeCanvas(canvas);
   const st = store.getState();
   const cam = { az: st.aim.az, alt: st.aim.alt, fov: st.fov, width: view.width, height: view.height };
+  // In edit mode, show ONLY the active constellation's lines (focus); otherwise honor the lines flag.
+  const visibleCons = st.flags.edit
+    ? (constellations[editIndex] ? [constellations[editIndex]] : [])
+    : (st.flags.lines ? constellations : []);
   drawScene(ctx, {
     stars: skyObjects,
-    markers,
-    constellations: st.flags.lines ? constellations : [],
+    markers: st.flags.edit ? [] : markers,   // hide Sun/Moon/planets in edit mode so they don't overlap stars
+    constellations: visibleCons,
     cam,
+    edit: st.flags.edit,
   });
   drawHud(ctx, cam);
+  if (st.flags.edit) drawEditOverlay(ctx, cam);
 }
 
 const requestRender = createRenderScheduler(render, (cb) => requestAnimationFrame(cb));
+
+function saveFigures() {
+  if (typeof localStorage === 'undefined') return;
+  try { localStorage.setItem(FIGURES_KEY, JSON.stringify({ base: loadedRaw, figures })); } catch { /* ignore */ }
+}
+
+function onEditTap(x, y) {
+  const active = figures[editIndex];
+  if (!active) return;
+  const view = { width: canvas.clientWidth, height: canvas.clientHeight };
+  const st = store.getState();
+  const cam = { az: st.aim.az, alt: st.aim.alt, fov: st.fov, ...view };
+  const projector = createProjector(cam);
+  // Any visible star is clickable; the toggled edge is added to the ACTIVE figure regardless of
+  // which constellation the star is catalogued under (so shared/neighbouring stars can be added).
+  const projected = skyObjects
+    .map((s) => { const p = projector(s.altaz.az, s.altaz.alt); return { x: p.x, y: p.y, visible: p.visible, ref: s }; });
+  const star = pickNearest(projected, x, y, 14);
+  if (!star) { selected = null; requestRender(); return; }
+  if (!selected) { selected = star; requestRender(); return; }
+  if (selected.id === star.id) { selected = null; requestRender(); return; }
+  active.lines = toggleEdge(active.lines, [selected.ra, selected.dec], [star.ra, star.dec]);
+  computeSky();
+  saveFigures();
+  selected = null;
+  requestRender();
+}
+
+function centerOnActive() {
+  const c = constellations[editIndex];
+  if (c && c.label) store.setAim(c.label.az, c.label.alt); // setAim triggers a render
+}
+
+function onEditToggle() {
+  const e = store.getState().flags.edit;
+  if (e === prevEdit) return;      // no edit-mode transition (also stops re-entrancy below)
+  prevEdit = e;                    // set BEFORE centerOnActive() so its setAim->emit re-entry bails here
+  selected = null;                 // clear selection on entering AND exiting edit mode
+  if (e) {                         // entered edit mode
+    if (editIndex >= figures.length) editIndex = 0;
+    centerOnActive();
+    if (figures[editIndex]) console.log(`[skyscope] editing: ${figures[editIndex].name}`);
+  }
+}
+
+function onEditAction(action) {
+  if (action === 'download') {
+    const json = JSON.stringify(exportFigures(figures));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+    a.download = 'constellations.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } else if (action === 'reset') {
+    figures = originalFigures.map((f) => ({ name: f.name, abbr: f.abbr, lines: f.lines.map((s) => s.map((p) => [...p])) }));
+    if (typeof localStorage !== 'undefined') { try { localStorage.removeItem(FIGURES_KEY); } catch { /* ignore */ } }
+    selected = null;
+    computeSky();
+    requestRender();
+  } else if (action === 'next' || action === 'prev') {
+    if (!figures.length) return;
+    editIndex = (editIndex + (action === 'next' ? 1 : -1) + figures.length) % figures.length;
+    selected = null;
+    centerOnActive();
+    console.log(`[skyscope] editing: ${figures[editIndex].name}`);
+    requestRender();
+  }
+}
+
+function drawEditOverlay(ctx, cam) {
+  ctx.fillStyle = 'rgba(120, 220, 160, 0.9)';
+  ctx.font = '13px system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  const active = figures[editIndex];
+  ctx.fillText(`EDIT: ${active ? active.name : '(none)'} - click two of its stars to toggle a line - N/P prev/next - D download - R reset - E exit`, 12, 22);
+  if (selected) {
+    const p = createProjector(cam)(selected.altaz.az, selected.altaz.alt);
+    if (p.visible) {
+      ctx.strokeStyle = 'rgba(120, 220, 160, 0.95)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+}
 
 async function boot() {
   try {
@@ -70,17 +187,23 @@ async function boot() {
   } catch (err) {
     console.error('[skyscope] Failed to load star catalogue:', err);
   }
+  let loaded = [];
   try {
     const cres = await fetch('./data/constellations.json');
     if (!cres.ok) throw new Error(`constellations.json: HTTP ${cres.status}`);
-    constellationData = await cres.json();
+    loaded = await cres.json();
   } catch (err) {
     console.error('[skyscope] Failed to load constellations:', err);
   }
+  loadedRaw = loaded;
+  const saved = loadSavedFigures(loaded);
+  figures = saved || splitSegments(loaded);
+  originalFigures = splitSegments(loaded);
   computeSky();                 // must run before subscribe/first render so the sky isn't blank
   store.subscribe(requestRender);
+  store.subscribe(onEditToggle);
   window.addEventListener('resize', requestRender);
-  attachInput(canvas, store);
+  attachInput(canvas, store, { onTap: onEditTap, onAction: onEditAction });
   requestRender();
 }
 
