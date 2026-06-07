@@ -21,6 +21,12 @@ export function pinchToFov(startFov, startDist, currentDist) {
   return startFov * (startDist / currentDist);
 }
 
+// Map a keyboard key to a state flag to toggle, or null if the key isn't a toggle.
+export function toggleKeyAction(key) {
+  if (key === 'c' || key === 'C') return 'lines'; // 'c' = constellation lines
+  return null;
+}
+
 // Attach pointer/wheel input to the canvas. Mouse + single-finger touch drag the sky
 // (grab-the-sky); the wheel and two-finger pinch zoom toward the reticle. Returns a detach()
 // function that removes all listeners.
@@ -65,11 +71,17 @@ export function attachInput(canvas, store) {
     store.setFov(wheelToFov(store.getState().fov, e.deltaY));
   };
 
+  const onKey = (e) => {
+    const flag = toggleKeyAction(e.key);
+    if (flag) store.setFlag(flag, !store.getState().flags[flag]);
+  };
+
   canvas.addEventListener('pointerdown', onDown);
   canvas.addEventListener('pointermove', onMove);
   canvas.addEventListener('pointerup', onEnd);
   canvas.addEventListener('pointercancel', onEnd);
   canvas.addEventListener('wheel', onWheel, { passive: false });
+  window.addEventListener('keydown', onKey);
 
   return function detach() {
     canvas.removeEventListener('pointerdown', onDown);
@@ -77,5 +89,6 @@ export function attachInput(canvas, store) {
     canvas.removeEventListener('pointerup', onEnd);
     canvas.removeEventListener('pointercancel', onEnd);
     canvas.removeEventListener('wheel', onWheel);
+    window.removeEventListener('keydown', onKey);
   };
 }
