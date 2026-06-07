@@ -85,6 +85,8 @@ export function attachInput(canvas, store, opts = {}) {
     if (store.getState().flags.edit && opts.onAction) {
       if (e.key === 'd' || e.key === 'D') opts.onAction('download');
       if (e.key === 'r' || e.key === 'R') opts.onAction('reset');
+      if (e.key === 'n' || e.key === 'N') opts.onAction('next');
+      if (e.key === 'p' || e.key === 'P') opts.onAction('prev');
     }
   };
 

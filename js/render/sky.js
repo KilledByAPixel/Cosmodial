@@ -28,11 +28,11 @@ function clear(ctx, width, height) {
 }
 
 // stars: array of { altaz: {alt, az}, mag, bv, name }
-function drawStars(ctx, stars, projector, cam) {
+function drawStars(ctx, stars, projector, cam, edit) {
   ctx.font = LABEL_FONT;
   const zs = zoomScale(cam.fov);
   for (const s of stars) {
-    if (s.altaz.alt < 0) continue; // below the horizon
+    if (!edit && s.altaz.alt < 0) continue; // below horizon (shown in edit mode so any constellation is reachable)
     const p = projector(s.altaz.az, s.altaz.alt);
     if (!p.visible ||
         p.x < -STAR_MARGIN || p.x > cam.width + STAR_MARGIN ||
@@ -91,11 +91,11 @@ function drawReticle(ctx, cam) {
   ctx.stroke();
 }
 
-export function drawScene(ctx, { stars, markers, constellations = [], cam }) {
+export function drawScene(ctx, { stars, markers, constellations = [], cam, edit = false }) {
   const projector = createProjector(cam);
   clear(ctx, cam.width, cam.height);
-  drawConstellations(ctx, projector, constellations, cam);
-  drawStars(ctx, stars, projector, cam);
+  drawConstellations(ctx, projector, constellations, cam, edit);
+  drawStars(ctx, stars, projector, cam, edit);
   drawMarkers(ctx, markers, projector, cam);
   drawReticle(ctx, cam);
 }

@@ -19,7 +19,9 @@ let figures = [];        // editable source: [{name, abbr, lines:[[[ra,dec],[ra,
 let constellations = []; // derived render data: [{name, label:{alt,az}, lines:[[{alt,az},...]]}]
 let originalFigures = [];   // pristine split from the file, for reset
 let selected = null;        // first star picked in edit mode (a skyObjects entry)
-const FIGURES_KEY = 'skyscope.figures';
+let editIndex = 0;          // index into figures[] of the currently active constellation
+let prevEdit = false;       // tracks previous edit-mode state to detect enter/exit transitions
+const FIGURES_KEY = 'skyscope.figures.v2';
 const labelOf = (f) => circularCentroid(f.lines.flat()); // [ra,dec] label position for a figure
 
 function loadSavedFigures() {
@@ -70,6 +72,7 @@ function render() {
     markers,
     constellations: st.flags.lines ? constellations : [],
     cam,
+    edit: st.flags.edit,
   });
   drawHud(ctx, cam);
   if (st.flags.edit) drawEditOverlay(ctx, cam);
@@ -83,29 +86,43 @@ function saveFigures() {
   }
 }
 
-// A tap in edit mode: pick the nearest star; on the second pick of the SAME constellation, toggle
-// the edge between the two stars in that figure.
 function onEditTap(x, y) {
+  const active = figures[editIndex];
+  if (!active) return;
   const view = { width: canvas.clientWidth, height: canvas.clientHeight };
   const st = store.getState();
   const cam = { az: st.aim.az, alt: st.aim.alt, fov: st.fov, ...view };
   const projector = createProjector(cam);
   const projected = skyObjects
-    .filter((s) => s.altaz.alt >= 0)
+    .filter((s) => s.con === active.abbr)   // only the active constellation's stars are clickable
     .map((s) => { const p = projector(s.altaz.az, s.altaz.alt); return { x: p.x, y: p.y, visible: p.visible, ref: s }; });
   const star = pickNearest(projected, x, y, 14);
-  if (!star) { selected = null; requestRender(); return; }       // tapped empty -> clear
-  if (!selected) { selected = star; requestRender(); return; }   // first pick
-  if (selected.id === star.id) { selected = null; requestRender(); return; } // same star -> deselect
-  if (selected.con !== star.con) { selected = star; requestRender(); return; } // different constellation -> restart
-  const fig = figures.find((f) => f.abbr === star.con);
-  if (fig) {
-    fig.lines = toggleEdge(fig.lines, [selected.ra, selected.dec], [star.ra, star.dec]);
-    computeSky();   // re-derive render constellations from the edited figures
-    saveFigures();
-  }
+  if (!star) { selected = null; requestRender(); return; }
+  if (!selected) { selected = star; requestRender(); return; }
+  if (selected.id === star.id) { selected = null; requestRender(); return; }
+  active.lines = toggleEdge(active.lines, [selected.ra, selected.dec], [star.ra, star.dec]);
+  computeSky();
+  saveFigures();
   selected = null;
   requestRender();
+}
+
+function centerOnActive() {
+  const c = constellations[editIndex];
+  if (c && c.label) store.setAim(c.label.az, c.label.alt); // setAim triggers a render
+}
+
+function onEditToggle() {
+  const e = store.getState().flags.edit;
+  if (e && !prevEdit) {            // entered edit mode
+    if (editIndex >= figures.length) editIndex = 0;
+    selected = null;
+    centerOnActive();
+    if (figures[editIndex]) console.log(`[skyscope] editing: ${figures[editIndex].name}`);
+  } else if (!e && prevEdit) {     // exited edit mode
+    selected = null;
+  }
+  prevEdit = e;
 }
 
 function onEditAction(action) {
@@ -122,6 +139,13 @@ function onEditAction(action) {
     selected = null;
     computeSky();
     requestRender();
+  } else if (action === 'next' || action === 'prev') {
+    if (!figures.length) return;
+    editIndex = (editIndex + (action === 'next' ? 1 : -1) + figures.length) % figures.length;
+    selected = null;
+    centerOnActive();
+    console.log(`[skyscope] editing: ${figures[editIndex].name}`);
+    requestRender();
   }
 }
 
@@ -129,7 +153,8 @@ function drawEditOverlay(ctx, cam) {
   ctx.fillStyle = 'rgba(120, 220, 160, 0.9)';
   ctx.font = '13px system-ui, sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('EDIT MODE - click two stars of a constellation to toggle a line - D download - R reset - E exit', 12, 22);
+  const active = figures[editIndex];
+  ctx.fillText(`EDIT: ${active ? active.name : '(none)'} - click two of its stars to toggle a line - N/P prev/next - D download - R reset - E exit`, 12, 22);
   if (selected) {
     const p = createProjector(cam)(selected.altaz.az, selected.altaz.alt);
     if (p.visible) {
@@ -163,6 +188,7 @@ async function boot() {
   originalFigures = splitSegments(loaded);
   computeSky();                 // must run before subscribe/first render so the sky isn't blank
   store.subscribe(requestRender);
+  store.subscribe(onEditToggle);
   window.addEventListener('resize', requestRender);
   attachInput(canvas, store, { onTap: onEditTap, onAction: onEditAction });
   requestRender();
