@@ -31,8 +31,13 @@ function render() {
 }
 
 async function boot() {
-  const res = await fetch('./data/stars.json');
-  stars = await res.json();
+  try {
+    const res = await fetch('./data/stars.json');
+    if (!res.ok) throw new Error(`stars.json: HTTP ${res.status}`);
+    stars = await res.json();
+  } catch (err) {
+    console.error('[skyscope] Failed to load star catalogue:', err);
+  }
   store.subscribe(render);
   window.addEventListener('resize', render);
   render();

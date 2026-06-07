@@ -30,12 +30,12 @@ test('drawScene renders stars/markers without throwing and draws them', () => {
     { altaz: { alt: 50, az: 180 }, mag: 1.0, bv: 0.0 },   // in front -> drawn
     { altaz: { alt: 50, az: 178 }, mag: 3.5, bv: 1.4 },   // in front -> drawn
     { altaz: { alt: -10, az: 180 }, mag: 2.0, bv: -0.2 }, // below horizon -> skipped
-    { altaz: { alt: 50, az: 0 }, mag: 2.0, bv: 0.5 },     // behind aim -> culled
+    { altaz: { alt: 50, az: 0 }, mag: 2.0, bv: 0.5 },     // opposite azimuth -> projects off-screen
   ];
   const markers = [{ altaz: { alt: 40, az: 180 }, label: 'Moon', color: '#e8e8e8' }];
 
   assert.doesNotThrow(() => drawScene(ctx, { stars, markers, cam }));
   assert.ok(ctx.calls.fillRect >= 1, 'should clear the background');
-  assert.ok(ctx.calls.arc >= 2, 'should draw at least the two visible stars');
+  assert.ok(ctx.calls.arc >= 3, 'should draw the two visible stars plus the marker');
   assert.ok(ctx.calls.stroke >= 1, 'should draw the reticle');
 });

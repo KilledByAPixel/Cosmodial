@@ -1,14 +1,20 @@
 import { project } from '../core/projection.js';
 import { magnitudeToRadius, magnitudeToOpacity, bvToRGB } from './starstyle.js';
 
+const STAR_MARGIN = 4; // px; keep stars whose disc overlaps the edge even if the centre is just outside
+
 export function resizeCanvas(canvas) {
   const dpr = window.devicePixelRatio || 1;
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  canvas.width = Math.round(w * dpr);
-  canvas.height = Math.round(h * dpr);
-  const ctx = canvas.getContext('2d');
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // draw in CSS pixels
-  return { width: w, height: h };
+  const w = Math.round(canvas.clientWidth * dpr);
+  const h = Math.round(canvas.clientHeight * dpr);
+  // Assigning canvas.width/height resets the ENTIRE canvas state, so only do it when the
+  // size actually changes — otherwise an animation loop (Plan 2) would reset state 60x/sec.
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+    canvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0); // draw in CSS pixels
+  }
+  return { width: canvas.clientWidth, height: canvas.clientHeight };
 }
 
 function clear(ctx, width, height) {
@@ -21,7 +27,9 @@ function drawStars(ctx, stars, cam) {
   for (const s of stars) {
     if (s.altaz.alt < 0) continue; // below the horizon
     const p = project(s.altaz.az, s.altaz.alt, cam);
-    if (!p.visible || p.x < 0 || p.x > cam.width || p.y < 0 || p.y > cam.height) continue;
+    if (!p.visible ||
+        p.x < -STAR_MARGIN || p.x > cam.width + STAR_MARGIN ||
+        p.y < -STAR_MARGIN || p.y > cam.height + STAR_MARGIN) continue;
     const c = bvToRGB(s.bv);
     ctx.globalAlpha = magnitudeToOpacity(s.mag);
     ctx.fillStyle = `rgb(${c.r}, ${c.g}, ${c.b})`;

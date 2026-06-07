@@ -1,8 +1,10 @@
 import { clamp } from '../core/angles.js';
 
+const BRIGHTEST_MAG = -1.5; // ~Sirius; the bright end of the magnitude normalization range
+
 // Apparent magnitude -> point radius in pixels. Brighter (smaller mag) -> larger.
 export function magnitudeToRadius(mag, { maxMag = 6, minR = 0.5, maxR = 3.2 } = {}) {
-  const t = clamp((maxMag - mag) / (maxMag + 1.5), 0, 1); // mag in [-1.5, 6] -> t in [1, 0]
+  const t = clamp((maxMag - mag) / (maxMag - BRIGHTEST_MAG), 0, 1); // mag in [BRIGHTEST_MAG, maxMag] -> t in [1, 0]
   return minR + (maxR - minR) * Math.pow(t, 0.8);
 }
 
