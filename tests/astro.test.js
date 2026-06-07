@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeObserver, altAzOfStar, altAzOfBody, precessToDate, makeTime, Body } from '../js/core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, precessToDate, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg } from '../js/core/astro.js';
 
 // Angular separation (deg) between two equatorial points given in degrees.
 function sepDeg(ra1, dec1, ra2, dec2) {
@@ -50,4 +50,20 @@ test('southern-hemisphere sign convention: near-south-pole star altitude ~= |lat
   // A synthetic star ~0.7 deg from the south celestial pole (mirror of Polaris).
   const { alt } = altAzOfStar(100.0, -89.26, obs, t);
   assert.ok(Math.abs(alt - 40.0) < 1.2, `south-pole-region star alt ${alt} should be ~40`);
+});
+
+test('bodyMagnitude returns a sane apparent magnitude for a planet', () => {
+  const t = makeTime(new Date('2025-06-06T06:00:00Z'));
+  const mag = bodyMagnitude(Body.Jupiter, t);
+  assert.ok(Number.isFinite(mag) && mag > -4 && mag < 1, `Jupiter mag ${mag} should be ~ -2..-1`);
+});
+
+test('bodyAngularRadiusDeg ~0.25 deg for Sun/Moon, null for planets', () => {
+  const obs = makeObserver(40, -105);
+  const t = makeTime(new Date('2025-06-06T06:00:00Z'));
+  const sun = bodyAngularRadiusDeg(Body.Sun, obs, t);
+  const moon = bodyAngularRadiusDeg(Body.Moon, obs, t);
+  assert.ok(sun > 0.2 && sun < 0.3, `sun angular radius ${sun} should be ~0.27`);
+  assert.ok(moon > 0.2 && moon < 0.32, `moon angular radius ${moon} should be ~0.25`);
+  assert.equal(bodyAngularRadiusDeg(Body.Jupiter, obs, t), null);
 });

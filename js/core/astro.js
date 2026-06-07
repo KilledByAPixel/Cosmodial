@@ -37,3 +37,21 @@ export function altAzOfBody(body, observer, time) {
   const hor = Astronomy.Horizon(time, observer, eq.ra, eq.dec, 'normal');
   return { alt: hor.altitude, az: hor.azimuth };
 }
+
+// Apparent visual magnitude (geocentric apparent) of a body astronomy-engine illuminates — used
+// here for the naked-eye planets (Mercury-Saturn); also valid for the Moon.
+export function bodyMagnitude(body, time) {
+  return Astronomy.Illumination(body, time).mag;
+}
+
+// Physical radii in AU, used for the apparent angular size of the Sun and Moon.
+const BODY_RADIUS_AU = { Sun: 0.00465047, Moon: 1.16138e-5 };
+
+// Apparent angular RADIUS (degrees) of the Sun or Moon from the observer (uses current distance).
+// Returns null for bodies we don't size this way (planets render as fixed disks).
+export function bodyAngularRadiusDeg(body, observer, time) {
+  const r = BODY_RADIUS_AU[body];
+  if (r == null) return null;
+  const eq = Astronomy.Equator(body, time, observer, true, true);
+  return (Math.asin(Math.min(1, r / eq.dist)) * 180) / Math.PI;
+}

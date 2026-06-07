@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dragToAimDelta, wheelToFov, pinchToFov } from '../js/ui/input.js';
+import { dragToAimDelta, wheelToFov, pinchToFov, toggleKeyAction } from '../js/ui/input.js';
 
 test('grab-the-sky: dragging right moves the sky right (azimuth decreases)', () => {
   const { dAz, dAlt } = dragToAimDelta(10, 0, 60, 600); // 60deg FOV over 600px -> 0.1 deg/px
@@ -30,4 +30,10 @@ test('pinch: spreading fingers zooms in, pinching zooms out', () => {
   assert.ok(Math.abs(pinchToFov(60, 100, 200) - 30) < 1e-9, 'spread 2x -> half FOV');
   assert.ok(Math.abs(pinchToFov(60, 200, 100) - 120) < 1e-9, 'pinch 0.5x -> double FOV');
   assert.equal(pinchToFov(60, 100, 0), 60, 'degenerate distance -> unchanged');
+});
+
+test('toggleKeyAction maps the c key to the lines flag (case-insensitive), ignores others', () => {
+  assert.equal(toggleKeyAction('c'), 'lines');
+  assert.equal(toggleKeyAction('C'), 'lines');
+  assert.equal(toggleKeyAction('x'), null);
 });
