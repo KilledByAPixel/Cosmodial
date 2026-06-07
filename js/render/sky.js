@@ -61,7 +61,7 @@ function drawMarkers(ctx, markers, projector) {
     if (!p.visible) continue;
     ctx.fillStyle = m.color || '#ffd27f';
     ctx.beginPath();
-    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, m.radius || 4, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillText(m.label, p.x + 7, p.y - 7);
   }

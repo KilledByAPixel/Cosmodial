@@ -1,5 +1,6 @@
 import { createState } from './core/state.js';
-import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body } from './core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude } from './core/astro.js';
+import { PLANETS, planetRadius } from './render/planets.js';
 import { drawScene, resizeCanvas } from './render/sky.js';
 import { drawHud } from './render/hud.js';
 import { createRenderScheduler } from './core/scheduler.js';
@@ -26,9 +27,16 @@ function computeSky() {
     bv: s.bv,
     name: s.name,
   }));
+  const planetMarkers = PLANETS.map((p) => ({
+    altaz: altAzOfBody(p.body, observer, time),
+    label: p.name,
+    color: p.color,
+    radius: planetRadius(bodyMagnitude(p.body, time)),
+  }));
   markers = [
-    { altaz: altAzOfBody(Body.Moon, observer, time), label: 'Moon', color: '#e8e8e8' },
-    { altaz: altAzOfBody(Body.Sun, observer, time), label: 'Sun', color: '#ffd27f' },
+    { altaz: altAzOfBody(Body.Moon, observer, time), label: 'Moon', color: '#e8e8e8', radius: 5 },
+    { altaz: altAzOfBody(Body.Sun, observer, time), label: 'Sun', color: '#ffd27f', radius: 6 },
+    ...planetMarkers,
   ];
 }
 

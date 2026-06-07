@@ -37,3 +37,8 @@ export function altAzOfBody(body, observer, time) {
   const hor = Astronomy.Horizon(time, observer, eq.ra, eq.dec, 'normal');
   return { alt: hor.altitude, az: hor.azimuth };
 }
+
+// Apparent visual magnitude of a Sun/Moon/planet body at a given time (geocentric apparent).
+export function bodyMagnitude(body, time) {
+  return Astronomy.Illumination(body, time).mag;
+}
