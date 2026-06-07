@@ -17,6 +17,8 @@ let skyObjects = [];   // { altaz, mag, bv, name } for the current time/location
 let markers = [];      // Sun/Moon/planet markers { altaz, label, color, radius }
 let figures = [];        // editable source: [{name, abbr, lines:[[[ra,dec],[ra,dec]],...]}] (2-point segments)
 let constellations = []; // derived render data: [{name, label:{alt,az}, lines:[[{alt,az},...]]}]
+let originalFigures = [];   // pristine split from the file, for reset
+let selected = null;        // first star picked in edit mode (a skyObjects entry)
 const FIGURES_KEY = 'skyscope.figures';
 const labelOf = (f) => circularCentroid(f.lines.flat()); // [ra,dec] label position for a figure
 
@@ -70,9 +72,75 @@ function render() {
     cam,
   });
   drawHud(ctx, cam);
+  if (st.flags.edit) drawEditOverlay(ctx, cam);
 }
 
 const requestRender = createRenderScheduler(render, (cb) => requestAnimationFrame(cb));
+
+function saveFigures() {
+  if (typeof localStorage !== 'undefined') {
+    try { localStorage.setItem(FIGURES_KEY, JSON.stringify(figures)); } catch { /* ignore */ }
+  }
+}
+
+// A tap in edit mode: pick the nearest star; on the second pick of the SAME constellation, toggle
+// the edge between the two stars in that figure.
+function onEditTap(x, y) {
+  const view = { width: canvas.clientWidth, height: canvas.clientHeight };
+  const st = store.getState();
+  const cam = { az: st.aim.az, alt: st.aim.alt, fov: st.fov, ...view };
+  const projector = createProjector(cam);
+  const projected = skyObjects
+    .filter((s) => s.altaz.alt >= 0)
+    .map((s) => { const p = projector(s.altaz.az, s.altaz.alt); return { x: p.x, y: p.y, visible: p.visible, ref: s }; });
+  const star = pickNearest(projected, x, y, 14);
+  if (!star) { selected = null; requestRender(); return; }       // tapped empty -> clear
+  if (!selected) { selected = star; requestRender(); return; }   // first pick
+  if (selected.id === star.id) { selected = null; requestRender(); return; } // same star -> deselect
+  if (selected.con !== star.con) { selected = star; requestRender(); return; } // different constellation -> restart
+  const fig = figures.find((f) => f.abbr === star.con);
+  if (fig) {
+    fig.lines = toggleEdge(fig.lines, [selected.ra, selected.dec], [star.ra, star.dec]);
+    computeSky();   // re-derive render constellations from the edited figures
+    saveFigures();
+  }
+  selected = null;
+  requestRender();
+}
+
+function onEditAction(action) {
+  if (action === 'download') {
+    const json = JSON.stringify(exportFigures(figures));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+    a.download = 'constellations.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } else if (action === 'reset') {
+    figures = originalFigures.map((f) => ({ name: f.name, abbr: f.abbr, lines: f.lines.map((s) => s.map((p) => [...p])) }));
+    if (typeof localStorage !== 'undefined') { try { localStorage.removeItem(FIGURES_KEY); } catch { /* ignore */ } }
+    selected = null;
+    computeSky();
+    requestRender();
+  }
+}
+
+function drawEditOverlay(ctx, cam) {
+  ctx.fillStyle = 'rgba(120, 220, 160, 0.9)';
+  ctx.font = '13px system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('EDIT MODE - click two stars of a constellation to toggle a line - D download - R reset - E exit', 12, 22);
+  if (selected) {
+    const p = createProjector(cam)(selected.altaz.az, selected.altaz.alt);
+    if (p.visible) {
+      ctx.strokeStyle = 'rgba(120, 220, 160, 0.95)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+}
 
 async function boot() {
   try {
@@ -92,10 +160,11 @@ async function boot() {
   }
   const saved = loadSavedFigures();
   figures = saved || splitSegments(loaded);
+  originalFigures = splitSegments(loaded);
   computeSky();                 // must run before subscribe/first render so the sky isn't blank
   store.subscribe(requestRender);
   window.addEventListener('resize', requestRender);
-  attachInput(canvas, store);
+  attachInput(canvas, store, { onTap: onEditTap, onAction: onEditAction });
   requestRender();
 }
 
