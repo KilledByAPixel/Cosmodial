@@ -38,7 +38,8 @@ export function altAzOfBody(body, observer, time) {
   return { alt: hor.altitude, az: hor.azimuth };
 }
 
-// Apparent visual magnitude of a Sun/Moon/planet body at a given time (geocentric apparent).
+// Apparent visual magnitude (geocentric apparent) of a body astronomy-engine illuminates — used
+// here for the naked-eye planets (Mercury-Saturn); also valid for the Moon.
 export function bodyMagnitude(body, time) {
   return Astronomy.Illumination(body, time).mag;
 }

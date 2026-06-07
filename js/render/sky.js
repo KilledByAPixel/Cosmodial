@@ -52,7 +52,7 @@ function drawStars(ctx, stars, projector, cam) {
   ctx.globalAlpha = 1;
 }
 
-// markers: array of { altaz, label, color }
+// markers: array of { altaz, label, color, radius? } (radius defaults to 4)
 function drawMarkers(ctx, markers, projector) {
   ctx.font = '13px system-ui, sans-serif';
   for (const m of markers) {

@@ -12,7 +12,7 @@ const store = createState();
 
 let stars = [];        // raw catalogue from stars.json
 let skyObjects = [];   // { altaz, mag, bv, name } for the current time/location
-let markers = [];      // Sun/Moon { altaz, label, color }
+let markers = [];      // Sun/Moon/planet markers { altaz, label, color, radius }
 
 // Recompute alt/az for every object. Depends only on time + location (no UI for those yet, so
 // this runs once at boot; Plan 4's time controls will call it again when the clock changes — and
