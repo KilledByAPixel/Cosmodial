@@ -17,28 +17,29 @@ function norm(v) {
   return [v[0] / m, v[1] / m, v[2] / m];
 }
 
-// Gnomonic projection of a sky point (az, alt) onto the canvas.
-// cam: { az, alt, fov, width, height }. Returns { x, y, visible }.
+// Build a reusable gnomonic projector for a fixed camera, precomputing the camera basis and
+// focal length ONCE. Returns (az, alt) -> { x, y, visible }. Amortizes setup across many points
+// (e.g. thousands of stars per frame). cam: { az, alt, fov, width, height }.
 // NOTE: visible:true means the point is in the front hemisphere (in front of the camera),
-// NOT necessarily within the canvas bounds — callers must still bounds-check x/y against
-// width/height. Culled points return { x: NaN, y: NaN } deliberately, so that a caller who
-// forgets the visible-check renders a no-op (ctx.arc(NaN,...) draws nothing) rather than a
-// spurious dot at a sentinel coordinate.
-// TODO(perf): for per-frame rendering of thousands of stars, extract a createProjector(cam)
-// factory that precomputes F/right/up/focal once and returns (az, alt) => {x, y, visible}.
-export function project(az, alt, cam) {
-  const F = vec(cam.az, cam.alt);                 // forward (into screen)
-  // Screen-up reference is the zenith, except when looking near-vertical.
+// NOT necessarily within the canvas bounds — callers must still bounds-check x/y. Culled points
+// return { x: NaN, y: NaN } deliberately, so a forgotten visible-check renders a no-op rather
+// than a spurious dot at a sentinel coordinate.
+export function createProjector(cam) {
+  const F = vec(cam.az, cam.alt);
   const upRef = Math.abs(cam.alt) > 89.5 ? [0, 1, 0] : [0, 0, 1];
-  const right = norm(cross(F, upRef));            // +x: world East when facing horizon
-  const up = norm(cross(right, F));               // +y: toward zenith
-  const P = vec(az, alt);
-
-  const z = dot(P, F);
-  if (z <= 1e-6) return { x: NaN, y: NaN, visible: false }; // at/behind 90 deg from aim
-
+  const right = norm(cross(F, upRef));
+  const up = norm(cross(right, F));
   const focal = (cam.width / 2) / Math.tan(degToRad(cam.fov) / 2);
-  const x = (cam.width / 2) + focal * (dot(P, right) / z);
-  const y = (cam.height / 2) - focal * (dot(P, up) / z); // screen y grows downward
-  return { x, y, visible: true };
+  const cx = cam.width / 2, cy = cam.height / 2;
+  return function projectPoint(az, alt) {
+    const P = vec(az, alt);
+    const z = dot(P, F);
+    if (z <= 1e-6) return { x: NaN, y: NaN, visible: false };
+    return { x: cx + focal * (dot(P, right) / z), y: cy - focal * (dot(P, up) / z), visible: true };
+  };
+}
+
+// Project a single sky point (az, alt) for a one-off use. Delegates to createProjector.
+export function project(az, alt, cam) {
+  return createProjector(cam)(az, alt);
 }
