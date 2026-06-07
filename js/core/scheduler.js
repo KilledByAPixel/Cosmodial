@@ -5,6 +5,8 @@ export function createRenderScheduler(renderFn, raf) {
   return function requestRender() {
     if (scheduled) return;
     scheduled = true;
+    // Reset the flag BEFORE calling renderFn so (a) renderFn may itself call requestRender, and
+    // (b) a throw in renderFn doesn't permanently block future renders.
     raf(() => { scheduled = false; renderFn(); });
   };
 }

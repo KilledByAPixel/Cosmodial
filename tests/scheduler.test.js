@@ -20,3 +20,22 @@ test('multiple requests coalesce into one render per frame', () => {
   queue.shift()();
   assert.equal(renders, 2);
 });
+
+test('renderFn may request another render from inside the frame', () => {
+  const queue = [];
+  const fakeRaf = (cb) => { queue.push(cb); };
+  let renders = 0;
+  let again = true;
+  const requestRender = createRenderScheduler(() => {
+    renders++;
+    if (again) { again = false; requestRender(); } // re-request during render
+  }, fakeRaf);
+
+  requestRender();
+  assert.equal(queue.length, 1);
+  queue.shift()();                 // first frame: renders once and schedules a second
+  assert.equal(renders, 1);
+  assert.equal(queue.length, 1, 're-request inside render scheduled a new frame');
+  queue.shift()();
+  assert.equal(renders, 2);
+});

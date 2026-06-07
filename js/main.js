@@ -12,14 +12,17 @@ let skyObjects = [];   // { altaz, mag, bv, name } for the current time/location
 let markers = [];      // Sun/Moon { altaz, label, color }
 
 // Recompute alt/az for every object. Depends only on time + location (no UI for those yet, so
-// this runs once at boot; Plan 4's time controls will call it again when the clock changes).
+// this runs once at boot; Plan 4's time controls will call it again when the clock changes — and
+// must call requestRender() afterward, since time isn't in the store and nothing re-renders on its own).
 function computeSky() {
   const st = store.getState();
   const observer = makeObserver(st.location.lat, st.location.lng);
   const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
   skyObjects = stars.map((s) => ({
     altaz: altAzOfStar(s.ra, s.dec, observer, time),
-    mag: s.mag, bv: s.bv, name: s.name,
+    mag: s.mag,
+    bv: s.bv,
+    name: s.name,
   }));
   markers = [
     { altaz: altAzOfBody(Body.Moon, observer, time), label: 'Moon', color: '#e8e8e8' },
@@ -44,7 +47,7 @@ async function boot() {
   } catch (err) {
     console.error('[skyscope] Failed to load star catalogue:', err);
   }
-  computeSky();
+  computeSky();                 // must run before subscribe/first render so the sky isn't blank
   store.subscribe(requestRender);
   window.addEventListener('resize', requestRender);
   requestRender();
