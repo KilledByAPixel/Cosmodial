@@ -93,8 +93,11 @@ function onEditTap(x, y) {
   const st = store.getState();
   const cam = { az: st.aim.az, alt: st.aim.alt, fov: st.fov, ...view };
   const projector = createProjector(cam);
+  // Clickable: stars tagged to this constellation, PLUS any star already used by this figure
+  // (e.g. Alpheratz, catalogued under Andromeda but a corner of the Great Square of Pegasus).
+  const inFigure = new Set(active.lines.flat().map(([ra, dec]) => `${ra},${dec}`));
   const projected = skyObjects
-    .filter((s) => s.con === active.abbr)   // only the active constellation's stars are clickable
+    .filter((s) => s.con === active.abbr || inFigure.has(`${s.ra},${s.dec}`))
     .map((s) => { const p = projector(s.altaz.az, s.altaz.alt); return { x: p.x, y: p.y, visible: p.visible, ref: s }; });
   const star = pickNearest(projected, x, y, 14);
   if (!star) { selected = null; requestRender(); return; }
