@@ -67,10 +67,14 @@ function render() {
   const view = resizeCanvas(canvas);
   const st = store.getState();
   const cam = { az: st.aim.az, alt: st.aim.alt, fov: st.fov, width: view.width, height: view.height };
+  // In edit mode, show ONLY the active constellation's lines (focus); otherwise honor the lines flag.
+  const visibleCons = st.flags.edit
+    ? (constellations[editIndex] ? [constellations[editIndex]] : [])
+    : (st.flags.lines ? constellations : []);
   drawScene(ctx, {
     stars: skyObjects,
     markers,
-    constellations: st.flags.lines ? constellations : [],
+    constellations: visibleCons,
     cam,
     edit: st.flags.edit,
   });
