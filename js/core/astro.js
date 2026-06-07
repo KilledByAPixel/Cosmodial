@@ -80,3 +80,27 @@ export function nightWindow(observer, refDate) {
   const rise = set ? Astronomy.SearchRiseSet(Body.Sun, observer, +1, set, 2) : null; // sunrise after it
   return { sunset: set ? set.date : null, sunrise: rise ? rise.date : null };
 }
+
+// Distance to a body (AU) at the given time (topocentric apparent).
+export function bodyDistanceAu(body, observer, time) {
+  return Astronomy.Equator(body, time, observer, true, true).dist;
+}
+
+// Pure: Moon phase name from the ecliptic phase angle (0=new, 90=first quarter, 180=full, 270=last).
+export function moonPhaseName(angleDeg) {
+  const a = ((angleDeg % 360) + 360) % 360;
+  if (a < 22.5 || a >= 337.5) return 'New Moon';
+  if (a < 67.5) return 'Waxing Crescent';
+  if (a < 112.5) return 'First Quarter';
+  if (a < 157.5) return 'Waxing Gibbous';
+  if (a < 202.5) return 'Full Moon';
+  if (a < 247.5) return 'Waning Gibbous';
+  if (a < 292.5) return 'Last Quarter';
+  return 'Waning Crescent';
+}
+
+// Moon phase summary: { illumPct (0..100), phaseName }.
+export function moonPhaseInfo(time) {
+  const illum = Astronomy.Illumination(Body.Moon, time);
+  return { illumPct: Math.round(illum.phase_fraction * 100), phaseName: moonPhaseName(Astronomy.MoonPhase(time)) };
+}

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeObserver, altAzOfStar, altAzOfBody, precessToDate, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, makeStarAltAz, nightWindow } from '../js/core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, precessToDate, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, makeStarAltAz, nightWindow, bodyDistanceAu, moonPhaseName, moonPhaseInfo } from '../js/core/astro.js';
 
 // Angular separation (deg) between two equatorial points given in degrees.
 function sepDeg(ra1, dec1, ra2, dec2) {
@@ -85,4 +85,25 @@ test('nightWindow returns a sunset and the following sunrise', () => {
   assert.ok(sunrise.getTime() > sunset.getTime(), 'sunrise is after sunset');
   const hrs = (sunrise.getTime() - sunset.getTime()) / 3.6e6;
   assert.ok(hrs > 6 && hrs < 14, `night length ${hrs}h is plausible`);
+});
+
+test('moonPhaseName maps ecliptic phase angle to the 8 phases', () => {
+  assert.equal(moonPhaseName(0), 'New Moon');
+  assert.equal(moonPhaseName(90), 'First Quarter');
+  assert.equal(moonPhaseName(180), 'Full Moon');
+  assert.equal(moonPhaseName(270), 'Last Quarter');
+  assert.equal(moonPhaseName(45), 'Waxing Crescent');
+  assert.equal(moonPhaseName(359), 'New Moon');
+});
+
+test('moonPhaseInfo returns illumPct 0..100 and a phase name; bodyDistanceAu is sane', () => {
+  const obs = makeObserver(40, -105);
+  const t = makeTime(new Date('2026-06-07T06:00:00Z'));
+  const m = moonPhaseInfo(t);
+  assert.ok(m.illumPct >= 0 && m.illumPct <= 100, `illumPct ${m.illumPct}`);
+  assert.equal(typeof m.phaseName, 'string');
+  const moonAu = bodyDistanceAu(Body.Moon, obs, t);
+  assert.ok(moonAu > 0.002 && moonAu < 0.003, `Moon distance ${moonAu} AU (~0.00257)`);
+  const marsAu = bodyDistanceAu(Body.Mars, obs, t);
+  assert.ok(marsAu > 0.3 && marsAu < 3, `Mars distance ${marsAu} AU plausible`);
 });
