@@ -85,7 +85,7 @@ function drawReadout(ctx, cam) {
   ctx.font = '13px system-ui, sans-serif';
   ctx.fillStyle = 'rgba(200, 220, 245, 0.9)';
   ctx.textAlign = 'left';
-  const txt = `facing ${azToCompass(cam.az)} ${Math.round(cam.az)}° · alt ${Math.round(cam.alt)}° · FOV ${Math.round(cam.fov)}°`;
+  const txt = `facing ${azToCompass(cam.az)} ${Math.round(cam.az) % 360}° · alt ${Math.round(cam.alt)}° · FOV ${Math.round(cam.fov)}°`;
   ctx.fillText(txt, 12, cam.height - 48);
 }
 
