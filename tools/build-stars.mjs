@@ -37,7 +37,7 @@ const text = await res.text();
 const lines = text.split(/\r?\n/);
 const header = parseCSVLine(lines[0]);
 const col = Object.fromEntries(header.map((h, i) => [h.trim(), i]));
-for (const need of ['id', 'ra', 'dec', 'mag', 'ci', 'proper', 'con', 'hip']) {
+for (const need of ['id', 'ra', 'dec', 'mag', 'ci', 'proper', 'con', 'hip', 'dist']) {
   if (!(need in col)) throw new Error(`HYG missing column "${need}". Header: ${header.join(',')}`);
 }
 
@@ -57,6 +57,7 @@ for (let i = 1; i < lines.length; i++) {
   const hip = parseInt(f[col.hip], 10);
   const proper = (f[col.proper] || '').trim();
   const con = (f[col.con] || '').trim();
+  const distPc = parseFloat(f[col.dist]); // parsecs; HYG uses 100000 as an "unknown" placeholder
   stars.push({
     id,
     ra: round(raHours * 15, 4), // hours -> degrees
@@ -66,6 +67,7 @@ for (let i = 1; i < lines.length; i++) {
     name: proper || null,
     con: con || null,
     hip: Number.isFinite(hip) ? hip : null,
+    dist: (Number.isFinite(distPc) && distPc > 0 && distPc < 100000) ? round(distPc, 2) : null,
   });
 }
 stars.sort((a, b) => a.mag - b.mag);
