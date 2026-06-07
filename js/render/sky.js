@@ -23,7 +23,7 @@ export function resizeCanvas(canvas) {
 }
 
 function clear(ctx, width, height) {
-  ctx.fillStyle = '#05070d';
+  ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, width, height);
 }
 
