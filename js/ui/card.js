@@ -45,6 +45,8 @@ export function constellationName(abbr) {
 const AU_TO_KM = 1.495978707e8;
 const MIN_PER_AU = 8.317; // light travel time per AU
 
+let onCloseCb = null;
+
 function row(html) { const p = document.createElement('p'); p.className = 'card-line'; p.innerHTML = html; return p; }
 
 // Where the object is right now.
@@ -95,6 +97,7 @@ export function openCard(obj, ctx) {
   const host = document.getElementById('card-host');
   if (!host) return;
   host.innerHTML = '';
+  onCloseCb = (ctx && ctx.onClose) || null;
   const card = document.createElement('div');
   card.className = 'card';
   const close = document.createElement('button');
@@ -113,4 +116,6 @@ export function openCard(obj, ctx) {
 export function closeCard() {
   const host = document.getElementById('card-host');
   if (host) host.innerHTML = '';
+  const cb = onCloseCb; onCloseCb = null;
+  if (cb) cb();
 }

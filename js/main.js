@@ -10,7 +10,7 @@ import { createRenderScheduler } from './core/scheduler.js';
 import { attachInput } from './ui/input.js';
 import { splitSegments, toggleEdge, pickNearest, circularCentroid, exportFigures } from './edit/figures.js';
 import { createProjector } from './core/projection.js';
-import { openCard, colorWord } from './ui/card.js';
+import { openCard, closeCard, colorWord } from './ui/card.js';
 import { rankCandidates } from './guide/ranking.js';
 import { buildGuide } from './ui/guide.js';
 import { animateSlew } from './ui/slew.js';
@@ -29,6 +29,7 @@ let loadedRaw = [];   // the raw constellations.json array as loaded (basis for 
 let guide = null;
 let skyDirty = true; // next render recomputes the sky first (coalesces scrub/tick/edit recomputes)
 let selected = null;        // first star picked in edit mode (a skyObjects entry)
+let highlighted = null;     // object whose card is currently open (gets a ring on canvas)
 let editIndex = 0;          // index into figures[] of the currently active constellation
 let prevEdit = false;       // tracks previous edit-mode state to detect enter/exit transitions
 const FIGURES_KEY = 'skyscope.figures.v2';
@@ -104,6 +105,7 @@ function render() {
   });
   drawHud(ctx, cam);
   if (st.flags.edit) drawEditOverlay(ctx, cam);
+  drawHighlight(ctx, cam);
 }
 
 const requestRender = createRenderScheduler(render, (cb) => requestAnimationFrame(cb));
@@ -136,6 +138,11 @@ function onEditTap(x, y) {
   requestRecompute();
 }
 
+// Card context, incl. an onClose that clears the on-canvas highlight.
+function cardCtx(observer, time) {
+  return { observer, time, currentYear: new Date().getFullYear(), onClose: () => { highlighted = null; requestRender(); } };
+}
+
 // Outside edit mode, a tap identifies the nearest visible object and opens its card.
 function onIdentifyTap(x, y) {
   const st = store.getState();
@@ -149,13 +156,14 @@ function onIdentifyTap(x, y) {
   ].filter((o) => o.altaz.alt >= 0);
   const projected = candidates.map((o) => { const p = projector(o.altaz.az, o.altaz.alt); return { x: p.x, y: p.y, visible: p.visible, ref: o }; });
   const hit = pickNearest(projected, x, y, 18);
-  if (hit) openCard(hit, { observer, time, currentYear: new Date().getFullYear() });
+  if (hit) { highlighted = hit; openCard(hit, cardCtx(observer, time)); requestRender(); }
+  else { highlighted = null; closeCard(); requestRender(); }
 }
 
 // Candidate pool for the guide: bright named stars up + the Moon + naked-eye planets up.
 function buildPicks() {
   const stars = skyObjects
-    .filter((s) => s.name && s.altaz.alt >= 0 && s.mag <= 2.5)
+    .filter((s) => s.name && s.altaz.alt >= 0 && s.mag <= 2.0)
     .map((s) => ({ kind: 'star', name: s.name, mag: s.mag, bv: s.bv, con: s.con, dist: s.dist, altaz: s.altaz, why: `a bright ${colorWord(s.bv)} star` }));
   const bodies = markers
     .filter((m) => m.label !== 'Sun' && m.altaz.alt >= 0)
@@ -167,15 +175,15 @@ function buildPicks() {
   return rankCandidates([...bodies, ...stars]);
 }
 
-// Find: animate the view to center the pick, then open its card.
+// Find: open the card immediately, then slew to center the pick.
 function onFindObject(pick) {
   const st = store.getState();
   const observer = makeObserver(st.location.lat, st.location.lng);
   const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
+  highlighted = pick;
+  openCard(pick, cardCtx(observer, time));
   const targetFov = Math.max(12, Math.min(st.fov, 20)); // ease in a notch
-  animateSlew(store, { az: pick.altaz.az, alt: pick.altaz.alt, fov: targetFov }, {
-    onDone: () => openCard(pick, { observer, time, currentYear: new Date().getFullYear() }),
-  });
+  animateSlew(store, { az: pick.altaz.az, alt: pick.altaz.alt, fov: targetFov });
 }
 
 function onTap(x, y) {
@@ -239,6 +247,17 @@ function drawEditOverlay(ctx, cam) {
       ctx.stroke();
     }
   }
+}
+
+function drawHighlight(ctx, cam) {
+  if (!highlighted) return;
+  const p = createProjector(cam)(highlighted.altaz.az, highlighted.altaz.alt);
+  if (!p.visible) return;
+  ctx.strokeStyle = 'rgba(255, 220, 130, 0.9)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, 16, 0, Math.PI * 2);
+  ctx.stroke();
 }
 
 async function boot() {
