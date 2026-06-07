@@ -4,10 +4,10 @@ const REF_FOV = 60;           // baseline (naked-eye) FOV; zoom scale is 1 here
 const MAX_ZOOM_SCALE = 4;     // cap so zoomed-in stars don't balloon
 
 // --- Star size/brightness tunables (tweak to taste against a real sky chart) ---
-const STAR_BASE_R = 2.4;      // radius (px) of a magnitude-0 star at the widest FOV
-const STAR_MAG_SHRINK = 0.58; // radius multiplier per +1 magnitude (each fainter mag is smaller)
+const STAR_BASE_R = 9.4;      // radius (px) of a magnitude-0 star at the widest FOV
+const STAR_MAG_SHRINK = 0.6; // radius multiplier per +1 magnitude (each fainter mag is smaller)
 const STAR_MAX_R = 5;         // cap radius (px, at base zoom) so the brightest stars pop, not bloat
-const STAR_MIN_R = 0.7;       // below this, stop shrinking and fade via alpha instead
+const STAR_MIN_R = 1.0;       // below this, stop shrinking and fade via alpha instead
 const STAR_DIM_EXP = 1.5;     // how steeply sub-pixel (faint) stars fade out
 
 // Zoom multiplier: 1 at the widest FOV, growing sub-linearly so zooming magnifies, capped.
