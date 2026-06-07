@@ -1,6 +1,7 @@
 import { createProjector } from '../core/projection.js';
 import { starSize, bvToRGB, zoomScale, colorBrightness } from './starstyle.js';
 import { drawConstellations } from './constellations.js';
+import { degToRad } from '../core/angles.js';
 
 const STAR_MARGIN = 22; // px; covers the largest zoomed star disc (STAR_MAX_R * MAX_ZOOM_SCALE) at the edge
 const STAR_LABEL_MAG = 2.5; // only label the brightest named stars, to keep the view uncluttered
@@ -53,8 +54,20 @@ function drawStars(ctx, stars, projector, cam) {
   ctx.globalAlpha = 1;
 }
 
+const MARKER_MIN_R = 5; // px floor so the Sun/Moon stay visible/obvious even at the widest FOV
+
+// Disk radius (px) for a marker. Sun/Moon carry angularRadiusDeg -> projected to true on-screen
+// size for the current FOV (grows as you zoom in), floored. Others use a fixed radius.
+function markerRadius(m, cam) {
+  if (m.angularRadiusDeg != null) {
+    const focal = (cam.width / 2) / Math.tan(degToRad(cam.fov) / 2);
+    return Math.max(focal * Math.tan(degToRad(m.angularRadiusDeg)), MARKER_MIN_R);
+  }
+  return m.radius || 4;
+}
+
 // markers: array of { altaz, label, color, radius? } (radius defaults to 4)
-function drawMarkers(ctx, markers, projector) {
+function drawMarkers(ctx, markers, projector, cam) {
   ctx.font = '13px system-ui, sans-serif';
   for (const m of markers) {
     if (m.altaz.alt < 0) continue;
@@ -62,7 +75,7 @@ function drawMarkers(ctx, markers, projector) {
     if (!p.visible) continue;
     ctx.fillStyle = m.color || '#ffd27f';
     ctx.beginPath();
-    ctx.arc(p.x, p.y, m.radius || 4, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, markerRadius(m, cam), 0, Math.PI * 2);
     ctx.fill();
     ctx.fillText(m.label, p.x + 7, p.y - 7);
   }
@@ -83,6 +96,6 @@ export function drawScene(ctx, { stars, markers, constellations = [], cam }) {
   clear(ctx, cam.width, cam.height);
   drawConstellations(ctx, projector, constellations, cam);
   drawStars(ctx, stars, projector, cam);
-  drawMarkers(ctx, markers, projector);
+  drawMarkers(ctx, markers, projector, cam);
   drawReticle(ctx, cam);
 }

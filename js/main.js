@@ -1,5 +1,5 @@
 import { createState } from './core/state.js';
-import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude } from './core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg } from './core/astro.js';
 import { PLANETS, planetRadius } from './render/planets.js';
 import { drawScene, resizeCanvas } from './render/sky.js';
 import { drawHud } from './render/hud.js';
@@ -36,8 +36,8 @@ function computeSky() {
     radius: planetRadius(bodyMagnitude(p.body, time)),
   }));
   markers = [
-    { altaz: altAzOfBody(Body.Moon, observer, time), label: 'Moon', color: '#e8e8e8', radius: 5 },
-    { altaz: altAzOfBody(Body.Sun, observer, time), label: 'Sun', color: '#ffd27f', radius: 6 },
+    { altaz: altAzOfBody(Body.Moon, observer, time), label: 'Moon', color: '#e8e8e8', angularRadiusDeg: bodyAngularRadiusDeg(Body.Moon, observer, time) },
+    { altaz: altAzOfBody(Body.Sun, observer, time), label: 'Sun', color: '#ffd27f', angularRadiusDeg: bodyAngularRadiusDeg(Body.Sun, observer, time) },
     ...planetMarkers,
   ];
   constellations = constellationData.map((c) => ({
