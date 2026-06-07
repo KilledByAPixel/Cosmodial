@@ -23,3 +23,18 @@ html, body { margin: 0; height: 100%; background: #05070d; overflow: hidden; }
 #controls .now-badge { min-width: 130px; opacity: 0.7; }
 #controls .now-badge.live { color: #8fdcb0; opacity: 1; }
 @media (max-width: 640px) { #controls { font-size: 12px; gap: 6px 10px; } #controls input[type="range"] { width: 120px; } }
+
+#card-host:empty { display: none; }
+#card-host { position: fixed; left: 0; right: 0; bottom: 48px; display: flex; justify-content: center; pointer-events: none; z-index: 5; }
+.card {
+  pointer-events: auto; position: relative; width: min(420px, calc(100vw - 24px));
+  margin: 0 12px; padding: 14px 16px; border-radius: 12px;
+  background: rgba(12, 16, 26, 0.96); border: 1px solid #2a3550; color: #dce3f0;
+  font: 14px/1.45 system-ui, sans-serif; box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+}
+.card-title { margin: 0 28px 8px 0; font-size: 18px; }
+.card-line { margin: 4px 0; }
+.card-line b { color: #aebbd6; font-weight: 600; }
+.card-close { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; padding: 0;
+  font-size: 20px; line-height: 1; color: #cdd6e6; background: #1b2336; border: 1px solid #2a3550; border-radius: 6px; cursor: pointer; }
+.card-close:hover { background: #243049; }
