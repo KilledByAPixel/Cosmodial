@@ -61,9 +61,13 @@ for (const f of features) {
   }
   if (!lines.length) continue;
 
-  const cx = allPts.reduce((s, p) => s + p[0], 0) / allPts.length;
+  // RA is circular: average unit vectors (atan2 of mean sin/cos) so labels for constellations that
+  // straddle RA 0h/360h land on the figure, not on the far side. Dec is a plain mean.
+  const sinSum = allPts.reduce((s, p) => s + Math.sin(p[0] * Math.PI / 180), 0);
+  const cosSum = allPts.reduce((s, p) => s + Math.cos(p[0] * Math.PI / 180), 0);
+  const cx = wrapRa(Math.atan2(sinSum, cosSum) * 180 / Math.PI);
   const cy = allPts.reduce((s, p) => s + p[1], 0) / allPts.length;
-  out.push({ name, label: [round(wrapRa(cx)), round(cy)], lines });
+  out.push({ name, label: [round(cx), round(cy)], lines });
 }
 
 out.sort((a, b) => a.name.localeCompare(b.name));
