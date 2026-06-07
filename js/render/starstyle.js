@@ -5,16 +5,17 @@ const REF_FOV = 60;         // baseline (naked-eye) FOV; star zoom-scale is 1 he
 const MAX_ZOOM_SCALE = 4;   // cap so zoomed-in stars stay dots, not big blobs
 
 // Apparent magnitude -> point radius in pixels. Brighter (smaller mag) -> larger.
-export function magnitudeToRadius(mag, { maxMag = 7, minR = 0.85, maxR = 3.2 } = {}) {
+export function magnitudeToRadius(mag, { maxMag = 7, minR = 0.6, maxR = 3.2 } = {}) {
   const t = clamp((maxMag - mag) / (maxMag - BRIGHTEST_MAG), 0, 1); // mag in [BRIGHTEST_MAG, maxMag] -> t in [1, 0]
   return minR + (maxR - minR) * Math.pow(t, 0.8);
 }
 
-// Apparent magnitude -> opacity (0..1). Floor kept high so even faint stars read clearly.
-// Note: with the 0.6 floor, everything fainter than ~mag 4 renders at the floor, so the visible
-// gradient spans roughly the bright half (mag ~ -1.5..4); maxMag mainly bounds magnitudeToRadius.
+// Apparent magnitude -> opacity (0..1). Stars are kept near max brightness on purpose: magnitude
+// is conveyed by SIZE (magnitudeToRadius), not by dimming. The 0.9 floor means nearly every star
+// renders at ~full brightness; a deep-red star still reads slightly dimmer because its blackbody
+// RGB has lower green/blue channels.
 export function magnitudeToOpacity(mag, { maxMag = 7 } = {}) {
-  return clamp(1 - mag / (maxMag + 3), 0.6, 1);
+  return clamp(1 - mag / (maxMag + 3), 0.9, 1);
 }
 
 // Star-size multiplier as you zoom in: 1 at the widest FOV, growing sub-linearly (sqrt of the

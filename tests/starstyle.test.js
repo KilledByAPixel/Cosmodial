@@ -35,7 +35,7 @@ test('zoomScale grows stars as FOV shrinks, capped at the max', () => {
   assert.equal(zoomScale(1), 4, 'capped at the max zoom scale');
 });
 
-test('opacity floor keeps faint stars clearly visible', () => {
-  assert.ok(magnitudeToOpacity(7) >= 0.6, 'even the faintest stars stay bright');
+test('stars stay near max brightness (magnitude shown by size, not dimming)', () => {
+  assert.ok(magnitudeToOpacity(7) >= 0.9, 'even the faintest stars are near full brightness');
   assert.equal(magnitudeToOpacity(0), 1, 'brightest stars are full opacity');
 });
