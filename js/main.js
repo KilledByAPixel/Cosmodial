@@ -43,9 +43,10 @@ function loadSavedFigures(currentFile) {
   } catch { return null; }
 }
 
-// Recompute alt/az for every object. Depends only on time + location (no UI for those yet, so
-// this runs once at boot; Plan 4's time controls will call it again when the clock changes — and
-// must call requestRender() afterward, since time isn't in the store and nothing re-renders on its own).
+// Recompute alt/az for every object from the current time + location. Called only from render()
+// when skyDirty is set (via requestRecompute), so location/time/scrub/edit changes and the live
+// tick all coalesce into one recompute per frame. The EQJ->EQD precession is computed once here
+// (makeStarAltAz) rather than per star.
 function computeSky() {
   const st = store.getState();
   const observer = makeObserver(st.location.lat, st.location.lng);
