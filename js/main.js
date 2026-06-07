@@ -1,6 +1,7 @@
 import { createState } from './core/state.js';
 import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body } from './core/astro.js';
 import { drawScene, resizeCanvas } from './render/sky.js';
+import { drawHud } from './render/hud.js';
 import { createRenderScheduler } from './core/scheduler.js';
 import { attachInput } from './ui/input.js';
 
@@ -36,6 +37,7 @@ function render() {
   const st = store.getState();
   const cam = { az: st.aim.az, alt: st.aim.alt, fov: st.fov, width: view.width, height: view.height };
   drawScene(ctx, { stars: skyObjects, markers, cam });
+  drawHud(ctx, cam);
 }
 
 const requestRender = createRenderScheduler(render, (cb) => requestAnimationFrame(cb));
