@@ -1,7 +1,7 @@
 import { createProjector } from '../core/projection.js';
-import { magnitudeToRadius, bvToRGB, zoomScale, colorBrightness } from './starstyle.js';
+import { starSize, bvToRGB, zoomScale, colorBrightness } from './starstyle.js';
 
-const STAR_MARGIN = 14; // px; covers the largest zoomed star disc (maxR * MAX_ZOOM_SCALE) overlapping the edge
+const STAR_MARGIN = 22; // px; covers the largest zoomed star disc (STAR_MAX_R * MAX_ZOOM_SCALE) at the edge
 const STAR_LABEL_MAG = 2.5; // only label the brightest named stars, to keep the view uncluttered
 const STAR_LABEL_COLOR = 'rgba(150, 190, 230, 0.9)';
 const LABEL_FONT = '11px system-ui, sans-serif';
@@ -36,10 +36,11 @@ function drawStars(ctx, stars, projector, cam) {
         p.x < -STAR_MARGIN || p.x > cam.width + STAR_MARGIN ||
         p.y < -STAR_MARGIN || p.y > cam.height + STAR_MARGIN) continue;
     const c = bvToRGB(s.bv);
-    ctx.globalAlpha = colorBrightness(c);
+    const { radius, alpha } = starSize(s.mag, zs);
+    ctx.globalAlpha = alpha * colorBrightness(c);
     ctx.fillStyle = `rgb(${c.r}, ${c.g}, ${c.b})`;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, magnitudeToRadius(s.mag) * zs, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
     ctx.fill();
     // Label only the brightest named stars so they can be matched against a sky chart.
     if (s.name && s.mag <= STAR_LABEL_MAG) {
