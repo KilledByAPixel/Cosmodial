@@ -2,6 +2,7 @@ import { createState } from './core/state.js';
 import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body } from './core/astro.js';
 import { drawScene, resizeCanvas } from './render/sky.js';
 import { createRenderScheduler } from './core/scheduler.js';
+import { attachInput } from './ui/input.js';
 
 const canvas = document.getElementById('sky');
 const ctx = canvas.getContext('2d');
@@ -50,6 +51,7 @@ async function boot() {
   computeSky();                 // must run before subscribe/first render so the sky isn't blank
   store.subscribe(requestRender);
   window.addEventListener('resize', requestRender);
+  attachInput(canvas, store);
   requestRender();
 }
 
