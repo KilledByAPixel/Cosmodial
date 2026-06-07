@@ -27,19 +27,24 @@ function norm(v) {
 export function createProjector(cam) {
   const F = vec(cam.az, cam.alt);
   const upRef = Math.abs(cam.alt) > 89.5 ? [0, 1, 0] : [0, 0, 1];
-  const right = norm(cross(F, upRef));
-  const up = norm(cross(right, F));
+  const right = norm(cross(F, upRef));            // +x: world East when facing the horizon
+  const up = norm(cross(right, F));               // +y: toward the zenith
   const focal = (cam.width / 2) / Math.tan(degToRad(cam.fov) / 2);
   const cx = cam.width / 2, cy = cam.height / 2;
   return function projectPoint(az, alt) {
     const P = vec(az, alt);
     const z = dot(P, F);
     if (z <= 1e-6) return { x: NaN, y: NaN, visible: false };
-    return { x: cx + focal * (dot(P, right) / z), y: cy - focal * (dot(P, up) / z), visible: true };
+    return {
+      x: cx + focal * (dot(P, right) / z),
+      y: cy - focal * (dot(P, up) / z), // screen y grows downward
+      visible: true,
+    };
   };
 }
 
 // Project a single sky point (az, alt) for a one-off use. Delegates to createProjector.
+// NOTE: builds a fresh projector each call — use createProjector(cam) for batches (per-frame star loops).
 export function project(az, alt, cam) {
   return createProjector(cam)(az, alt);
 }

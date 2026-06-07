@@ -40,6 +40,7 @@ function drawStars(ctx, stars, projector, cam) {
     ctx.beginPath();
     ctx.arc(p.x, p.y, magnitudeToRadius(s.mag), 0, Math.PI * 2);
     ctx.fill();
+    // Label only the brightest named stars so they can be matched against a sky chart.
     if (s.name && s.mag <= STAR_LABEL_MAG) {
       ctx.globalAlpha = 1;
       ctx.fillStyle = STAR_LABEL_COLOR;
