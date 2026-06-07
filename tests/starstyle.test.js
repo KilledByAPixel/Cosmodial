@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { magnitudeToRadius, magnitudeToOpacity, bvToRGB } from '../js/render/starstyle.js';
+import { magnitudeToRadius, magnitudeToOpacity, bvToRGB, zoomScale } from '../js/render/starstyle.js';
 
 test('brighter stars (smaller mag) are larger and more opaque', () => {
   assert.ok(magnitudeToRadius(0) > magnitudeToRadius(5));
@@ -26,4 +26,16 @@ test('B-V color index maps to believable tints', () => {
 test('missing B-V does not crash', () => {
   const c = bvToRGB(null);
   assert.ok(Number.isFinite(c.r) && Number.isFinite(c.g) && Number.isFinite(c.b));
+});
+
+test('zoomScale grows stars as FOV shrinks, capped at the max', () => {
+  assert.ok(Math.abs(zoomScale(60) - 1) < 1e-9, 'baseline 1 at the widest FOV');
+  assert.ok(zoomScale(15) > zoomScale(60), 'zooming in grows stars');
+  assert.ok(zoomScale(15) > 1 && zoomScale(15) <= 4, 'within bounds');
+  assert.equal(zoomScale(1), 4, 'capped at the max zoom scale');
+});
+
+test('opacity floor keeps faint stars clearly visible', () => {
+  assert.ok(magnitudeToOpacity(7) >= 0.6, 'even the faintest stars stay bright');
+  assert.equal(magnitudeToOpacity(0), 1, 'brightest stars are full opacity');
 });

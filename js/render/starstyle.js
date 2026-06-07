@@ -1,16 +1,24 @@
 import { clamp } from '../core/angles.js';
 
 const BRIGHTEST_MAG = -1.5; // ~Sirius; the bright end of the magnitude normalization range
+const REF_FOV = 60;         // baseline (naked-eye) FOV; star zoom-scale is 1 here
+const MAX_ZOOM_SCALE = 4;   // cap so zoomed-in stars stay dots, not big blobs
 
 // Apparent magnitude -> point radius in pixels. Brighter (smaller mag) -> larger.
-export function magnitudeToRadius(mag, { maxMag = 6, minR = 0.5, maxR = 3.2 } = {}) {
+export function magnitudeToRadius(mag, { maxMag = 7, minR = 0.85, maxR = 3.2 } = {}) {
   const t = clamp((maxMag - mag) / (maxMag - BRIGHTEST_MAG), 0, 1); // mag in [BRIGHTEST_MAG, maxMag] -> t in [1, 0]
   return minR + (maxR - minR) * Math.pow(t, 0.8);
 }
 
-// Apparent magnitude -> opacity (0..1).
-export function magnitudeToOpacity(mag, { maxMag = 6 } = {}) {
-  return clamp(1 - mag / (maxMag + 1), 0.25, 1);
+// Apparent magnitude -> opacity (0..1). Floor kept high so even faint stars read clearly.
+export function magnitudeToOpacity(mag, { maxMag = 7 } = {}) {
+  return clamp(1 - mag / (maxMag + 3), 0.6, 1);
+}
+
+// Star-size multiplier as you zoom in: 1 at the widest FOV, growing sub-linearly (sqrt of the
+// zoom factor) so zooming feels like magnification, capped so stars never balloon.
+export function zoomScale(fov, { refFov = REF_FOV, maxScale = MAX_ZOOM_SCALE } = {}) {
+  return clamp(Math.sqrt(refFov / fov), 1, maxScale);
 }
 
 // Color temperature (Kelvin) -> {r,g,b} 0..255 (Tanner Helland approximation).
