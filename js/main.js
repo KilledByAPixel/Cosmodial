@@ -10,6 +10,7 @@ import { createRenderScheduler } from './core/scheduler.js';
 import { attachInput } from './ui/input.js';
 import { splitSegments, toggleEdge, pickNearest, circularCentroid, exportFigures } from './edit/figures.js';
 import { createProjector } from './core/projection.js';
+import { openCard } from './ui/card.js';
 
 const canvas = document.getElementById('sky');
 const ctx = canvas.getContext('2d');
@@ -55,17 +56,18 @@ function computeSky() {
   skyObjects = stars.map((s) => ({
     altaz: toAltAz(s.ra, s.dec),
     mag: s.mag, bv: s.bv, name: s.name,
-    id: s.id, ra: s.ra, dec: s.dec, con: s.con,
+    id: s.id, ra: s.ra, dec: s.dec, con: s.con, dist: s.dist,
   }));
   const planetMarkers = PLANETS.map((p) => ({
     altaz: altAzOfBody(p.body, observer, time),
     label: p.name,
     color: p.color,
     radius: planetRadius(bodyMagnitude(p.body, time)),
+    body: p.body,
   }));
   markers = [
-    { altaz: altAzOfBody(Body.Moon, observer, time), label: 'Moon', color: '#e8e8e8', angularRadiusDeg: bodyAngularRadiusDeg(Body.Moon, observer, time) },
-    { altaz: altAzOfBody(Body.Sun, observer, time), label: 'Sun', color: '#ffd27f', angularRadiusDeg: bodyAngularRadiusDeg(Body.Sun, observer, time) },
+    { altaz: altAzOfBody(Body.Moon, observer, time), label: 'Moon', color: '#e8e8e8', angularRadiusDeg: bodyAngularRadiusDeg(Body.Moon, observer, time), body: Body.Moon },
+    { altaz: altAzOfBody(Body.Sun, observer, time), label: 'Sun', color: '#ffd27f', angularRadiusDeg: bodyAngularRadiusDeg(Body.Sun, observer, time), body: Body.Sun },
     ...planetMarkers,
   ];
   constellations = figures.map((f) => {
@@ -126,6 +128,27 @@ function onEditTap(x, y) {
   saveFigures();
   selected = null;
   requestRecompute();
+}
+
+// Outside edit mode, a tap identifies the nearest visible object and opens its card.
+function onIdentifyTap(x, y) {
+  const st = store.getState();
+  const observer = makeObserver(st.location.lat, st.location.lng);
+  const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
+  const cam = { az: st.aim.az, alt: st.aim.alt, fov: st.fov, width: canvas.clientWidth, height: canvas.clientHeight };
+  const projector = createProjector(cam);
+  const candidates = [
+    ...skyObjects.map((s) => ({ kind: 'star', name: s.name, mag: s.mag, bv: s.bv, con: s.con, dist: s.dist, altaz: s.altaz })),
+    ...markers.map((m) => ({ kind: m.label === 'Moon' ? 'moon' : m.label === 'Sun' ? 'sun' : 'planet', label: m.label, body: m.body, altaz: m.altaz })),
+  ].filter((o) => o.altaz.alt >= 0);
+  const projected = candidates.map((o) => { const p = projector(o.altaz.az, o.altaz.alt); return { x: p.x, y: p.y, visible: p.visible, ref: o }; });
+  const hit = pickNearest(projected, x, y, 18);
+  if (hit) openCard(hit, { observer, time, currentYear: new Date().getFullYear() });
+}
+
+function onTap(x, y) {
+  if (store.getState().flags.edit) onEditTap(x, y);
+  else onIdentifyTap(x, y);
 }
 
 function centerOnActive() {
@@ -216,7 +239,7 @@ async function boot() {
   setInterval(() => { if (store.getState().time.live) requestRecompute(); }, 30000); // keep live sky current
   store.subscribe(onEditToggle);
   window.addEventListener('resize', requestRender);
-  attachInput(canvas, store, { onTap: onEditTap, onAction: onEditAction });
+  attachInput(canvas, store, { onTap, onAction: onEditAction });
   const controls = document.getElementById('controls');
   if (controls) controls.append(buildLocationControl(store), buildTimeControls(store));
   requestRender();

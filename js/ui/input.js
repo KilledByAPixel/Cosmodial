@@ -66,7 +66,7 @@ export function attachInput(canvas, store, opts = {}) {
   };
 
   const onEnd = (e) => {
-    if (downAt && !downAt.moved && pointers.size === 1 && store.getState().flags.edit && opts.onTap) {
+    if (downAt && !downAt.moved && pointers.size === 1 && opts.onTap) {
       opts.onTap(downAt.x, downAt.y);
     }
     if (pointers.size <= 1) downAt = null;
