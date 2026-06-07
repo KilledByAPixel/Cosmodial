@@ -38,3 +38,25 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 .card-close { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; padding: 0;
   font-size: 20px; line-height: 1; color: #cdd6e6; background: #1b2336; border: 1px solid #2a3550; border-radius: 6px; cursor: pointer; }
 .card-close:hover { background: #243049; }
+
+.guide { position: fixed; top: 8px; left: 8px; z-index: 6; width: min(320px, calc(100vw - 16px));
+  font: 13px/1.4 system-ui, sans-serif; color: #dce3f0; }
+.guide-toggle { font: inherit; color: #cdd6e6; background: rgba(18,24,38,0.92); border: 1px solid #2a3550;
+  border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+.guide-toggle:hover { background: #1b2336; }
+.guide-body { margin-top: 6px; padding: 10px 12px; border-radius: 10px;
+  background: rgba(12,16,26,0.95); border: 1px solid #2a3550; box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+  max-height: calc(100vh - 64px); overflow-y: auto; }
+.guide.collapsed .guide-body { display: none; }
+.guide-headline { margin: 0 0 8px; opacity: 0.95; }
+.guide-picks { list-style: none; margin: 0; padding: 0; }
+.guide-pick { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid #1d2740; }
+.guide-pick:first-child { border-top: 0; }
+.pick-text { flex: 1; min-width: 0; }
+.pick-name { font-weight: 600; }
+.pick-ease { font-size: 11px; color: #8fb0e0; }
+.pick-where { color: #9fb0cc; }
+.pick-find { font: inherit; color: #cdd6e6; background: #1b2336; border: 1px solid #2a3550;
+  border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+.pick-find:hover { background: #243049; }
+.guide-seeall { margin-top: 6px; font: inherit; color: #8fb0e0; background: none; border: 0; padding: 4px 0; cursor: pointer; }
