@@ -1,16 +1,29 @@
 import { clamp } from '../core/angles.js';
 
 const BRIGHTEST_MAG = -1.5; // ~Sirius; the bright end of the magnitude normalization range
+const REF_FOV = 60;         // baseline (naked-eye) FOV; star zoom-scale is 1 here
+const MAX_ZOOM_SCALE = 4;   // cap so zoomed-in stars stay dots, not big blobs
 
 // Apparent magnitude -> point radius in pixels. Brighter (smaller mag) -> larger.
-export function magnitudeToRadius(mag, { maxMag = 6, minR = 0.5, maxR = 3.2 } = {}) {
+// Magnitude is conveyed by SIZE (not by dimming): faint stars are small but still bright.
+export function magnitudeToRadius(mag, { maxMag = 7, minR = 0.6, maxR = 3.2 } = {}) {
   const t = clamp((maxMag - mag) / (maxMag - BRIGHTEST_MAG), 0, 1); // mag in [BRIGHTEST_MAG, maxMag] -> t in [1, 0]
   return minR + (maxR - minR) * Math.pow(t, 0.8);
 }
 
-// Apparent magnitude -> opacity (0..1).
-export function magnitudeToOpacity(mag, { maxMag = 6 } = {}) {
-  return clamp(1 - mag / (maxMag + 1), 0.25, 1);
+// Star-size multiplier as you zoom in: 1 at the widest FOV, growing sub-linearly (sqrt of the
+// zoom factor) so zooming feels like magnification, capped so stars never balloon.
+export function zoomScale(fov, { refFov = REF_FOV, maxScale = MAX_ZOOM_SCALE } = {}) {
+  return clamp(Math.sqrt(refFov / fov), 1, maxScale);
+}
+
+// Opacity for a star, from its RGB colour. Stars render near max brightness; a strongly-coloured
+// (saturated) star is drawn a touch dimmer than a white one, since a saturated dot otherwise reads
+// as harshly bright. base = brightness of a white star; colorPenalty = how much saturation dims it.
+export function colorBrightness({ r, g, b }, { base = 0.9, colorPenalty = 0.3 } = {}) {
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const sat = max > 0 ? (max - min) / max : 0;
+  return clamp(base - sat * colorPenalty, 0, 1);
 }
 
 // Color temperature (Kelvin) -> {r,g,b} 0..255 (Tanner Helland approximation).
