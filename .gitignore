@@ -17,3 +17,6 @@ tmp/
 # Large intermediate data-prep downloads (the trimmed JSON in /data is committed; raw dumps are not)
 tools/cache/
 *.csv
+
+# local human notes
+notes.txt
