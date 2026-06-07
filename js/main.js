@@ -5,6 +5,8 @@ import { drawScene, resizeCanvas } from './render/sky.js';
 import { drawHud } from './render/hud.js';
 import { createRenderScheduler } from './core/scheduler.js';
 import { attachInput } from './ui/input.js';
+import { splitSegments, toggleEdge, pickNearest, circularCentroid, exportFigures } from './edit/figures.js';
+import { createProjector } from './core/projection.js';
 
 const canvas = document.getElementById('sky');
 const ctx = canvas.getContext('2d');
@@ -13,8 +15,16 @@ const store = createState();
 let stars = [];        // raw catalogue from stars.json
 let skyObjects = [];   // { altaz, mag, bv, name } for the current time/location
 let markers = [];      // Sun/Moon/planet markers { altaz, label, color, radius }
-let constellationData = [];   // raw RA/Dec polylines from constellations.json
-let constellations = [];      // cached alt/az for the current time/location
+let figures = [];        // editable source: [{name, abbr, lines:[[[ra,dec],[ra,dec]],...]}] (2-point segments)
+let constellations = []; // derived render data: [{name, label:{alt,az}, lines:[[{alt,az},...]]}]
+const FIGURES_KEY = 'skyscope.figures';
+const labelOf = (f) => circularCentroid(f.lines.flat()); // [ra,dec] label position for a figure
+
+function loadSavedFigures() {
+  if (typeof localStorage === 'undefined') return null;
+  try { const raw = localStorage.getItem(FIGURES_KEY); return raw ? JSON.parse(raw) : null; }
+  catch { return null; }
+}
 
 // Recompute alt/az for every object. Depends only on time + location (no UI for those yet, so
 // this runs once at boot; Plan 4's time controls will call it again when the clock changes — and
@@ -25,9 +35,8 @@ function computeSky() {
   const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
   skyObjects = stars.map((s) => ({
     altaz: altAzOfStar(s.ra, s.dec, observer, time),
-    mag: s.mag,
-    bv: s.bv,
-    name: s.name,
+    mag: s.mag, bv: s.bv, name: s.name,
+    id: s.id, ra: s.ra, dec: s.dec, con: s.con,
   }));
   const planetMarkers = PLANETS.map((p) => ({
     altaz: altAzOfBody(p.body, observer, time),
@@ -40,11 +49,14 @@ function computeSky() {
     { altaz: altAzOfBody(Body.Sun, observer, time), label: 'Sun', color: '#ffd27f', angularRadiusDeg: bodyAngularRadiusDeg(Body.Sun, observer, time) },
     ...planetMarkers,
   ];
-  constellations = constellationData.map((c) => ({
-    name: c.name,
-    label: altAzOfStar(c.label[0], c.label[1], observer, time),
-    lines: c.lines.map((poly) => poly.map(([ra, dec]) => altAzOfStar(ra, dec, observer, time))),
-  }));
+  constellations = figures.map((f) => {
+    const [lra, ldec] = labelOf(f);
+    return {
+      name: f.name,
+      label: altAzOfStar(lra, ldec, observer, time),
+      lines: f.lines.map((seg) => seg.map(([ra, dec]) => altAzOfStar(ra, dec, observer, time))),
+    };
+  });
 }
 
 function render() {
@@ -70,13 +82,16 @@ async function boot() {
   } catch (err) {
     console.error('[skyscope] Failed to load star catalogue:', err);
   }
+  let loaded = [];
   try {
     const cres = await fetch('./data/constellations.json');
     if (!cres.ok) throw new Error(`constellations.json: HTTP ${cres.status}`);
-    constellationData = await cres.json();
+    loaded = await cres.json();
   } catch (err) {
     console.error('[skyscope] Failed to load constellations:', err);
   }
+  const saved = loadSavedFigures();
+  figures = saved || splitSegments(loaded);
   computeSky();                 // must run before subscribe/first render so the sky isn't blank
   store.subscribe(requestRender);
   window.addEventListener('resize', requestRender);

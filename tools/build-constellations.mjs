@@ -27,6 +27,8 @@ const NAMES = {
   Vir: 'Virgo', Vol: 'Volans', Vul: 'Vulpecula',
 };
 
+const NAME_TO_ABBR = Object.fromEntries(Object.entries(NAMES).map(([abbr, name]) => [name, abbr]));
+
 // Curated subset of well-known / navigation constellations to ship.
 const CURATED = new Set([
   'Andromeda', 'Aquila', 'Auriga', 'Bootes', 'Canis Major', 'Canis Minor', 'Cassiopeia', 'Cepheus',
@@ -85,7 +87,7 @@ const out = [];
 for (const [name, segs] of Object.entries(OVERRIDES)) {
   if (!CURATED.has(name)) continue;
   const lines = segs.map(([a, b]) => [resolve(a), resolve(b)]);
-  out.push({ name, label: centroid(lines.flat()), lines });
+  out.push({ name, abbr: NAME_TO_ABBR[name] || name, label: centroid(lines.flat()), lines });
 }
 
 // 2) d3-celestial figures for the rest of the curated set.
@@ -104,7 +106,7 @@ for (const f of geo.features || []) {
     if (pts.length >= 2) lines.push(pts);
   }
   if (!lines.length) continue;
-  out.push({ name, label: centroid(allPts), lines });
+  out.push({ name, abbr: f.id, label: centroid(allPts), lines });
 }
 
 out.sort((a, b) => a.name.localeCompare(b.name));
