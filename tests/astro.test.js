@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeObserver, altAzOfStar, altAzOfBody, precessToDate, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, makeStarAltAz, nightWindow, bodyDistanceAu, moonPhaseName, moonPhaseInfo } from '../js/core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, precessToDate, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, makeStarAltAz, nightWindow, bodyDistanceAu, moonPhaseName, moonPhaseInfo, searchLunarEclipse, nextLunarEclipse } from '../js/core/astro.js';
 
 // Angular separation (deg) between two equatorial points given in degrees.
 function sepDeg(ra1, dec1, ra2, dec2) {
@@ -106,4 +106,24 @@ test('moonPhaseInfo returns illumPct 0..100 and a phase name; bodyDistanceAu is 
   assert.ok(moonAu > 0.002 && moonAu < 0.003, `Moon distance ${moonAu} AU (~0.00257)`);
   const marsAu = bodyDistanceAu(Body.Mars, obs, t);
   assert.ok(marsAu > 0.3 && marsAu < 3, `Mars distance ${marsAu} AU plausible`);
+});
+
+test('searchLunarEclipse finds the Mar 2025 total lunar eclipse with ordered contacts', () => {
+  const e = searchLunarEclipse(new Date('2025-03-01T00:00:00Z'));
+  assert.equal(e.kind, 'total');
+  assert.equal(e.peak.getUTCFullYear(), 2025);
+  assert.equal(e.peak.getUTCMonth(), 2); // March (0-based)
+  const c = e.contacts;
+  assert.ok(c.partialBegin < c.totalBegin, 'partial begins before totality');
+  assert.ok(c.totalBegin < c.peak, 'totality begins before peak');
+  assert.ok(c.peak.getTime() === e.peak.getTime(), 'contacts.peak === peak');
+  assert.ok(c.peak < c.totalEnd, 'peak before totality ends');
+  assert.ok(c.totalEnd < c.partialEnd, 'totality ends before partial ends');
+  assert.ok(e.totalityMinutes > 30 && e.totalityMinutes < 120, `totality ${e.totalityMinutes} min plausible`);
+});
+
+test('nextLunarEclipse returns the following eclipse (later peak)', () => {
+  const first = searchLunarEclipse(new Date('2025-03-01T00:00:00Z'));
+  const second = nextLunarEclipse(first.peak);
+  assert.ok(second.peak.getTime() > first.peak.getTime(), 'next eclipse is later');
 });

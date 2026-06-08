@@ -104,3 +104,35 @@ export function moonPhaseInfo(time) {
   const illum = Astronomy.Illumination(Body.Moon, time);
   return { illumPct: Math.round(illum.phase_fraction * 100), phaseName: moonPhaseName(Astronomy.MoonPhase(time)) };
 }
+
+const MIN_MS = 60 * 1000;
+
+// Normalize a vendor LunarEclipseInfo into our shape: JS Dates + per-phase contact times.
+// Contacts are peak ± semiduration (minutes); a contact is null when that phase doesn't occur.
+function normalizeLunarEclipse(info) {
+  const peak = info.peak.date; // AstroTime -> JS Date
+  const at = (sdMin, sign) => (sdMin > 0 ? new Date(peak.getTime() + sign * sdMin * MIN_MS) : null);
+  return {
+    kind: info.kind, // 'penumbral' | 'partial' | 'total'
+    peak,
+    contacts: {
+      partialBegin: at(info.sd_partial, -1),
+      totalBegin: at(info.sd_total, -1),
+      peak,
+      totalEnd: at(info.sd_total, +1),
+      partialEnd: at(info.sd_partial, +1),
+    },
+    totalityMinutes: info.sd_total > 0 ? info.sd_total * 2 : null,
+  };
+}
+
+// First lunar eclipse at/after `afterDate` (normalized). Penumbral/partial/total all returned;
+// callers filter. Always returns a result (the engine searches forward across full moons).
+export function searchLunarEclipse(afterDate) {
+  return normalizeLunarEclipse(Astronomy.SearchLunarEclipse(makeTime(afterDate)));
+}
+
+// The lunar eclipse after the one peaking at `afterPeakDate` (normalized).
+export function nextLunarEclipse(afterPeakDate) {
+  return normalizeLunarEclipse(Astronomy.NextLunarEclipse(makeTime(afterPeakDate)));
+}
