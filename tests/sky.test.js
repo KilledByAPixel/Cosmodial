@@ -81,6 +81,16 @@ test('drawStarPoints:false (WebGL mode) skips star discs + labels, clears transp
   assert.ok(ctx.calls.texts.includes('Moon'), 'marker label still drawn');
 });
 
+test('drawMarkerDiscs:false (WebGL mode) skips marker discs but keeps their labels', () => {
+  const ctx = stubCtx();
+  const cam = { az: 180, alt: 45, fov: 60, width: 800, height: 600 };
+  const stars = [];
+  const markers = [{ altaz: { alt: 40, az: 180 }, label: 'Moon', color: '#e8e8e8' }];
+  drawScene(ctx, { stars, markers, cam, drawStarPoints: false, drawMarkerDiscs: false });
+  assert.equal(ctx.calls.arc, 0, 'marker disc not drawn here (GL draws it)');
+  assert.ok(ctx.calls.texts.includes('Moon'), 'marker label still drawn on the 2D overlay');
+});
+
 test('drawStarLabels labels the brightest named stars only', () => {
   const ctx = stubCtx();
   const cam = { az: 180, alt: 45, fov: 60, width: 800, height: 600 };

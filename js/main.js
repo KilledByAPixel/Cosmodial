@@ -4,7 +4,7 @@ import { makeStarAltAz } from './core/astro.js';
 import { buildLocationControl } from './ui/location.js';
 import { buildTimeControls } from './ui/time-controls.js';
 import { PLANETS, planetRadius } from './render/planets.js';
-import { drawScene, drawStarLabels, resizeCanvas } from './render/sky.js';
+import { drawScene, drawStarLabels, markerRadius, resizeCanvas } from './render/sky.js';
 import { createStarfield } from './render/starfield-gl.js';
 import { drawHud } from './render/hud.js';
 import { createRenderScheduler } from './core/scheduler.js';
@@ -95,6 +95,13 @@ function computeSky() {
   }
 }
 
+// Approximate glow brightness (0..1) for a Sun/Moon/planet marker from its apparent magnitude:
+// brighter (smaller mag) glows more. The Sun marker has no mag field, so it gets the max.
+function markerAlpha(mag) {
+  if (mag == null || !Number.isFinite(mag)) return 1.0;
+  return Math.max(0.55, Math.min(1.0, 1.0 - (mag + 4) / 7 * 0.45));
+}
+
 function render() {
   if (skyDirty) {
     computeSky();
@@ -114,6 +121,13 @@ function render() {
   if (useGL) {
     starfield.resize(view.width, view.height, window.devicePixelRatio || 1);
     starfield.draw(cam, { showBelow: st.flags.sphere, edit: st.flags.edit });
+    // Sun/Moon/planets as glowing discs: size from markerRadius (angular for Sun/Moon, disk for
+    // planets), tint from the body's colour, brightness from magnitude. Hidden in edit mode.
+    const glMarkers = st.flags.edit ? [] : markers.map((m) => ({
+      az: m.altaz.az, alt: m.altaz.alt, color: m.color,
+      radiusPx: markerRadius(m, cam), alpha: markerAlpha(m.mag),
+    }));
+    starfield.drawMarkers(glMarkers, cam, { showBelow: st.flags.sphere });
   }
   drawScene(ctx, {
     stars: skyObjects,
@@ -125,6 +139,7 @@ function render() {
     grid: st.flags.grid && !st.flags.edit,   // hide the grid in edit mode to keep the figure clear
     sphere: st.flags.sphere,                 // also draw everything below the horizon
     drawStarPoints: !useGL,                  // GL draws the star discs; 2D only as the fallback
+    drawMarkerDiscs: !useGL,                 // GL draws the marker discs; 2D keeps only their labels
   });
   // In GL mode the star discs live on the GL canvas, so their labels are drawn here, after the
   // constellation lines (so labels sit on top), matching the old single-canvas order.

@@ -81,40 +81,51 @@ export function drawStarLabels(ctx, stars, projector, cam, labels = true, below 
 }
 
 const MARKER_MIN_R = 5; // px floor so the Sun/Moon stay visible/obvious even at the widest FOV
+// The Sun and Moon are really only ~0.5° across, which reads as a tiny dot on screen (the
+// "moon illusion" — people expect them bigger). Gently exaggerate their apparent size, as most
+// planetarium apps do, so they read as discs. 1 = true size; bump for a larger Sun/Moon.
+const SUN_MOON_SCALE = 2;
 
-// Disk radius (px) for a marker. Sun/Moon carry angularRadiusDeg -> projected to true on-screen
-// size for the current FOV (grows as you zoom in), floored. Others use a fixed radius.
-function markerRadius(m, cam) {
+// Disk radius (px) for a marker. Sun/Moon carry angularRadiusDeg -> projected to their true on-screen
+// size for the current FOV (grows as you zoom in), exaggerated by SUN_MOON_SCALE and floored. Others
+// use a fixed radius. Exported so the WebGL marker pass (starfield-gl.js, via main.js) sizes discs identically.
+export function markerRadius(m, cam) {
   if (m.angularRadiusDeg != null) {
     const focal = (cam.width / 2) / Math.tan(degToRad(cam.fov) / 2);
-    return Math.max(focal * Math.tan(degToRad(m.angularRadiusDeg)), MARKER_MIN_R);
+    return Math.max(focal * Math.tan(degToRad(m.angularRadiusDeg)) * SUN_MOON_SCALE, MARKER_MIN_R);
   }
   return m.radius || 4;
 }
 
-// markers: array of { altaz, label, color, radius? } (radius defaults to 4)
-function drawMarkers(ctx, markers, projector, cam, labels = true, below = false) {
+// markers: array of { altaz, label, color, radius? } (radius defaults to 4).
+// discs=false (WebGL mode): draw only the labels here; the glowing discs come from the GL pass.
+function drawMarkers(ctx, markers, projector, cam, labels = true, below = false, discs = true) {
   ctx.font = '13px system-ui, sans-serif';
   for (const m of markers) {
     if (!below && m.altaz.alt < 0) continue;
     const p = projector(m.altaz.az, m.altaz.alt);
     if (!p.visible) continue;
-    ctx.fillStyle = m.color || '#ffd27f';
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, markerRadius(m, cam), 0, Math.PI * 2);
-    ctx.fill();
-    if (labels) ctx.fillText(m.label, p.x + 7, p.y - 7);
+    if (discs) {
+      ctx.fillStyle = m.color || '#ffd27f';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, markerRadius(m, cam), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (labels) {
+      ctx.fillStyle = m.color || '#ffd27f';
+      ctx.fillText(m.label, p.x + 7, p.y - 7);
+    }
   }
 }
 
 // drawStarPoints=false (WebGL mode): the GL canvas draws the star discs, so skip them here and clear
 // transparent; star labels are drawn separately via drawStarLabels(). Default true keeps the
 // standalone 2D path (and tests) unchanged.
-export function drawScene(ctx, { stars, markers, constellations = [], cam, edit = false, labels = true, grid = false, sphere = false, drawStarPoints = true }) {
+export function drawScene(ctx, { stars, markers, constellations = [], cam, edit = false, labels = true, grid = false, sphere = false, drawStarPoints = true, drawMarkerDiscs = true }) {
   const projector = createProjector(cam);
   clear(ctx, cam.width, cam.height, !drawStarPoints);
   if (grid) drawGrid(ctx, projector, cam, sphere);
   drawConstellations(ctx, projector, constellations, cam, edit, labels, sphere);
   if (drawStarPoints) drawStars(ctx, stars, projector, cam, edit, labels, sphere);
-  drawMarkers(ctx, markers, projector, cam, labels, sphere);
+  drawMarkers(ctx, markers, projector, cam, labels, sphere, drawMarkerDiscs);
 }
