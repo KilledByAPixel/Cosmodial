@@ -22,7 +22,7 @@ export function createState() {
     time: { instant: null, live: true }, // instant set by setTime; null means "use Date.now() at read"
     aim: { az: 180, alt: 45 },
     fov: MAX_FOV,
-    flags: { lines: true, night: false, edit: false },
+    flags: { lines: true, labels: true, grid: false, night: false, edit: false },
   };
   const listeners = new Set();
   const emit = () => { for (const fn of listeners) fn(state); };

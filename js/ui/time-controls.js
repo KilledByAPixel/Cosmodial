@@ -1,7 +1,8 @@
-import { makeObserver, nightWindow } from '../core/astro.js';
-
 const HOUR = 3.6e6;
+const DAY = 24 * HOUR;
 const pad = (n) => String(n).padStart(2, '0');
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // 24h local HH:MM.
 export function formatClock(date) {
@@ -10,6 +11,14 @@ export function formatClock(date) {
 // 24h local HH:MM:SS (for the live ticking readout).
 export function formatClockSeconds(date) {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+// Short local date, e.g. "Sun Jun 7" (fixed labels so it's deterministic and locale-independent).
+export function formatDate(date) {
+  return `${WEEKDAYS[date.getDay()]} ${MONTHS[date.getMonth()]} ${date.getDate()}`;
+}
+// Value string for an <input type="datetime-local"> (local, minute precision).
+export function toLocalInputValue(date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 // Position 0..1 of `instant` within [start,end] (clamped).
@@ -25,80 +34,79 @@ export function scrubInstant(fraction, start, end) {
   return new Date(a + f * (b - a));
 }
 
-// Named jump targets. now=null (live); tonight=sunset+2h; midnight=next local 00:00 after ref.
-export function presetInstants({ sunset, sunrise, ref }) {
-  const tonight = sunset ? new Date(sunset.getTime() + 2 * HOUR) : null;
-  const midnight = new Date(ref);
-  midnight.setHours(24, 0, 0, 0); // roll to next local midnight
-  return { now: null, sunset, sunrise, tonight, midnight };
+// Local midnight (00:00:00.000) of the day containing `date`.
+export function startOfDay(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+// Where `instant` sits within its local day, as 0..1 (00:00 -> 0, 24:00 -> 1).
+export function dayFraction(instant) {
+  const start = startOfDay(instant);
+  return scrubFraction(instant, start, new Date(start.getTime() + DAY));
+}
+// Instant at `fraction` of the day that `refDay` falls on.
+export function instantOnDay(fraction, refDay) {
+  const start = startOfDay(refDay);
+  return scrubInstant(fraction, start, new Date(start.getTime() + DAY));
 }
 
-// Build the time control element. Drives store.setTime; reflects live/scrubbed status; ticks the clock.
+// Build the time control element. Drives store.setTime; reflects live/paused status; ticks the clock.
+// The slider scrubs across the full 24h of the selected day; Play/Pause toggles live tracking.
 export function buildTimeControls(store) {
   const el = document.createElement('div');
   el.className = 'ctrl ctrl-time';
   el.innerHTML = `
+    <button type="button" data-playpause></button>
     <span class="now-badge" data-status></span>
-    <button type="button" data-now>NOW</button>
-    <button type="button" data-preset="sunset">Sunset</button>
-    <button type="button" data-preset="tonight">Tonight</button>
-    <button type="button" data-preset="midnight">Midnight</button>
-    <button type="button" data-preset="sunrise">Sunrise</button>
-    <input type="range" data-scrub min="0" max="1000" value="0" title="Scrub through tonight" />
+    <input type="range" data-scrub min="0" max="1000" value="0" title="Scrub through the day" />
     <input type="datetime-local" data-datetime title="Jump to a date/time" />`;
 
   const status = el.querySelector('[data-status]');
   const scrub = el.querySelector('[data-scrub]');
+  const playpause = el.querySelector('[data-playpause]');
+  const datetime = el.querySelector('[data-datetime]');
 
-  // current night window for the active location (recomputed on demand)
-  let win = { sunset: null, sunrise: null };
-  const refreshWindow = () => {
-    const loc = store.getState().location;
-    win = nightWindow(makeObserver(loc.lat, loc.lng), new Date());
+  // The instant currently shown (real now when live, else the paused instant).
+  const shownInstant = () => {
+    const t = store.getState().time;
+    return t.live ? new Date() : new Date(t.instant);
   };
 
-  // presets
-  el.querySelectorAll('[data-preset]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      refreshWindow();
-      const when = presetInstants({ sunset: win.sunset, sunrise: win.sunrise, ref: new Date() })[btn.dataset.preset];
-      if (when) store.setTime(when, false);
-    });
+  // Play/Pause: pause freezes at the current instant; play returns to live "now".
+  playpause.addEventListener('click', () => {
+    if (store.getState().time.live) store.setTime(new Date(), false);
+    else store.setTime(null, true);
   });
-  el.querySelector('[data-now]').addEventListener('click', () => store.setTime(null, true));
 
-  // scrubber (scoped to tonight: sunset -> sunrise)
+  // Scrubber: jump to a time within the currently-shown day (grabbing it pauses live mode).
   scrub.addEventListener('input', () => {
-    if (!win.sunset || !win.sunrise) refreshWindow();
-    if (!win.sunset || !win.sunrise) return;
-    store.setTime(scrubInstant(Number(scrub.value) / 1000, win.sunset, win.sunrise), false);
+    store.setTime(instantOnDay(Number(scrub.value) / 1000, shownInstant()), false);
   });
 
-  // explicit date/time
-  el.querySelector('[data-datetime]').addEventListener('change', (e) => {
+  // Explicit date/time entry.
+  datetime.addEventListener('change', (e) => {
     const d = new Date(e.target.value);
     if (!Number.isNaN(d.getTime())) store.setTime(d, false);
   });
 
-  // status line + keep the slider in sync; recompute window when location changes
-  let lastLoc = '';
   const update = () => {
-    const st = store.getState();
-    const locKey = `${st.location.lat},${st.location.lng}`;
-    if (locKey !== lastLoc) { lastLoc = locKey; refreshWindow(); }
-    if (st.time.live) {
-      status.textContent = `NOW ${formatClockSeconds(new Date())}`;
-      status.classList.add('live');
-    } else {
-      const d = new Date(st.time.instant);
-      status.textContent = `⏸ ${formatClock(d)} ${d.toLocaleDateString()}`;
-      status.classList.remove('live');
-      if (win.sunset && win.sunrise) scrub.value = String(Math.round(scrubFraction(d, win.sunset, win.sunrise) * 1000));
+    const live = store.getState().time.live;
+    const d = shownInstant();
+    playpause.textContent = live ? '⏸ Pause' : '▶ Live';
+    playpause.setAttribute('aria-pressed', String(!live));
+    status.textContent = live
+      ? `● ${formatDate(d)} · ${formatClockSeconds(d)}`
+      : `⏸ ${formatDate(d)} · ${formatClock(d)}`;
+    status.classList.toggle('live', live);
+    scrub.value = String(Math.round(dayFraction(d) * 1000));
+    // Keep the date field reflecting the active instant, but don't fight the user while editing it.
+    if (typeof document === 'undefined' || document.activeElement !== datetime) {
+      datetime.value = toLocalInputValue(d);
     }
   };
   store.subscribe(update);
   setInterval(update, 1000); // ticks the live clock readout (display only; sky recompute is in main.js)
-  refreshWindow();
   update();
   return el;
 }

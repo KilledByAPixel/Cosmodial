@@ -13,6 +13,7 @@ import { createProjector } from './core/projection.js';
 import { openCard, closeCard, colorWord } from './ui/card.js';
 import { rankCandidates } from './guide/ranking.js';
 import { buildGuide } from './ui/guide.js';
+import { buildSearch, buildSearchIndex } from './ui/search.js';
 import { animateSlew } from './ui/slew.js';
 
 const canvas = document.getElementById('sky');
@@ -91,7 +92,10 @@ function render() {
   if (skyDirty) { computeSky(); skyDirty = false; }
   const view = resizeCanvas(canvas);
   const st = store.getState();
-  const cam = { az: st.aim.az, alt: st.aim.alt, fov: st.fov, width: view.width, height: view.height };
+  // Lift the compass ribbon/readout above the on-screen control bar so they aren't hidden behind it.
+  const controlsEl = document.getElementById('controls');
+  const bottomInset = controlsEl ? controlsEl.offsetHeight : 0;
+  const cam = { az: st.aim.az, alt: st.aim.alt, fov: st.fov, width: view.width, height: view.height, bottomInset };
   // In edit mode, show ONLY the active constellation's lines (focus); otherwise honor the lines flag.
   const visibleCons = st.flags.edit
     ? (constellations[editIndex] ? [constellations[editIndex]] : [])
@@ -102,6 +106,8 @@ function render() {
     constellations: visibleCons,
     cam,
     edit: st.flags.edit,
+    labels: st.flags.labels,
+    grid: st.flags.grid && !st.flags.edit,   // hide the grid in edit mode to keep the figure clear
   });
   drawHud(ctx, cam);
   if (st.flags.edit) drawEditOverlay(ctx, cam);
@@ -184,6 +190,45 @@ function onFindObject(pick) {
   openCard(pick, cardCtx(observer, time));
   const targetFov = Math.max(12, Math.min(st.fov, 20)); // ease in a notch
   animateSlew(store, { az: pick.altaz.az, alt: pick.altaz.alt, fov: targetFov });
+}
+
+// Search result chosen: resolve it to a live object and reuse Find (slew + card). Constellations
+// have no info card, so they just slew to their centroid with a highlight ring.
+function onSearchSelect(entry) {
+  if (entry.type === 'star') {
+    const s = skyObjects.find((o) => o.id === entry.ref);
+    if (s) onFindObject({ kind: 'star', name: s.name, mag: s.mag, bv: s.bv, con: s.con, dist: s.dist, altaz: s.altaz });
+  } else if (entry.type === 'body') {
+    const m = markers.find((o) => o.label === entry.ref);
+    if (m) {
+      const kind = m.label === 'Moon' ? 'moon' : m.label === 'Sun' ? 'sun' : 'planet';
+      onFindObject({ kind, label: m.label, body: m.body, mag: m.mag, altaz: m.altaz });
+    }
+  } else { // constellation
+    const c = constellations.find((o) => o.name === entry.ref);
+    if (c && c.label) {
+      highlighted = { altaz: c.label };
+      const st = store.getState();
+      animateSlew(store, { az: c.label.az, alt: c.label.alt, fov: Math.max(12, Math.min(st.fov, 20)) });
+    }
+  }
+}
+
+// A control-bar button that toggles a boolean state flag and reflects it via the `.on` class.
+function makeToggle(label, flag, className = '') {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = `view-toggle ${className}`.trim();
+  btn.textContent = label;
+  btn.addEventListener('click', () => store.setFlag(flag, !store.getState().flags[flag]));
+  const sync = () => {
+    const on = store.getState().flags[flag];
+    btn.classList.toggle('on', on);
+    btn.setAttribute('aria-pressed', String(on));
+  };
+  store.subscribe(sync);
+  sync();
+  return btn;
 }
 
 function onTap(x, y) {
@@ -292,19 +337,19 @@ async function boot() {
   window.addEventListener('resize', requestRender);
   attachInput(canvas, store, { onTap, onAction: onEditAction });
   const controls = document.getElementById('controls');
-  if (controls) controls.append(buildLocationControl(store), buildTimeControls(store));
-  const nightBtn = document.createElement('button');
-  nightBtn.type = 'button';
-  nightBtn.className = 'night-toggle';
-  nightBtn.textContent = '🌙 Night';
-  nightBtn.addEventListener('click', () => store.setFlag('night', !store.getState().flags.night));
-  if (controls) controls.append(nightBtn);
-  const applyNight = () => {
-    const on = store.getState().flags.night;
-    document.body.classList.toggle('night', on);
-    nightBtn.classList.toggle('on', on);
-    nightBtn.setAttribute('aria-pressed', String(on));
-  };
+  const bodyLabels = ['Moon', 'Sun', ...PLANETS.map((p) => p.name)];
+  const search = buildSearch(buildSearchIndex(stars, figures, bodyLabels), { onSelect: onSearchSelect });
+  if (controls) {
+    controls.append(buildLocationControl(store), search.el, buildTimeControls(store));
+    controls.append(
+      makeToggle('Constellations', 'lines'),
+      makeToggle('Labels', 'labels'),
+      makeToggle('Grid', 'grid'),
+      makeToggle('🌙 Night', 'night', 'night-toggle'),
+    );
+  }
+  // Night mode also tints the whole document (the toggle button's own state is handled by makeToggle).
+  const applyNight = () => document.body.classList.toggle('night', store.getState().flags.night);
   store.subscribe(applyNight);
   applyNight();
   guide = buildGuide(store, { onFind: onFindObject });

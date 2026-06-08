@@ -12,7 +12,7 @@ function visiblePoint(altaz, projector, edit) {
 
 // Draw constellation figures (cached alt/az), projected with the per-frame projector.
 // constellations: [ { name, label:{alt,az}, lines: [ [ {alt,az}, ... ], ... ] } ]
-export function drawConstellations(ctx, projector, constellations, cam, edit) {
+export function drawConstellations(ctx, projector, constellations, cam, edit, labels = true) {
   ctx.strokeStyle = LINE_COLOR;
   ctx.lineWidth = 1;
   for (const con of constellations) {
@@ -28,7 +28,8 @@ export function drawConstellations(ctx, projector, constellations, cam, edit) {
       if (drew) ctx.stroke(); // skip the no-op stroke when the whole polyline is off-screen
     }
   }
-  // Labels on top of the figures, only when on-screen.
+  // Labels on top of the figures, only when on-screen and the labels flag is on.
+  if (!labels) return;
   ctx.font = LABEL_FONT;
   ctx.fillStyle = LABEL_COLOR;
   for (const con of constellations) {
