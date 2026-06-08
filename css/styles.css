@@ -91,3 +91,16 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
   pointer-events: none; z-index: 9999; display: none; }
 body.night #night-overlay { display: block; }
 .night-toggle.on { color: #ff9a8c; border-color: #5a2a26; }
+
+.guide-event {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin: 0 0 6px; padding: 6px 10px; border-radius: 8px; font-size: 13px;
+  color: #dce4f5; background: rgba(70,110,210,0.20); border: 1px solid rgba(120,160,255,0.35);
+}
+.guide-event[hidden] { display: none; }
+.guide-event .event-text { line-height: 1.3; }
+.guide-event .event-action {
+  flex: none; cursor: pointer; font: inherit; color: #dce4f5;
+  background: #1b2336; border: 1px solid #2a3550; border-radius: 6px; padding: 3px 10px;
+}
+.guide-event .event-action:hover { background: #243152; }

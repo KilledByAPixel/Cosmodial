@@ -9,6 +9,7 @@ export function buildGuide(store, { onFind }) {
   const el = document.createElement('div');
   el.className = 'guide collapsed';
   el.innerHTML = `
+    <div class="guide-event" data-event hidden></div>
     <button type="button" class="guide-toggle" data-toggle>✦ Up now</button>
     <div class="guide-body">
       <p class="guide-headline" data-headline></p>
@@ -19,6 +20,7 @@ export function buildGuide(store, { onFind }) {
   const headlineEl = el.querySelector('[data-headline]');
   const picksEl = el.querySelector('[data-picks]');
   const seeAll = el.querySelector('[data-seeall]');
+  const eventEl = el.querySelector('[data-event]');
   let picks = [];
   let expanded = false;
 
@@ -52,5 +54,21 @@ export function buildGuide(store, { onFind }) {
     renderPicks();
   }
 
-  return { el, setPicks };
+  // event = { text, actionLabel, onAction } | null. Rendered above the toggle, visible when collapsed.
+  function setEvent(event) {
+    eventEl.innerHTML = '';
+    if (!event) { eventEl.hidden = true; return; }
+    eventEl.hidden = false;
+    const span = document.createElement('span');
+    span.className = 'event-text';
+    span.textContent = event.text;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'event-action';
+    btn.textContent = event.actionLabel;
+    btn.addEventListener('click', event.onAction);
+    eventEl.append(span, btn);
+  }
+
+  return { el, setPicks, setEvent };
 }
