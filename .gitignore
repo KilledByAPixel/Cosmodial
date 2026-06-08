@@ -20,3 +20,6 @@ tools/cache/
 
 # local stuff
 local/
+
+# Planning / design notes (kept local, not tracked)
+docs/
