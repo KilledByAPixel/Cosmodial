@@ -207,7 +207,7 @@ function onEditTap(x, y) {
 
 // Card context, incl. an onClose that clears the on-canvas highlight.
 function cardCtx(observer, time, eclipse = null) {
-  return { observer, time, currentYear: new Date().getFullYear(), eclipse, onClose: () => { highlighted = null; requestRender(); } };
+  return { observer, time, eclipse, onClose: () => { highlighted = null; requestRender(); } };
 }
 
 // Outside edit mode, a tap identifies the nearest visible object and opens its card.

@@ -29,14 +29,6 @@ export function distanceLy(distPc) {
   return distPc * PC_TO_LY;
 }
 
-// "the light you're seeing left it around <year>" (AD) or "... around <n> BC".
-export function lightLeftPhrase(distLy, currentYear) {
-  if (distLy == null || !Number.isFinite(distLy)) return null;
-  const y = Math.round(currentYear - distLy);
-  if (y > 0) return `the light you're seeing left it around ${y}`;
-  return `the light you're seeing left it around ${Math.abs(y) + 1} BC`; // no year 0
-}
-
 // IAU abbreviation -> full constellation name (falls through to the input if unknown).
 export function constellationName(abbr) {
   return NAMES[abbr] || abbr || '';
@@ -48,15 +40,6 @@ export function lightYears(ly) {
   if (ly >= 1e6) return `${+(ly / 1e6).toFixed(1)} million light-years`;
   if (ly >= 1e4) return `${Math.round(ly / 1e3)} thousand light-years`;
   return `${Math.round(ly)} light-years`;
-}
-
-// Light-travel-time line for a deep-sky object (handles million/thousand/plain), null-safe.
-export function lightTravelPhrase(ly) {
-  if (ly == null || !Number.isFinite(ly) || ly <= 0) return null;
-  const amount = ly >= 1e6 ? `${+(ly / 1e6).toFixed(1)} million`
-    : ly >= 1e4 ? `${Math.round(ly / 1e3)} thousand`
-    : `${Math.round(ly)}`;
-  return `the light reaching you tonight left it ~${amount} years ago`;
 }
 
 // Plain-language visibility phrase for an eclipse.
@@ -77,7 +60,6 @@ export function eclipseContacts(e) {
 }
 
 const AU_TO_KM = 1.495978707e8;
-const MIN_PER_AU = 8.317; // light travel time per AU
 
 let onCloseCb = null;
 
@@ -97,8 +79,6 @@ function bodyLines(obj, ctx) {
     const ly = distanceLy(obj.dist);
     if (ly != null) {
       lines.push(row(`<b>Distance:</b> ${ly < 100 ? ly.toFixed(1) : Math.round(ly).toLocaleString()} light-years`));
-      const phrase = lightLeftPhrase(ly, ctx.currentYear);
-      if (phrase) lines.push(row(`✨ ${phrase}.`));
     }
     lines.push(row(`<b>How to see it:</b> ${easeTag(obj.mag)} (magnitude ${obj.mag})`));
   } else if (obj.kind === 'moon') {
@@ -131,15 +111,13 @@ function bodyLines(obj, ctx) {
     const dly = lightYears(obj.distLy);
     if (dly) {
       lines.push(row(`<b>Distance:</b> ${dly}`));
-      const phrase = lightTravelPhrase(obj.distLy);
-      if (phrase) lines.push(row(`✨ ${phrase}.`));
     }
     if (obj.seen) lines.push(row(`<b>What you'll see:</b> ${obj.seen}`));
     lines.push(row(`<b>How to see it:</b> ${easeTag(obj.mag)} (magnitude ${obj.mag})`));
   } else { // planet
     const au = bodyDistanceAu(obj.body, ctx.observer, ctx.time);
     lines.push(row(`${obj.label} — a planet.`));
-    lines.push(row(`<b>Distance:</b> ${au.toFixed(2)} AU (light takes ${Math.round(au * MIN_PER_AU)} min to reach us)`));
+    lines.push(row(`<b>Distance:</b> ${au.toFixed(2)} AU`));
     const magStr = Number.isFinite(obj.mag) ? ` (magnitude ${obj.mag.toFixed(1)})` : '';
     lines.push(row(`<b>How to see it:</b> ${easeTag(obj.mag)}${magStr}`));
   }

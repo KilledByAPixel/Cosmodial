@@ -6,7 +6,7 @@ import { degToRad } from '../core/angles.js';
 import { drawDsoGlow, drawDsoSymbols } from './dso.js';
 
 const STAR_MARGIN = 22; // px; covers the largest zoomed star disc (STAR_MAX_R * MAX_ZOOM_SCALE) at the edge
-const STAR_LABEL_MAG = 2.5; // only label the brightest named stars, to keep the view uncluttered
+const STAR_LABEL_MAG = 2.0; // only label the brightest named stars, to keep the view uncluttered
 const STAR_LABEL_COLOR = 'rgba(150, 190, 230, 0.9)';
 const LABEL_FONT = '11px system-ui, sans-serif';
 
