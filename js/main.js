@@ -210,12 +210,8 @@ function onIdentifyTap(x, y) {
   const projected = candidates.map((o) => { const p = projector(o.altaz.az, o.altaz.alt); return { x: p.x, y: p.y, visible: p.visible, ref: o }; });
   const hit = pickNearest(projected, x, y, 18);
   if (hit) {
-    const eclipseForCard = hit.kind === 'moon'
-      ? (eclipseCtx.inProgress ? { ...eclipseCtx.inProgress, live: true }
-        : eclipseCtx.next ? { ...eclipseCtx.next, live: false } : null)
-      : null;
     highlighted = hit;
-    openCard(hit, cardCtx(observer, time, eclipseForCard));
+    openCard(hit, cardCtx(observer, time, eclipseForMoon(hit.kind)));
     requestRender();
   }
   else { highlighted = null; closeCard(); requestRender(); }
@@ -236,6 +232,15 @@ function buildPicks() {
         : 'a wandering planet, easy with the naked eye',
     }));
   return rankCandidates([...bodies, ...stars]);
+}
+
+// The eclipse to attach to a Moon card: the live timeline if one's in progress, else the next one,
+// so the eclipse shows whether you tap, search, or Find the Moon. Null for any non-Moon object.
+function eclipseForMoon(kind) {
+  if (kind !== 'moon') return null;
+  if (eclipseCtx.inProgress) return { ...eclipseCtx.inProgress, live: true };
+  if (eclipseCtx.next) return { ...eclipseCtx.next, live: false };
+  return null;
 }
 
 // Banner descriptor for the guide: in-progress eclipse takes precedence over the next one.
@@ -270,7 +275,7 @@ function onFindObject(pick) {
   const observer = makeObserver(st.location.lat, st.location.lng);
   const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
   highlighted = pick;
-  openCard(pick, cardCtx(observer, time));
+  openCard(pick, cardCtx(observer, time, eclipseForMoon(pick.kind)));
   const targetFov = Math.max(12, Math.min(st.fov, 20)); // ease in a notch
   animateSlew(store, { az: pick.altaz.az, alt: pick.altaz.alt, fov: targetFov });
 }
