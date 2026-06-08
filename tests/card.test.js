@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { colorWord, easeTag, distanceLy, lightLeftPhrase, constellationName, eclipseContacts, visWord } from '../js/ui/card.js';
+import { colorWord, easeTag, distanceLy, lightLeftPhrase, constellationName, eclipseContacts, visWord, lightYears, lightTravelPhrase } from '../js/ui/card.js';
 
 test('colorWord buckets B-V into plain colors', () => {
   assert.equal(colorWord(-0.1), 'blue-white');
@@ -54,4 +54,17 @@ test('eclipseContacts lists only the phases that occur, in order', () => {
   assert.deepEqual(total, ['partial begins', 'totality begins', 'peak', 'totality ends', 'partial ends']);
   const partial = eclipseContacts(mk(60, 0)).map(([label]) => label);
   assert.deepEqual(partial, ['partial begins', 'peak', 'partial ends']);
+});
+
+test('lightYears formats with thousand/million units', () => {
+  assert.equal(lightYears(444), '444 light-years');
+  assert.equal(lightYears(25000), '25 thousand light-years');
+  assert.equal(lightYears(2500000), '2.5 million light-years');
+  assert.equal(lightYears(null), null);
+});
+
+test('lightTravelPhrase describes light-travel time, null-safe', () => {
+  assert.equal(lightTravelPhrase(2500000), 'the light reaching you tonight left it ~2.5 million years ago');
+  assert.equal(lightTravelPhrase(444), 'the light reaching you tonight left it ~444 years ago');
+  assert.equal(lightTravelPhrase(null), null);
 });

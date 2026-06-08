@@ -42,6 +42,23 @@ export function constellationName(abbr) {
   return NAMES[abbr] || abbr || '';
 }
 
+// Format a light-year distance with friendly units (null-safe).
+export function lightYears(ly) {
+  if (ly == null || !Number.isFinite(ly) || ly <= 0) return null;
+  if (ly >= 1e6) return `${+(ly / 1e6).toFixed(1)} million light-years`;
+  if (ly >= 1e4) return `${Math.round(ly / 1e3)} thousand light-years`;
+  return `${Math.round(ly)} light-years`;
+}
+
+// Light-travel-time line for a deep-sky object (handles million/thousand/plain), null-safe.
+export function lightTravelPhrase(ly) {
+  if (ly == null || !Number.isFinite(ly) || ly <= 0) return null;
+  const amount = ly >= 1e6 ? `${+(ly / 1e6).toFixed(1)} million`
+    : ly >= 1e4 ? `${Math.round(ly / 1e3)} thousand`
+    : `${Math.round(ly)}`;
+  return `the light reaching you tonight left it ~${amount} years ago`;
+}
+
 // Plain-language visibility phrase for an eclipse.
 export function visWord(visibility) {
   return visibility === 'partial' ? 'partly visible from here' : 'visible from here';
@@ -108,6 +125,17 @@ function bodyLines(obj, ctx) {
   } else if (obj.kind === 'sun') {
     lines.push(row(`The Sun.`));
     lines.push(row(`⚠️ <b>Never look at the Sun</b> through binoculars or a telescope without a proper solar filter.`));
+  } else if (obj.kind === 'dso') {
+    const cn = constellationName(obj.con);
+    lines.push(row(`${obj.name} — a ${obj.type}${cn ? ` in ${cn}` : ''}.`));
+    const dly = lightYears(obj.distLy);
+    if (dly) {
+      lines.push(row(`<b>Distance:</b> ${dly}`));
+      const phrase = lightTravelPhrase(obj.distLy);
+      if (phrase) lines.push(row(`✨ ${phrase}.`));
+    }
+    if (obj.seen) lines.push(row(`<b>What you'll see:</b> ${obj.seen}`));
+    lines.push(row(`<b>How to see it:</b> ${easeTag(obj.mag)} (magnitude ${obj.mag})`));
   } else { // planet
     const au = bodyDistanceAu(obj.body, ctx.observer, ctx.time);
     lines.push(row(`${obj.label} — a planet.`));
@@ -122,6 +150,7 @@ function titleOf(obj) {
   if (obj.kind === 'star') return obj.name || 'Unnamed star';
   if (obj.kind === 'moon') return 'Moon';
   if (obj.kind === 'sun') return 'Sun';
+  if (obj.kind === 'dso') return obj.name;
   return obj.label;
 }
 
