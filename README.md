@@ -21,8 +21,8 @@ Tell Volvella where you are and it draws the live sky as if you were looking thr
 
 | | |
 |---|---|
-| ⭐ **15,598 stars** | colored by their true tint, sized by brightness |
-| 🏷️ **366 named stars** | from Sirius on down |
+| ⭐ **61,816 stars** | colored by their true tint, sized by brightness |
+| 🏷️ **417 named stars** | from Sirius on down |
 | ✏️ **22 constellations** | line figures + labels, and an editor to redraw them |
 | 🪐 **Sun + Moon + 7 planets** | computed live, not stored — Uranus & Neptune included, faint as they are |
 | 🎯 **~1 arcminute** | positional accuracy |
