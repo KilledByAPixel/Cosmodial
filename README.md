@@ -1,8 +1,8 @@
-# Skyscope
+# Volvella Sky Atlas
 
 **The real sky, right now, in your browser — and the few things actually worth looking at tonight.**
 
-Tell Skyscope where you are and it draws the live sky as if you were looking through a telescope. Drag to aim, scroll to zoom from a wide naked-eye view down to a 1° eyepiece, and let the **Up now** guide point you at the good stuff. Free, no account, no ads, no backend.
+Tell Volvella where you are and it draws the live sky as if you were looking through a telescope. Drag to aim, scroll to zoom from a wide naked-eye view down to a 1° eyepiece, and let the **Up now** guide point you at the good stuff. Free, no account, no ads, no backend.
 
 > **Live demo:** _deploy to GitHub Pages — see [Deployment](#deployment)._
 
