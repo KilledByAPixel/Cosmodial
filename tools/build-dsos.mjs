@@ -43,7 +43,7 @@ const CURATED = [
   { id: 'M92',  name: 'M92',              key: { m: 92 },  type: 'globular cluster', distLy: 26700, blurb: 'a fine globular overshadowed by M13', seen: 'a compact round fuzzball' },
   { id: 'M63',  name: 'Sunflower Galaxy', key: { m: 63 },  type: 'galaxy', distLy: 29000000, blurb: 'a flocculent spiral in Canes Venatici', seen: 'an elongated faint glow' },
   { id: 'NGC869', name: 'Double Cluster', key: { name: 'NGC0869' }, type: 'open cluster', distLy: 7500, blurb: 'a stunning pair of clusters in Perseus', seen: 'two side-by-side knots of stars, naked-eye in dark skies' },
-  { id: 'NGC253', name: 'Sculptor Galaxy', key: { name: 'NGC0253' }, type: 'galaxy', distLy: 11400000, blurb: 'a bright edge-on galaxy', seen: 'a long faint streak low in the south' },
+  { id: 'NGC253', name: 'Sculptor Galaxy', key: { name: 'NGC0253' }, type: 'galaxy', mag: 7.1, distLy: 11400000, blurb: 'a bright edge-on galaxy', seen: 'a long faint streak low in the south' },
 ];
 
 const __dir = dirname(fileURLToPath(import.meta.url));
@@ -103,7 +103,7 @@ for (const c of CURATED) {
     ra: raToDeg(field(rec, 'RA')),
     dec: decToDeg(field(rec, 'Dec')),
     type,
-    mag: vmag ?? bmag ?? c.mag ?? 99,
+    mag: c.mag ?? vmag ?? bmag ?? 99, // a curated mag is a deliberate override (OpenNGC sometimes has only a B-mag)
     sizeArcmin: maj ?? c.sizeArcmin ?? 5,
     minorArcmin: min,
     angleDeg: pa,
