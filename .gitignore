@@ -18,5 +18,5 @@ tmp/
 tools/cache/
 *.csv
 
-# local human notes
-notes.txt
+# local stuff
+local/
