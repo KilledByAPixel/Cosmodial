@@ -26,13 +26,13 @@ function halfDiagDeg(cam) {
   return Math.min(89, 0.5 * cam.fov * Math.sqrt(1 + aspect * aspect) * 1.15);
 }
 
-// Multiples of `step` within [lo, hi], kept strictly inside (0, 90). Bounded by the range, so deep
-// zoom (tiny step) still yields only a few altitude rings.
+// Multiples of `step` within [lo, hi], skipping the horizon (0, drawn separately) and the poles
+// (±90, where a ring degenerates to a point). Bounded by the range, so deep zoom still yields few.
 function ringsInRange(step, lo, hi) {
   const out = [];
   const start = Math.ceil(lo / step) * step;
   for (let v = start; v <= hi + 1e-9; v += step) {
-    if (v > 0 && v < 90) out.push(Number(v.toFixed(6)));
+    if (Math.abs(v) > 1e-9 && Math.abs(v) < 90) out.push(Number(v.toFixed(6)));
   }
   return out;
 }
@@ -41,17 +41,18 @@ function ringsInRange(step, lo, hi) {
 // it's visible when its nearest point (over altitudes 0..90) falls within the view's half-diagonal.
 // As the aim nears the zenith this is satisfied by every enumerated azimuth, so the whole wheel
 // gets drawn — but with the widened step there are only a handful of them.
-function visibleAzimuths(cam, step) {
+function visibleAzimuths(cam, step, below = false) {
   const cosHalf = Math.cos(degToRad(halfDiagDeg(cam)));
   const A = degToRad(cam.alt);
   const sinA = Math.sin(A), cosA = Math.cos(A);
+  // For |dAz|>90° the spoke's closest approach is a pole end: the zenith (sin A) for the upper-sky
+  // grid, or whichever pole is in view (|sin A|, catching the nadir) in full-sphere mode.
+  const poleCos = below ? Math.abs(sinA) : Math.max(sinA, 0);
   const out = [];
   for (let az = 0; az < 360 - 1e-9; az += step) {
     const dAz = degToRad(((az - cam.az + 540) % 360) - 180);
     const c = Math.cos(dAz);
-    // Max of cos(separation) between the aim and any point on this spoke. For |dAz|>90° the closest
-    // approach is the zenith end, so it reduces to sin(alt) — i.e. "is the zenith in view".
-    const maxCos = Math.abs(dAz) <= Math.PI / 2 ? Math.sqrt(sinA * sinA + cosA * cosA * c * c) : sinA;
+    const maxCos = Math.abs(dAz) <= Math.PI / 2 ? Math.sqrt(sinA * sinA + cosA * cosA * c * c) : poleCos;
     if (maxCos > cosHalf) out.push(Number(az.toFixed(6)));
   }
   return out;
@@ -59,20 +60,22 @@ function visibleAzimuths(cam, step) {
 
 // Which grid lines to draw for this camera. Vertical FOV scales by the canvas aspect ratio so
 // altitude rings stay about as dense on screen as azimuth lines.
-export function gridSpec(cam, { targetLines = TARGET_LINES } = {}) {
+export function gridSpec(cam, { targetLines = TARGET_LINES, below = false } = {}) {
   const fovV = cam.fov * (cam.height / cam.width);
   const cosA = Math.cos(degToRad(cam.alt));
-  // Near the zenith, azimuth lines bunch up on screen (spacing ∝ cos alt); widen the step to keep
-  // the spoke count steady instead of fanning out densely overhead. cos floored so it can't blow up.
-  const azStep = niceStep(cam.fov / (SPOKE_TARGET_LINES * Math.max(cosA, 1e-3)));
+  // Near a pole, azimuth lines bunch up on screen (spacing ∝ cos alt); widen the step to keep the
+  // spoke count steady instead of fanning out densely overhead. cos floored so it can't blow up.
+  const azStep = niceStep(cam.fov / (SPOKE_TARGET_LINES * Math.max(Math.abs(cosA), 1e-3)));
   const altStep = niceStep(fovV / targetLines);
-  const azimuths = visibleAzimuths(cam, azStep);
-  // Rings are windowed to the view, but when the zenith is on screen we extend them up to the pole
-  // so the innermost ring reliably caps the converging spokes with a circle.
-  const zenithInView = 90 - cam.alt < halfDiagDeg(cam);
-  const topAlt = zenithInView ? 90 : cam.alt + fovV / 2 + altStep;
-  const botAlt = cam.alt - (fovV / 2 + altStep);
-  const altitudes = ringsInRange(altStep, Math.max(0, botAlt), Math.min(90, topAlt));
+  const azimuths = visibleAzimuths(cam, azStep, below);
+  // Rings are windowed to the view; when a pole is on screen, extend rings out to it so the innermost
+  // ring reliably caps the converging spokes. In full-sphere mode this also reaches below the horizon.
+  const half = halfDiagDeg(cam);
+  let lo = Math.max(below ? -90 : 0, cam.alt - (fovV / 2 + altStep));
+  let hi = Math.min(90, cam.alt + (fovV / 2 + altStep));
+  if (90 - cam.alt < half) hi = 90;                  // zenith in view -> rings up to the pole
+  if (below && 90 + cam.alt < half) lo = -90;        // nadir in view -> rings down to the nadir
+  const altitudes = ringsInRange(altStep, lo, hi);
   return { azStep, altStep, azimuths, altitudes };
 }
 
@@ -92,8 +95,8 @@ function onScreen(p, cam) {
   return p.visible && p.x >= 0 && p.x <= cam.width && p.y >= 0 && p.y <= cam.height;
 }
 
-export function drawGrid(ctx, projector, cam) {
-  const { azimuths, altitudes } = gridSpec(cam);
+export function drawGrid(ctx, projector, cam, below = false) {
+  const { azimuths, altitudes } = gridSpec(cam, { below });
   ctx.strokeStyle = GRID_COLOR;
   ctx.lineWidth = 1;
   // Altitude rings: full 360° so the whole circle — including the part overhead — is drawn; the
@@ -103,10 +106,12 @@ export function drawGrid(ctx, projector, cam) {
     for (let az = 0; az <= 360; az += SAMPLE_DEG) pts.push([az, alt]);
     strokePolyline(ctx, projector, pts);
   }
-  // Azimuth spokes: from the horizon all the way to the pole, where they converge to a single point.
+  // Azimuth spokes converge at a pole. Normally horizon (0) -> zenith (90); in full-sphere mode the
+  // whole meridian, nadir (-90) -> zenith (90), so they cap at both poles.
+  const spokeLo = below ? -90 : 0;
   for (const az of azimuths) {
     const pts = [];
-    for (let h = 0; h <= 90; h += SAMPLE_DEG) pts.push([az, h]);
+    for (let h = spokeLo; h <= 90; h += SAMPLE_DEG) pts.push([az, h]);
     strokePolyline(ctx, projector, pts);
   }
   // Degree labels. Rings label on the screen's vertical centerline; spokes a little below the aim so

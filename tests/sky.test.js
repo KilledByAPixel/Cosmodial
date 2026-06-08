@@ -51,3 +51,17 @@ test('drawScene with labels:false suppresses all text', () => {
   assert.equal(ctx.calls.texts.length, 0, 'no labels drawn when labels:false');
   assert.ok(ctx.calls.arc >= 2, 'but stars/markers are still drawn');
 });
+
+test('sphere:true reveals objects below the horizon; default hides them', () => {
+  const cam = { az: 180, alt: -20, fov: 60, width: 800, height: 600 }; // aimed below the horizon
+  const stars = [{ altaz: { alt: -10, az: 180 }, mag: 1.0, bv: 0.0, name: 'UnderStar' }];
+  const markers = [{ altaz: { alt: -10, az: 181 }, label: 'Mars', color: '#d66' }];
+
+  const top = stubCtx();
+  drawScene(top, { stars, markers, cam });
+  assert.equal(top.calls.arc, 0, 'below-horizon star + planet hidden by default');
+
+  const full = stubCtx();
+  drawScene(full, { stars, markers, cam, sphere: true });
+  assert.ok(full.calls.arc >= 2, 'below-horizon star + planet drawn in full-sphere mode');
+});

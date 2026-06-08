@@ -29,11 +29,11 @@ function clear(ctx, width, height) {
 }
 
 // stars: array of { altaz: {alt, az}, mag, bv, name }
-function drawStars(ctx, stars, projector, cam, edit, labels = true) {
+function drawStars(ctx, stars, projector, cam, edit, labels = true, below = false) {
   ctx.font = LABEL_FONT;
   const zs = zoomScale(cam.fov);
   for (const s of stars) {
-    if (!edit && s.altaz.alt < 0) continue; // below horizon (shown in edit mode so any constellation is reachable)
+    if (!edit && !below && s.altaz.alt < 0) continue; // below horizon (shown in edit/full-sphere mode)
     const p = projector(s.altaz.az, s.altaz.alt);
     if (!p.visible ||
         p.x < -STAR_MARGIN || p.x > cam.width + STAR_MARGIN ||
@@ -68,10 +68,10 @@ function markerRadius(m, cam) {
 }
 
 // markers: array of { altaz, label, color, radius? } (radius defaults to 4)
-function drawMarkers(ctx, markers, projector, cam, labels = true) {
+function drawMarkers(ctx, markers, projector, cam, labels = true, below = false) {
   ctx.font = '13px system-ui, sans-serif';
   for (const m of markers) {
-    if (m.altaz.alt < 0) continue;
+    if (!below && m.altaz.alt < 0) continue;
     const p = projector(m.altaz.az, m.altaz.alt);
     if (!p.visible) continue;
     ctx.fillStyle = m.color || '#ffd27f';
@@ -82,11 +82,11 @@ function drawMarkers(ctx, markers, projector, cam, labels = true) {
   }
 }
 
-export function drawScene(ctx, { stars, markers, constellations = [], cam, edit = false, labels = true, grid = false }) {
+export function drawScene(ctx, { stars, markers, constellations = [], cam, edit = false, labels = true, grid = false, sphere = false }) {
   const projector = createProjector(cam);
   clear(ctx, cam.width, cam.height);
-  if (grid) drawGrid(ctx, projector, cam);
-  drawConstellations(ctx, projector, constellations, cam, edit, labels);
-  drawStars(ctx, stars, projector, cam, edit, labels);
-  drawMarkers(ctx, markers, projector, cam, labels);
+  if (grid) drawGrid(ctx, projector, cam, sphere);
+  drawConstellations(ctx, projector, constellations, cam, edit, labels, sphere);
+  drawStars(ctx, stars, projector, cam, edit, labels, sphere);
+  drawMarkers(ctx, markers, projector, cam, labels, sphere);
 }

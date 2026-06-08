@@ -43,6 +43,14 @@ test('the innermost ring caps the spokes when the zenith is in view', () => {
   assert.ok(top >= 90 - spec.altStep - 1e-9, 'a ring sits within one step of the pole to cap the spokes');
 });
 
+test('full-sphere mode extends rings below the horizon; default stays above', () => {
+  const cam = { az: 180, alt: -45, fov: 60, width: 800, height: 600 }; // looking down
+  const top = gridSpec(cam);                   // upper hemisphere only
+  const full = gridSpec(cam, { below: true }); // entire sphere
+  assert.ok(top.altitudes.every((h) => h > 0), 'no rings below the horizon by default');
+  assert.ok(full.altitudes.some((h) => h < 0), 'rings appear below the horizon in full-sphere mode');
+});
+
 test('deep zoom uses a finer step and stays bounded', () => {
   const spec = gridSpec({ az: 10, alt: 30, fov: 2, width: 800, height: 600 });
   assert.ok(spec.azStep < 5, 'fine azimuth step when zoomed in');

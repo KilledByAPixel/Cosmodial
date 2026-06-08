@@ -32,12 +32,14 @@ test('pinch: spreading fingers zooms in, pinching zooms out', () => {
   assert.equal(pinchToFov(60, 100, 0), 60, 'degenerate distance -> unchanged');
 });
 
-test('toggleKeyAction maps c/l/g/e keys to flags (case-insensitive), ignores others', () => {
+test('toggleKeyAction maps c/l/g/s/e keys to flags (case-insensitive), ignores others', () => {
   assert.equal(toggleKeyAction('c'), 'lines');
   assert.equal(toggleKeyAction('C'), 'lines');
   assert.equal(toggleKeyAction('l'), 'labels');
   assert.equal(toggleKeyAction('g'), 'grid');
   assert.equal(toggleKeyAction('G'), 'grid');
+  assert.equal(toggleKeyAction('s'), 'sphere');
+  assert.equal(toggleKeyAction('S'), 'sphere');
   assert.equal(toggleKeyAction('e'), 'edit');
   assert.equal(toggleKeyAction('x'), null);
 });

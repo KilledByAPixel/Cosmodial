@@ -108,6 +108,7 @@ function render() {
     edit: st.flags.edit,
     labels: st.flags.labels,
     grid: st.flags.grid && !st.flags.edit,   // hide the grid in edit mode to keep the figure clear
+    sphere: st.flags.sphere,                 // also draw everything below the horizon
   });
   drawHud(ctx, cam);
   if (st.flags.edit) drawEditOverlay(ctx, cam);
@@ -345,6 +346,7 @@ async function boot() {
       makeToggle('Constellations', 'lines'),
       makeToggle('Labels', 'labels'),
       makeToggle('Grid', 'grid'),
+      makeToggle('Full sphere', 'sphere'),
       makeToggle('🌙 Night', 'night', 'night-toggle'),
     );
   }
