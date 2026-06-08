@@ -106,10 +106,12 @@ function drawMarkers(ctx, markers, projector, cam, labels = true, below = false,
     const p = projector(m.altaz.az, m.altaz.alt);
     if (!p.visible) continue;
     if (discs) {
+      ctx.globalAlpha = m.alpha ?? 1; // faint outer planets dim toward transparent; reset before labels
       ctx.fillStyle = m.color || '#ffd27f';
       ctx.beginPath();
       ctx.arc(p.x, p.y, markerRadius(m, cam), 0, Math.PI * 2);
       ctx.fill();
+      ctx.globalAlpha = 1;
     }
     if (labels) {
       ctx.fillStyle = m.color || '#ffd27f';

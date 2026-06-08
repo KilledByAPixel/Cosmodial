@@ -73,11 +73,11 @@ function computeSky() {
   }));
   const planetMarkers = PLANETS.map((p) => {
     const mag = bodyMagnitude(p.body, time);
-    return { altaz: altAzOfBody(p.body, observer, time), label: p.name, color: p.color, radius: planetRadius(mag), body: p.body, mag };
+    return { altaz: altAzOfBody(p.body, observer, time), label: p.name, color: p.color, radius: planetRadius(mag), body: p.body, mag, alpha: markerAlpha(mag) };
   });
   markers = [
-    { altaz: altAzOfBody(Body.Moon, observer, time), label: 'Moon', color: '#e8e8e8', angularRadiusDeg: bodyAngularRadiusDeg(Body.Moon, observer, time), body: Body.Moon, mag: bodyMagnitude(Body.Moon, time) },
-    { altaz: altAzOfBody(Body.Sun, observer, time), label: 'Sun', color: '#ffd27f', angularRadiusDeg: bodyAngularRadiusDeg(Body.Sun, observer, time), body: Body.Sun },
+    { altaz: altAzOfBody(Body.Moon, observer, time), label: 'Moon', color: '#e8e8e8', angularRadiusDeg: bodyAngularRadiusDeg(Body.Moon, observer, time), body: Body.Moon, mag: bodyMagnitude(Body.Moon, time), alpha: 1 },
+    { altaz: altAzOfBody(Body.Sun, observer, time), label: 'Sun', color: '#ffd27f', angularRadiusDeg: bodyAngularRadiusDeg(Body.Sun, observer, time), body: Body.Sun, alpha: 1 },
     ...planetMarkers,
   ];
   constellations = figures.map((f) => {
@@ -96,10 +96,12 @@ function computeSky() {
 }
 
 // Approximate glow brightness (0..1) for a Sun/Moon/planet marker from its apparent magnitude:
-// brighter (smaller mag) glows more. The Sun marker has no mag field, so it gets the max.
+// brighter (smaller mag) glows more. The Sun marker has no mag field, so it gets the max. The low
+// 0.22 floor lets the faint outer planets (Uranus ~5.7, Neptune ~7.8) dim well below the naked-eye
+// ones, so they read as faint pinpoints rather than bright discs.
 function markerAlpha(mag) {
   if (mag == null || !Number.isFinite(mag)) return 1.0;
-  return Math.max(0.55, Math.min(1.0, 1.0 - (mag + 4) / 7 * 0.45));
+  return Math.max(0.22, Math.min(1.0, 1.0 - (mag + 4) * 0.0625));
 }
 
 function render() {
@@ -125,7 +127,7 @@ function render() {
     // planets), tint from the body's colour, brightness from magnitude. Hidden in edit mode.
     const glMarkers = st.flags.edit ? [] : markers.map((m) => ({
       az: m.altaz.az, alt: m.altaz.alt, color: m.color,
-      radiusPx: markerRadius(m, cam), alpha: markerAlpha(m.mag),
+      radiusPx: markerRadius(m, cam), alpha: m.alpha,
     }));
     starfield.drawMarkers(glMarkers, cam, { showBelow: st.flags.sphere });
   }
@@ -193,7 +195,7 @@ function onIdentifyTap(x, y) {
   const projector = createProjector(cam);
   const candidates = [
     ...skyObjects.map((s) => ({ kind: 'star', name: s.name, mag: s.mag, bv: s.bv, con: s.con, dist: s.dist, altaz: s.altaz })),
-    ...markers.map((m) => ({ kind: m.label === 'Moon' ? 'moon' : m.label === 'Sun' ? 'sun' : 'planet', label: m.label, body: m.body, altaz: m.altaz })),
+    ...markers.map((m) => ({ kind: m.label === 'Moon' ? 'moon' : m.label === 'Sun' ? 'sun' : 'planet', label: m.label, body: m.body, mag: m.mag, altaz: m.altaz })),
   ].filter((o) => o.altaz.alt >= 0);
   const projected = candidates.map((o) => { const p = projector(o.altaz.az, o.altaz.alt); return { x: p.x, y: p.y, visible: p.visible, ref: o }; });
   const hit = pickNearest(projected, x, y, 18);
@@ -211,7 +213,9 @@ function buildPicks() {
     .map((m) => ({
       kind: m.label === 'Moon' ? 'moon' : 'planet',
       name: m.label, label: m.label, body: m.body, mag: m.mag, altaz: m.altaz,
-      why: m.label === 'Moon' ? 'our nearest neighbour' : 'a wandering planet, easy with the naked eye',
+      why: m.label === 'Moon' ? 'our nearest neighbour'
+        : m.mag > 4 ? 'a distant ice giant — bring binoculars'
+        : 'a wandering planet, easy with the naked eye',
     }));
   return rankCandidates([...bodies, ...stars]);
 }

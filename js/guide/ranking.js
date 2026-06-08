@@ -1,9 +1,12 @@
 // Curation weight by kind: Moon/planets float above a coincidentally-up star.
 const CURATION = { moon: 100, planet: 80, star: 30 };
 
-// Ease tag. Moon/planets are naked-eye; stars by magnitude.
+// Ease tag. The Moon is always naked-eye; planets and stars go by magnitude (so the faint outer
+// planets read as binoculars/telescope, not naked-eye). A planet with no magnitude defaults to
+// naked-eye, since the classic five are.
 export function easeFor(kind, mag) {
-  if (kind === 'moon' || kind === 'planet') return 'naked eye';
+  if (kind === 'moon') return 'naked eye';
+  if (kind === 'planet' && !Number.isFinite(mag)) return 'naked eye';
   if (!Number.isFinite(mag)) return 'telescope';
   if (mag <= 4) return 'naked eye';
   if (mag <= 9) return 'binoculars';

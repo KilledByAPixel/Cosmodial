@@ -25,7 +25,10 @@ test('rankCandidates filters below-horizon and sorts best-first', () => {
 
 test('easeFor', () => {
   assert.equal(easeFor('moon'), 'naked eye');
-  assert.equal(easeFor('planet'), 'naked eye');
+  assert.equal(easeFor('planet'), 'naked eye');         // no magnitude -> defaults to the classic-five case
+  assert.equal(easeFor('planet', -2), 'naked eye');     // a bright planet (e.g. Jupiter)
+  assert.equal(easeFor('planet', 5.7), 'binoculars');   // Uranus is too faint for the unaided eye
+  assert.equal(easeFor('planet', 7.8), 'binoculars');   // Neptune
   assert.equal(easeFor('star', 1), 'naked eye');
   assert.equal(easeFor('star', 6), 'binoculars');
 });

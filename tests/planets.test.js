@@ -2,9 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PLANETS, planetRadius } from '../js/render/planets.js';
 
-test('PLANETS lists the five naked-eye planets with body, name, color', () => {
+test('PLANETS lists Mercury..Neptune (naked-eye five + the two ice giants) with body, name, color', () => {
   const names = PLANETS.map((p) => p.name);
-  for (const n of ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn']) {
+  for (const n of ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune']) {
     assert.ok(names.includes(n), `missing ${n}`);
   }
   for (const p of PLANETS) {

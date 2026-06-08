@@ -80,7 +80,8 @@ function bodyLines(obj, ctx) {
     const au = bodyDistanceAu(obj.body, ctx.observer, ctx.time);
     lines.push(row(`${obj.label} — a planet.`));
     lines.push(row(`<b>Distance:</b> ${au.toFixed(2)} AU (light takes ${Math.round(au * MIN_PER_AU)} min to reach us)`));
-    lines.push(row(`<b>How to see it:</b> naked eye`));
+    const magStr = Number.isFinite(obj.mag) ? ` (magnitude ${obj.mag.toFixed(1)})` : '';
+    lines.push(row(`<b>How to see it:</b> ${easeTag(obj.mag)}${magStr}`));
   }
   return lines;
 }
