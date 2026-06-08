@@ -1,7 +1,8 @@
 import { wrap360, clamp } from './angles.js';
 
 export const MIN_FOV = 1;    // telescope
-export const MAX_FOV = 60;   // naked-eye-ish
+export const MAX_FOV = 120;   // widest zoom-out (wide-angle); gnomonic edges start to stretch past ~120°
+export const DEFAULT_FOV = 60; // startup FOV (comfortable naked-eye view); zoom-out can widen to MAX_FOV
 export const MAX_ALT = 89;   // clamp pitch just below the zenith to avoid the gimbal-lock singularity
 const STORE_KEY = 'skyscope.location';
 
@@ -21,7 +22,7 @@ export function createState() {
     location: loadSavedLocation() || { ...DEFAULT_LOCATION },
     time: { instant: null, live: true }, // instant set by setTime; null means "use Date.now() at read"
     aim: { az: 180, alt: 45 },
-    fov: MAX_FOV,
+    fov: DEFAULT_FOV,
     flags: { lines: true, labels: true, grid: false, sphere: false, night: false, edit: false },
   };
   const listeners = new Set();
