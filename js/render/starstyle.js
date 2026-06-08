@@ -10,6 +10,14 @@ const STAR_MAX_R = 5;         // cap radius (px, at base zoom) so the brightest 
 const STAR_MIN_R = 1.0;       // below this, stop shrinking and fade via alpha instead
 const STAR_DIM_EXP = 1.5;     // how steeply sub-pixel (faint) stars fade out
 
+// Mirror of the size tunables for the WebGL starfield shader (js/render/starfield-gl.js), which
+// can't import runtime values into GLSL. A test (tests/starfield-gl.test.js) asserts the shader
+// embeds these exact numbers, so the GPU star sizing can't silently drift from starSize() below.
+export const STAR_CONSTS = Object.freeze({
+  REF_FOV, MAX_ZOOM_SCALE,
+  STAR_BASE_R, STAR_MAG_SHRINK, STAR_MAX_R, STAR_MIN_R, STAR_DIM_EXP,
+});
+
 // Zoom multiplier: 1 at the widest FOV, growing sub-linearly so zooming magnifies, capped.
 export function zoomScale(fov, { refFov = REF_FOV, maxScale = MAX_ZOOM_SCALE } = {}) {
   return clamp(Math.sqrt(refFov / fov), 1, maxScale);

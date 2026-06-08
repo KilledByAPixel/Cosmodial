@@ -4,7 +4,8 @@ import { makeStarAltAz } from './core/astro.js';
 import { buildLocationControl } from './ui/location.js';
 import { buildTimeControls } from './ui/time-controls.js';
 import { PLANETS, planetRadius } from './render/planets.js';
-import { drawScene, resizeCanvas } from './render/sky.js';
+import { drawScene, drawStarLabels, resizeCanvas } from './render/sky.js';
+import { createStarfield } from './render/starfield-gl.js';
 import { drawHud } from './render/hud.js';
 import { createRenderScheduler } from './core/scheduler.js';
 import { attachInput } from './ui/input.js';
@@ -18,6 +19,12 @@ import { animateSlew } from './ui/slew.js';
 
 const canvas = document.getElementById('sky');
 const ctx = canvas.getContext('2d');
+// WebGL2 starfield on a canvas behind #sky. null if WebGL2 is unavailable -> fall back to the 2D
+// star path in drawScene. The 2D overlay (#sky) keeps drawing grid/lines/labels/markers/HUD on top.
+const glCanvas = document.getElementById('sky-gl');
+const starfield = glCanvas ? createStarfield(glCanvas) : null;
+const useGL = !!starfield;
+if (!useGL) console.warn('[skyscope] WebGL2 unavailable — using the 2D star fallback');
 const store = createState();
 
 let stars = [];        // raw catalogue from stars.json
@@ -89,7 +96,11 @@ function computeSky() {
 }
 
 function render() {
-  if (skyDirty) { computeSky(); skyDirty = false; }
+  if (skyDirty) {
+    computeSky();
+    if (useGL) starfield.uploadStars(skyObjects); // re-upload on the same cadence as the CPU recompute
+    skyDirty = false;
+  }
   const view = resizeCanvas(canvas);
   const st = store.getState();
   // Lift the compass ribbon/readout above the on-screen control bar so they aren't hidden behind it.
@@ -100,6 +111,10 @@ function render() {
   const visibleCons = st.flags.edit
     ? (constellations[editIndex] ? [constellations[editIndex]] : [])
     : (st.flags.lines ? constellations : []);
+  if (useGL) {
+    starfield.resize(view.width, view.height, window.devicePixelRatio || 1);
+    starfield.draw(cam, { showBelow: st.flags.sphere, edit: st.flags.edit });
+  }
   drawScene(ctx, {
     stars: skyObjects,
     markers: st.flags.edit ? [] : markers,   // hide Sun/Moon/planets in edit mode so they don't overlap stars
@@ -109,7 +124,11 @@ function render() {
     labels: st.flags.labels,
     grid: st.flags.grid && !st.flags.edit,   // hide the grid in edit mode to keep the figure clear
     sphere: st.flags.sphere,                 // also draw everything below the horizon
+    drawStarPoints: !useGL,                  // GL draws the star discs; 2D only as the fallback
   });
+  // In GL mode the star discs live on the GL canvas, so their labels are drawn here, after the
+  // constellation lines (so labels sit on top), matching the old single-canvas order.
+  if (useGL) drawStarLabels(ctx, skyObjects, createProjector(cam), cam, st.flags.labels, st.flags.sphere || st.flags.edit);
   drawHud(ctx, cam);
   if (st.flags.edit) drawEditOverlay(ctx, cam);
   drawHighlight(ctx, cam);

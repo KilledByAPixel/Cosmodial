@@ -23,9 +23,15 @@ export function resizeCanvas(canvas) {
   return { width: canvas.clientWidth, height: canvas.clientHeight };
 }
 
-function clear(ctx, width, height) {
-  ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, width, height);
+// Opaque black for the standalone 2D path; transparent (clearRect) in WebGL mode, where the GL
+// starfield sits behind this canvas and must show through (the black body backdrop is the backstop).
+function clear(ctx, width, height, transparent = false) {
+  if (transparent) {
+    ctx.clearRect(0, 0, width, height);
+  } else {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, width, height);
+  }
 }
 
 // stars: array of { altaz: {alt, az}, mag, bv, name }
@@ -55,6 +61,25 @@ function drawStars(ctx, stars, projector, cam, edit, labels = true, below = fals
   ctx.globalAlpha = 1;
 }
 
+// The label half of drawStars, used in WebGL mode: the GL canvas draws the star POINTS, but their
+// text labels stay on this 2D overlay. Same filter/offset/visibility as drawStars. `below` reveals
+// labels under the horizon (full-sphere/edit), matching the point-drawing cull.
+export function drawStarLabels(ctx, stars, projector, cam, labels = true, below = false) {
+  if (!labels) return;
+  ctx.globalAlpha = 1;
+  ctx.font = LABEL_FONT;
+  ctx.fillStyle = STAR_LABEL_COLOR;
+  for (const s of stars) {
+    if (!s.name || s.mag > STAR_LABEL_MAG) continue;
+    if (!below && s.altaz.alt < 0) continue;
+    const p = projector(s.altaz.az, s.altaz.alt);
+    if (!p.visible ||
+        p.x < -STAR_MARGIN || p.x > cam.width + STAR_MARGIN ||
+        p.y < -STAR_MARGIN || p.y > cam.height + STAR_MARGIN) continue;
+    ctx.fillText(s.name, p.x + 6, p.y - 6);
+  }
+}
+
 const MARKER_MIN_R = 5; // px floor so the Sun/Moon stay visible/obvious even at the widest FOV
 
 // Disk radius (px) for a marker. Sun/Moon carry angularRadiusDeg -> projected to true on-screen
@@ -82,11 +107,14 @@ function drawMarkers(ctx, markers, projector, cam, labels = true, below = false)
   }
 }
 
-export function drawScene(ctx, { stars, markers, constellations = [], cam, edit = false, labels = true, grid = false, sphere = false }) {
+// drawStarPoints=false (WebGL mode): the GL canvas draws the star discs, so skip them here and clear
+// transparent; star labels are drawn separately via drawStarLabels(). Default true keeps the
+// standalone 2D path (and tests) unchanged.
+export function drawScene(ctx, { stars, markers, constellations = [], cam, edit = false, labels = true, grid = false, sphere = false, drawStarPoints = true }) {
   const projector = createProjector(cam);
-  clear(ctx, cam.width, cam.height);
+  clear(ctx, cam.width, cam.height, !drawStarPoints);
   if (grid) drawGrid(ctx, projector, cam, sphere);
   drawConstellations(ctx, projector, constellations, cam, edit, labels, sphere);
-  drawStars(ctx, stars, projector, cam, edit, labels, sphere);
+  if (drawStarPoints) drawStars(ctx, stars, projector, cam, edit, labels, sphere);
   drawMarkers(ctx, markers, projector, cam, labels, sphere);
 }

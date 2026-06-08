@@ -1,7 +1,16 @@
 :root { color-scheme: dark; }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
-#sky { display: block; width: 100vw; height: 100vh; touch-action: none; }
+/* Two stacked full-screen canvases at the SAME z-index: tree order puts #sky-gl (WebGL stars,
+   first in the DOM) behind #sky (the 2D overlay: grid/lines/labels/markers/HUD). Equal z-index +
+   DOM order — NOT negative z-index, which would hide #sky-gl behind the body background (it paints
+   in a later step than negative-z children). z-index:0 keeps both above the body backdrop and below
+   the UI panels (z-index >= 5), and leaves #controls' auto stacking untouched (search dropdown still
+   layers right). #sky must be transparent so the GL stars show through. */
+#sky, #sky-gl { position: fixed; inset: 0; display: block; width: 100vw; height: 100vh;
+  z-index: 0; touch-action: none; }
+#sky { background: transparent; }
+#sky-gl { pointer-events: none; }
 
 #controls {
   position: fixed; left: 0; right: 0; bottom: 0;
