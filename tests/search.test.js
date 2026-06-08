@@ -33,3 +33,12 @@ test('searchIndex is case-insensitive, empty query returns nothing, and respects
   assert.equal(searchIndex(idx, 'STAR', 5).length, 5, 'limit applied');
   assert.ok(searchIndex(idx, 'star1').length >= 1, 'case-insensitive');
 });
+
+test('buildSearchIndex includes DSOs, findable by name and catalog id', () => {
+  const dsos = [{ id: 'M31', name: 'Andromeda Galaxy' }];
+  const index = buildSearchIndex([], [], [], dsos);
+  const byName = searchIndex(index, 'Androm');
+  const byId = searchIndex(index, 'M31');
+  assert.ok(byName.some((e) => e.type === 'dso' && e.ref === 'M31'), 'found by name');
+  assert.ok(byId.some((e) => e.type === 'dso' && e.ref === 'M31'), 'found by catalog id');
+});

@@ -3,11 +3,12 @@
 
 // Flat search index. Entries: { label, type: 'star'|'constellation'|'body', ref, aliases? }.
 // ref is the star id, the constellation name, or the body label — whatever main.js needs to resolve.
-export function buildSearchIndex(stars, figures, bodyLabels) {
+export function buildSearchIndex(stars, figures, bodyLabels, dsos = []) {
   const index = [];
   for (const s of stars) if (s.name) index.push({ label: s.name, type: 'star', ref: s.id });
   for (const f of figures) index.push({ label: f.name, type: 'constellation', ref: f.name, aliases: f.abbr ? [f.abbr] : [] });
   for (const b of bodyLabels) index.push({ label: b, type: 'body', ref: b });
+  for (const d of dsos) index.push({ label: d.name, type: 'dso', ref: d.id, aliases: [d.id] });
   return index;
 }
 
@@ -33,7 +34,7 @@ export function searchIndex(index, query, limit = 8) {
   return scored.slice(0, limit).map((x) => x.e);
 }
 
-const TYPE_HINT = { constellation: 'constellation', body: '', star: 'star' };
+const TYPE_HINT = { constellation: 'constellation', body: '', star: 'star', dso: 'deep sky' };
 
 // Build the search control: an input with an as-you-type result list that opens upward over the
 // sky. Selecting a result calls onSelect(entry). Returns { el }.
