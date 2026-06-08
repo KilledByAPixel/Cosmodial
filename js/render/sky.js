@@ -3,6 +3,7 @@ import { starSize, bvToRGB, zoomScale, colorBrightness } from './starstyle.js';
 import { drawConstellations } from './constellations.js';
 import { drawGrid } from './grid.js';
 import { degToRad } from '../core/angles.js';
+import { drawDsoGlow, drawDsoSymbols } from './dso.js';
 
 const STAR_MARGIN = 22; // px; covers the largest zoomed star disc (STAR_MAX_R * MAX_ZOOM_SCALE) at the edge
 const STAR_LABEL_MAG = 2.5; // only label the brightest named stars, to keep the view uncluttered
@@ -123,11 +124,17 @@ function drawMarkers(ctx, markers, projector, cam, labels = true, below = false,
 // drawStarPoints=false (WebGL mode): the GL canvas draws the star discs, so skip them here and clear
 // transparent; star labels are drawn separately via drawStarLabels(). Default true keeps the
 // standalone 2D path (and tests) unchanged.
-export function drawScene(ctx, { stars, markers, constellations = [], cam, edit = false, labels = true, grid = false, sphere = false, drawStarPoints = true, drawMarkerDiscs = true }) {
+export function drawScene(ctx, { stars, markers, constellations = [], cam, edit = false, labels = true, grid = false, sphere = false, drawStarPoints = true, drawMarkerDiscs = true, dsos = [], deepsky = false, selectedDsoId = null }) {
   const projector = createProjector(cam);
   clear(ctx, cam.width, cam.height, !drawStarPoints);
   if (grid) drawGrid(ctx, projector, cam, sphere);
+  if (!edit) drawDsoGlow(ctx, dsos, projector, cam, sphere);   // realistic glow, behind the stars
   drawConstellations(ctx, projector, constellations, cam, edit, labels, sphere);
   if (drawStarPoints) drawStars(ctx, stars, projector, cam, edit, labels, sphere);
   drawMarkers(ctx, markers, projector, cam, labels, sphere, drawMarkerDiscs);
+  // Symbols/labels on top: all when the toggle is on, else just the selected one. Hidden in edit mode.
+  if (!edit && (deepsky || selectedDsoId)) {
+    const which = deepsky ? null : new Set([selectedDsoId]);
+    drawDsoSymbols(ctx, dsos, projector, cam, { labels, below: sphere, which });
+  }
 }
