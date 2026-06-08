@@ -17,7 +17,7 @@ import { bvToRGB, colorBrightness, zoomScale, STAR_CONSTS } from './starstyle.js
 // --- Star glow tunables (tweak to taste) ---
 const GLOW_SCALE = 9.0;    // sprite diameter as a multiple of the 2D core radius — room for the halo
 const GLOW_FALLOFF = 9.0;  // halo falloff exponent: higher = tighter core, softer fade to the edge
-const GLOW_BRIGHTNESS = 1.5; // overall light gain: >1 brightens (bright cores bloom to white), <1 dims. Try ~1.3–1.6.
+const GLOW_BRIGHTNESS = 2.0; // overall light gain: >1 brightens (bright cores bloom to white), <1 dims. Try ~1.3–1.6.
 
 // --- Marker (Sun/Moon/planet) glow tunables ---
 // Markers render as a solid disc (their true angular/disk radius) plus a soft halo, so the Sun and
