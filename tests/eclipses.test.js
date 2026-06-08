@@ -78,3 +78,23 @@ test('findEclipseContext skips eclipses not visible from here', () => {
   });
   assert.equal(ctx.next.peak.toISOString(), '2026-12-01T00:00:00.000Z');
 });
+
+test('findEclipseContext stops searching once the next visible eclipse is found', () => {
+  // Many future eclipses, but the search must stop at the first visible one rather than scanning
+  // to the maxYears horizon (the per-frame cost guard).
+  const list = [
+    mkEclipse('partial', '2026-07-01T00:00:00Z', 60, 0),
+    mkEclipse('total', '2027-01-01T00:00:00Z', 90, 30),
+    mkEclipse('total', '2027-07-01T00:00:00Z', 90, 30),
+    mkEclipse('total', '2028-01-01T00:00:00Z', 90, 30),
+  ];
+  const sorted = [...list].sort((a, b) => a.peak - b.peak);
+  let nextCalls = 0;
+  const getFirst = (d) => sorted.find((e) => e.peak >= d) || null;
+  const getNextAfter = (peak) => { nextCalls++; return sorted.find((e) => e.peak > peak) || null; };
+  const ctx = findEclipseContext({
+    at: new Date('2026-06-01T00:00:00Z'), getFirst, getNextAfter, moonAltAt: () => 50,
+  });
+  assert.equal(ctx.next.peak.toISOString(), '2026-07-01T00:00:00.000Z');
+  assert.ok(nextCalls <= 1, `should stop early, made ${nextCalls} getNextAfter calls`);
+});

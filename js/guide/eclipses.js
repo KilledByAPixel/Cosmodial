@@ -39,7 +39,11 @@ export function findEclipseContext({ at, getFirst, getNextAfter, moonAltAt, hori
         const { partialBegin, partialEnd } = e.contacts;
         if (!inProgress && at >= partialBegin && at <= partialEnd) inProgress = annotated;
         if (!next && partialBegin > at) next = annotated;
-        if (inProgress && next) break;
+        // `next` is the first visible eclipse starting after `at`. Any in-progress eclipse must
+        // begin at/before `at`, so it was found on an earlier iteration — once we have `next`,
+        // there's nothing left to find. Breaking here keeps the per-frame search to ~1-2 vendor
+        // eclipse lookups instead of scanning all the way to the maxYears horizon every recompute.
+        if (next) break;
       }
     }
     e = getNextAfter(e.peak);
