@@ -10,4 +10,6 @@
   original license header.
 - **Constellation lines:** figure line data from d3-celestial (ofrohn/d3-celestial), **BSD-3-Clause**
   (https://github.com/ofrohn/d3-celestial). Converted to RA/Dec polylines in `data/constellations.json`.
+- **Deep-sky objects:** OpenNGC (mattiaverga/OpenNGC, https://github.com/mattiaverga/OpenNGC),
+  **CC-BY-SA 4.0**. Skyscope ships a small curated subset in `data/dso.json`; that subset is likewise CC-BY-SA 4.0.
 - **Application code:** MIT (see `LICENSE`).
