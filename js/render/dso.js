@@ -13,8 +13,11 @@ export function dsoScreenRadius(sizeArcmin, cam) {
 
 // Peak glow alpha from a surface-brightness proxy: sb = mag + 2.5*log10(area_arcmin2). Spreading the
 // same total magnitude over more area raises sb (dimmer per pixel). Mapped sb≈[6..14] -> alpha[MAX..0].
-export function dsoAlpha(mag, sizeArcmin) {
-  const area = Math.PI * (sizeArcmin / 2) ** 2;
+export function dsoAlpha(mag, sizeArcmin, minorArcmin) {
+  // Use the true ellipse area (major × minor) so an elongated object (e.g. Andromeda) isn't dimmed
+  // as if it were a big circle. Falls back to a circle when no minor axis is known.
+  const minor = (Number.isFinite(minorArcmin) && minorArcmin > 0) ? minorArcmin : sizeArcmin;
+  const area = Math.PI * (sizeArcmin / 2) * (minor / 2);
   const sb = mag + 2.5 * Math.log10(Math.max(area, 1));
   return clamp(((14 - sb) / 8) * MAX_ALPHA, 0, MAX_ALPHA);
 }
@@ -36,7 +39,7 @@ export function drawDsoGlow(ctx, dsos, projector, cam, below = false) {
     const p = projector(d.altaz.az, d.altaz.alt);
     if (!p.visible) continue;
     const r = dsoScreenRadius(d.sizeArcmin, cam);
-    const a = dsoAlpha(d.mag, d.sizeArcmin);
+    const a = dsoAlpha(d.mag, d.sizeArcmin, d.minorArcmin);
     if (a <= 0.01) continue; // effectively invisible — skip
     const tint = GLOW_TINT[d.type] || '210,215,230';
     ctx.save();

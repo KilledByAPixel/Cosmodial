@@ -22,6 +22,13 @@ test('dsoAlpha: compact bright reads brighter than large dim, clamped to [0,1]',
   }
 });
 
+test('dsoAlpha uses the minor axis so elongated objects are not over-dimmed', () => {
+  const asCircle = dsoAlpha(3.4, 178);        // Andromeda-like, treated as a big circle
+  const asEllipse = dsoAlpha(3.4, 178, 70);   // with its real minor axis
+  assert.ok(asEllipse > asCircle, 'a flatter ellipse is brighter per pixel than the same-major circle');
+  assert.ok(asEllipse > 0, 'a bright large galaxy still shows some glow');
+});
+
 test('dsoSymbol maps each type to a shape', () => {
   assert.equal(dsoSymbol('galaxy'), 'ellipse');
   assert.equal(dsoSymbol('nebula'), 'box');
