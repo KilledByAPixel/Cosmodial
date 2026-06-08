@@ -1,5 +1,5 @@
 import { createState } from './core/state.js';
-import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg } from './core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse } from './core/astro.js';
 import { makeStarAltAz } from './core/astro.js';
 import { buildLocationControl } from './ui/location.js';
 import { buildTimeControls } from './ui/time-controls.js';
@@ -11,11 +11,12 @@ import { createRenderScheduler } from './core/scheduler.js';
 import { attachInput } from './ui/input.js';
 import { splitSegments, toggleEdge, pickNearest, circularCentroid, exportFigures } from './edit/figures.js';
 import { createProjector } from './core/projection.js';
-import { openCard, closeCard, colorWord } from './ui/card.js';
+import { openCard, closeCard, colorWord, visWord } from './ui/card.js';
 import { rankCandidates } from './guide/ranking.js';
 import { buildGuide } from './ui/guide.js';
 import { buildSearch, buildSearchIndex } from './ui/search.js';
 import { animateSlew } from './ui/slew.js';
+import { findEclipseContext } from './guide/eclipses.js';
 
 const canvas = document.getElementById('sky');
 const ctx = canvas.getContext('2d');
@@ -35,6 +36,7 @@ let constellations = []; // derived render data: [{name, label:{alt,az}, lines:[
 let originalFigures = [];   // pristine split from the file, for reset
 let loadedRaw = [];   // the raw constellations.json array as loaded (basis for localStorage validity)
 let guide = null;
+let eclipseCtx = { inProgress: null, next: null }; // recomputed each computeSky from the set time
 let skyDirty = true; // next render recomputes the sky first (coalesces scrub/tick/edit recomputes)
 let selected = null;        // first star picked in edit mode (a skyObjects entry)
 let highlighted = null;     // object whose card is currently open (gets a ring on canvas)
@@ -80,6 +82,13 @@ function computeSky() {
     { altaz: altAzOfBody(Body.Sun, observer, time), label: 'Sun', color: '#ffd27f', angularRadiusDeg: bodyAngularRadiusDeg(Body.Sun, observer, time), body: Body.Sun, alpha: 1 },
     ...planetMarkers,
   ];
+  const eclipseAt = st.time.instant ? new Date(st.time.instant) : new Date();
+  eclipseCtx = findEclipseContext({
+    at: eclipseAt,
+    getFirst: (d) => searchLunarEclipse(d),
+    getNextAfter: (peak) => nextLunarEclipse(peak),
+    moonAltAt: (d) => altAzOfBody(Body.Moon, observer, makeTime(d)).alt,
+  });
   constellations = figures.map((f) => {
     const [lra, ldec] = labelOf(f);
     return {
@@ -92,6 +101,7 @@ function computeSky() {
     const sun = markers.find((m) => m.label === 'Sun');
     const isDay = !!sun && sun.altaz.alt > -0.833;
     guide.setPicks(buildPicks(), { isDay });
+    guide.setEvent(buildEclipseEvent());
   }
 }
 
@@ -182,8 +192,8 @@ function onEditTap(x, y) {
 }
 
 // Card context, incl. an onClose that clears the on-canvas highlight.
-function cardCtx(observer, time) {
-  return { observer, time, currentYear: new Date().getFullYear(), onClose: () => { highlighted = null; requestRender(); } };
+function cardCtx(observer, time, eclipse = null) {
+  return { observer, time, currentYear: new Date().getFullYear(), eclipse, onClose: () => { highlighted = null; requestRender(); } };
 }
 
 // Outside edit mode, a tap identifies the nearest visible object and opens its card.
@@ -199,7 +209,15 @@ function onIdentifyTap(x, y) {
   ].filter((o) => o.altaz.alt >= 0);
   const projected = candidates.map((o) => { const p = projector(o.altaz.az, o.altaz.alt); return { x: p.x, y: p.y, visible: p.visible, ref: o }; });
   const hit = pickNearest(projected, x, y, 18);
-  if (hit) { highlighted = hit; openCard(hit, cardCtx(observer, time)); requestRender(); }
+  if (hit) {
+    const eclipseForCard = hit.kind === 'moon'
+      ? (eclipseCtx.inProgress ? { ...eclipseCtx.inProgress, live: true }
+        : eclipseCtx.next ? { ...eclipseCtx.next, live: false } : null)
+      : null;
+    highlighted = hit;
+    openCard(hit, cardCtx(observer, time, eclipseForCard));
+    requestRender();
+  }
   else { highlighted = null; closeCard(); requestRender(); }
 }
 
@@ -218,6 +236,32 @@ function buildPicks() {
         : 'a wandering planet, easy with the naked eye',
     }));
   return rankCandidates([...bodies, ...stars]);
+}
+
+// Banner descriptor for the guide: in-progress eclipse takes precedence over the next one.
+function buildEclipseEvent() {
+  const e = eclipseCtx.inProgress || eclipseCtx.next;
+  if (!e) return null;
+  const live = !!eclipseCtx.inProgress;
+  const kindWord = e.kind === 'total' ? 'Total' : 'Partial';
+  const text = live
+    ? `🌑 ${kindWord} lunar eclipse — happening now. The Moon is in Earth's shadow.`
+    : `🌒 Next lunar eclipse: ${e.peak.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} — ${e.kind}, ${visWord(e.visibility)}.`;
+  return { text, actionLabel: live ? 'Find' : 'Jump', onAction: () => onJumpToEclipse(e) };
+}
+
+// Jump to an eclipse: set time to its peak, center the Moon, open the Moon card with the timeline.
+function onJumpToEclipse(e) {
+  const st = store.getState();
+  const observer = makeObserver(st.location.lat, st.location.lng);
+  const time = makeTime(e.peak);
+  const altaz = altAzOfBody(Body.Moon, observer, time);
+  const pick = { kind: 'moon', label: 'Moon', body: Body.Moon, altaz, mag: bodyMagnitude(Body.Moon, time) };
+  store.setTime(e.peak, false);              // jump the clock to peak (triggers recompute)
+  highlighted = pick;
+  openCard(pick, cardCtx(observer, time, { ...e, live: true }));
+  const targetFov = Math.max(12, Math.min(st.fov, 20));
+  animateSlew(store, { az: altaz.az, alt: altaz.alt, fov: targetFov });
 }
 
 // Find: open the card immediately, then slew to center the pick.
