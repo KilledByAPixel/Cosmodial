@@ -33,6 +33,8 @@ let skyObjects = [];   // { altaz, mag, bv, name } for the current time/location
 let markers = [];      // Sun/Moon/planet markers { altaz, label, color, radius }
 let figures = [];        // editable source: [{name, abbr, lines:[[[ra,dec],[ra,dec]],...]}] (2-point segments)
 let constellations = []; // derived render data: [{name, label:{alt,az}, lines:[[{alt,az},...]]}]
+let dsos = [];          // raw catalogue from dso.json
+let dsoObjects = [];    // { ...dso, kind:'dso', altaz } for the current time/location
 let originalFigures = [];   // pristine split from the file, for reset
 let loadedRaw = [];   // the raw constellations.json array as loaded (basis for localStorage validity)
 let guide = null;
@@ -97,6 +99,7 @@ function computeSky() {
       lines: f.lines.map((seg) => seg.map(([ra, dec]) => toAltAz(ra, dec))),
     };
   });
+  dsoObjects = dsos.map((d) => ({ ...d, kind: 'dso', altaz: toAltAz(d.ra, d.dec) }));
   if (guide) {
     const sun = markers.find((m) => m.label === 'Sun');
     const isDay = !!sun && sun.altaz.alt > -0.833;
@@ -152,6 +155,9 @@ function render() {
     sphere: st.flags.sphere,                 // also draw everything below the horizon
     drawStarPoints: !useGL,                  // GL draws the star discs; 2D only as the fallback
     drawMarkerDiscs: !useGL,                 // GL draws the marker discs; 2D keeps only their labels
+    dsos: st.flags.edit ? [] : dsoObjects,   // deep-sky glow/symbols (hidden in edit mode)
+    deepsky: st.flags.deepsky,
+    selectedDsoId: highlighted && highlighted.kind === 'dso' ? highlighted.id : null,
   });
   // In GL mode the star discs live on the GL canvas, so their labels are drawn here, after the
   // constellation lines (so labels sit on top), matching the old single-canvas order.
@@ -206,6 +212,7 @@ function onIdentifyTap(x, y) {
   const candidates = [
     ...skyObjects.map((s) => ({ kind: 'star', name: s.name, mag: s.mag, bv: s.bv, con: s.con, dist: s.dist, altaz: s.altaz })),
     ...markers.map((m) => ({ kind: m.label === 'Moon' ? 'moon' : m.label === 'Sun' ? 'sun' : 'planet', label: m.label, body: m.body, mag: m.mag, altaz: m.altaz })),
+    ...dsoObjects,
   ].filter((o) => o.altaz.alt >= 0);
   const projected = candidates.map((o) => { const p = projector(o.altaz.az, o.altaz.alt); return { x: p.x, y: p.y, visible: p.visible, ref: o }; });
   const hit = pickNearest(projected, x, y, 18);
@@ -231,7 +238,10 @@ function buildPicks() {
         : m.mag > 4 ? 'a distant ice giant — bring binoculars'
         : 'a wandering planet, easy with the naked eye',
     }));
-  return rankCandidates([...bodies, ...stars]);
+  const deepSky = dsoObjects
+    .filter((d) => d.altaz.alt >= 0)
+    .map((d) => ({ ...d, why: d.blurb }));
+  return rankCandidates([...bodies, ...stars, ...deepSky]);
 }
 
 // The eclipse to attach to a Moon card: the live timeline if one's in progress, else the next one,
@@ -283,7 +293,10 @@ function onFindObject(pick) {
 // Search result chosen: resolve it to a live object and reuse Find (slew + card). Constellations
 // have no info card, so they just slew to their centroid with a highlight ring.
 function onSearchSelect(entry) {
-  if (entry.type === 'star') {
+  if (entry.type === 'dso') {
+    const d = dsoObjects.find((o) => o.id === entry.ref);
+    if (d) onFindObject(d);
+  } else if (entry.type === 'star') {
     const s = skyObjects.find((o) => o.id === entry.ref);
     if (s) onFindObject({ kind: 'star', name: s.name, mag: s.mag, bv: s.bv, con: s.con, dist: s.dist, altaz: s.altaz });
   } else if (entry.type === 'body') {
@@ -409,6 +422,13 @@ async function boot() {
   } catch (err) {
     console.error('[skyscope] Failed to load constellations:', err);
   }
+  try {
+    const dres = await fetch('./data/dso.json');
+    if (!dres.ok) throw new Error(`dso.json: HTTP ${dres.status}`);
+    dsos = await dres.json();
+  } catch (err) {
+    console.error('[skyscope] Failed to load deep-sky catalogue:', err);
+  }
   loadedRaw = loaded;
   const saved = loadSavedFigures(loaded);
   figures = saved || splitSegments(loaded);
@@ -426,13 +446,14 @@ async function boot() {
   attachInput(canvas, store, { onTap, onAction: onEditAction });
   const controls = document.getElementById('controls');
   const bodyLabels = ['Moon', 'Sun', ...PLANETS.map((p) => p.name)];
-  const search = buildSearch(buildSearchIndex(stars, figures, bodyLabels), { onSelect: onSearchSelect });
+  const search = buildSearch(buildSearchIndex(stars, figures, bodyLabels, dsos), { onSelect: onSearchSelect });
   if (controls) {
     controls.append(buildLocationControl(store), search.el, buildTimeControls(store));
     controls.append(
       makeToggle('Constellations', 'lines'),
       makeToggle('Labels', 'labels'),
       makeToggle('Grid', 'grid'),
+      makeToggle('Deep sky', 'deepsky'),
       makeToggle('Full sphere', 'sphere'),
       makeToggle('🌙 Night', 'night', 'night-toggle'),
     );
