@@ -1,22 +1,24 @@
 import { createState } from './core/state.js';
-import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse } from './core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, moonPhaseInfo } from './core/astro.js';
 import { makeStarAltAz } from './core/astro.js';
 import { buildLocationControl } from './ui/location.js';
 import { buildTimeControls } from './ui/time-controls.js';
 import { PLANETS, planetRadius } from './render/planets.js';
 import { drawScene, drawStarLabels, markerRadius, resizeCanvas } from './render/sky.js';
 import { createStarfield } from './render/starfield-gl.js';
-import { drawHud } from './render/hud.js';
+import { drawHud, azToCompass } from './render/hud.js';
 import { createRenderScheduler } from './core/scheduler.js';
 import { attachInput } from './ui/input.js';
 import { splitSegments, toggleEdge, pickNearest, circularCentroid, exportFigures } from './edit/figures.js';
 import { createProjector } from './core/projection.js';
-import { openCard, closeCard, colorWord, visWord } from './ui/card.js';
-import { rankCandidates } from './guide/ranking.js';
+import { openCard, closeCard, colorWord, constellationName } from './ui/card.js';
+import { rankCandidates, altazToWhere } from './guide/ranking.js';
 import { buildGuide } from './ui/guide.js';
 import { buildSearch, buildSearchIndex } from './ui/search.js';
 import { animateSlew } from './ui/slew.js';
 import { findEclipseContext } from './guide/eclipses.js';
+import { activeShower } from './guide/showers.js';
+import { findConjunctions, midpointAltAz } from './guide/conjunctions.js';
 
 const canvas = document.getElementById('sky');
 const ctx = canvas.getContext('2d');
@@ -39,6 +41,8 @@ let originalFigures = [];   // pristine split from the file, for reset
 let loadedRaw = [];   // the raw constellations.json array as loaded (basis for localStorage validity)
 let guide = null;
 let eclipseCtx = { inProgress: null, next: null }; // recomputed each computeSky from the set time
+let tonightShower = null;   // the meteor shower peaking tonight (+ radiant alt/az), or null
+let conjunctions = [];      // close Moon/planet pairs tonight, closest-first
 let skyDirty = true; // next render recomputes the sky first (coalesces scrub/tick/edit recomputes)
 let selected = null;        // first star picked in edit mode (a skyObjects entry)
 let highlighted = null;     // object whose card is currently open (gets a ring on canvas)
@@ -100,11 +104,15 @@ function computeSky() {
     };
   });
   dsoObjects = dsos.map((d) => ({ ...d, kind: 'dso', altaz: toAltAz(d.ra, d.dec) }));
+  const sh = activeShower(eclipseAt);
+  tonightShower = sh ? { ...sh, radiant: toAltAz(sh.radiantRa, sh.radiantDec) } : null;
+  const bright = markers.filter((m) => m.label !== 'Sun' && m.altaz.alt >= 0);
+  conjunctions = findConjunctions(bright, 5);
   if (guide) {
     const sun = markers.find((m) => m.label === 'Sun');
     const isDay = !!sun && sun.altaz.alt > -0.833;
     guide.setPicks(buildPicks(), { isDay });
-    guide.setEvent(buildEclipseEvent());
+    guide.setEvent(buildTonightEvent());
   }
 }
 
@@ -253,16 +261,46 @@ function eclipseForMoon(kind) {
   return null;
 }
 
-// Banner descriptor for the guide: in-progress eclipse takes precedence over the next one.
-function buildEclipseEvent() {
-  const e = eclipseCtx.inProgress || eclipseCtx.next;
-  if (!e) return null;
-  const live = !!eclipseCtx.inProgress;
-  const kindWord = e.kind === 'total' ? 'Total' : 'Partial';
-  const text = live
-    ? `🌑 ${kindWord} lunar eclipse — happening now. The Moon is in Earth's shadow.`
-    : `🌒 Next lunar eclipse: ${e.peak.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} — ${e.kind}, ${visWord(e.visibility)}.`;
-  return { text, actionLabel: live ? 'Find' : 'Jump', onAction: () => onJumpToEclipse(e) };
+// The single most notable thing happening tonight, for the always-visible banner. Tonight-only:
+// in-progress eclipse > shower at peak > closest conjunction > nothing. (The "next eclipse" readout
+// lives on the Moon card, not here.)
+function buildTonightEvent() {
+  if (eclipseCtx.inProgress) {
+    const e = eclipseCtx.inProgress;
+    const kindWord = e.kind === 'total' ? 'Total' : 'Partial';
+    return {
+      text: `🌑 ${kindWord} lunar eclipse — happening now. The Moon is in Earth's shadow.`,
+      actionLabel: 'Find',
+      onAction: () => onJumpToEclipse(e),
+    };
+  }
+  if (tonightShower) return showerEvent(tonightShower);
+  if (conjunctions.length) return conjunctionEvent(conjunctions[0]);
+  return null;
+}
+
+// Banner for a meteor shower at peak: rate + radiant + a moonlight heads-up when the Moon's bright.
+function showerEvent(sh) {
+  const moon = markers.find((m) => m.label === 'Moon');
+  let note = '';
+  if (moon && moon.altaz.alt >= 0) {
+    const st = store.getState();
+    const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
+    if (moonPhaseInfo(time).illumPct > 40) note = ' A bright Moon will wash out fainter ones.';
+  }
+  const text = `☄️ ${sh.name} peaks tonight — up to ~${sh.zhr}/hr under dark skies, radiant in ${constellationName(sh.con)}.${note}`;
+  return { text, actionLabel: 'Find', onAction: () => onFindShower(sh) };
+}
+
+// Banner for a close pairing of bright bodies (Moon named first, else the brighter one).
+function conjunctionEvent(pair) {
+  const [first, second] = pair.a.label === 'Moon' ? [pair.a, pair.b]
+    : pair.b.label === 'Moon' ? [pair.b, pair.a]
+    : (pair.a.mag ?? 99) <= (pair.b.mag ?? 99) ? [pair.a, pair.b] : [pair.b, pair.a];
+  const sepStr = pair.sepDeg < 1 ? pair.sepDeg.toFixed(1) : String(Math.round(pair.sepDeg));
+  const where = altazToWhere(midpointAltAz(pair.a.altaz, pair.b.altaz), azToCompass);
+  const text = `🌗 ${first.label} and ${second.label} are close — ${sepStr}° apart, ${where}.`;
+  return { text, actionLabel: 'Find', onAction: () => onFindConjunction(pair) };
 }
 
 // Jump to an eclipse: set time to its peak, center the Moon, open the Moon card with the timeline.
@@ -277,6 +315,25 @@ function onJumpToEclipse(e) {
   openCard(pick, cardCtx(observer, time, { ...e, live: true }));
   const targetFov = Math.max(12, Math.min(st.fov, 20));
   animateSlew(store, { az: altaz.az, alt: altaz.alt, fov: targetFov });
+}
+
+// Find a meteor shower: clear any card and slew to its radiant at a wide field (meteors streak across
+// the sky). Full-sphere reveals a radiant that's still below the horizon early in the evening.
+function onFindShower(sh) {
+  closeCard();
+  highlighted = { altaz: sh.radiant };
+  const st = store.getState();
+  const targetFov = Math.min(Math.max(st.fov, 40), 60);
+  animateSlew(store, { az: sh.radiant.az, alt: sh.radiant.alt, fov: targetFov });
+}
+
+// Find a conjunction: clear any card, aim between the pair, and zoom to frame both.
+function onFindConjunction(pair) {
+  closeCard();
+  const mid = midpointAltAz(pair.a.altaz, pair.b.altaz);
+  highlighted = { altaz: mid };
+  const targetFov = Math.max(8, Math.min(pair.sepDeg * 4, 20));
+  animateSlew(store, { az: mid.az, alt: mid.alt, fov: targetFov });
 }
 
 // Find: open the card immediately, then slew to center the pick.
