@@ -6,10 +6,19 @@ export const DEFAULT_FOV = 60; // startup FOV (comfortable naked-eye view); zoom
 export const MAX_ALT = 89;   // clamp pitch just below the zenith to avoid the gimbal-lock singularity
 const STORE_KEY = 'volvella.location';
 const STORE_KEY_VIEW = 'volvella.view'; // last aim + fov, so a reload resumes where you were looking
+const STORE_KEY_FLAGS = 'volvella.flags'; // remembered view toggles (see PERSISTED_FLAGS)
+
+// View toggles that persist across reloads. Deliberately excludes `lines` (constellations always
+// start hidden) and `edit` (a transient mode, never restored).
+const PERSISTED_FLAGS = ['labels', 'grid', 'deepsky', 'sphere', 'night'];
 
 // Default location (used until the user sets one): Austin, TX.
 const DEFAULT_LOCATION = { lat: 30.27, lng: -97.74, label: 'Austin, TX' };
 const DEFAULT_AIM = { az: 180, alt: 45 };
+
+// Lowest altitude the camera may aim at. Normally the horizon (0°), so you can't tilt down into the
+// empty black below it; full-sphere mode unlocks the lower hemisphere down to near the nadir.
+const minAltFor = (flags) => (flags.sphere ? -MAX_ALT : 0);
 
 function loadSavedLocation() {
   if (typeof localStorage === 'undefined') return null;
@@ -34,14 +43,28 @@ function loadSavedView() {
   } catch { return null; }
 }
 
+// Restore the remembered view toggles (only the PERSISTED_FLAGS keys, only booleans), or {} if none.
+function loadSavedFlags() {
+  if (typeof localStorage === 'undefined') return {};
+  try {
+    const v = JSON.parse(localStorage.getItem(STORE_KEY_FLAGS) || 'null');
+    if (!v || typeof v !== 'object') return {};
+    const out = {};
+    for (const k of PERSISTED_FLAGS) if (typeof v[k] === 'boolean') out[k] = v[k];
+    return out;
+  } catch { return {}; }
+}
+
 export function createState() {
   const savedView = loadSavedView();
+  const flags = { lines: false, labels: true, grid: false, sphere: false, deepsky: false, night: false, edit: false, ...loadSavedFlags() };
+  const aim = savedView ? savedView.aim : { ...DEFAULT_AIM };
   let state = {
     location: loadSavedLocation() || { ...DEFAULT_LOCATION },
     time: { instant: null, live: true }, // instant set by setTime; null means "use Date.now() at read"
-    aim: savedView ? savedView.aim : { ...DEFAULT_AIM },
+    aim: { az: aim.az, alt: clamp(aim.alt, minAltFor(flags), MAX_ALT) }, // honor the horizon lock on restore
     fov: savedView ? savedView.fov : DEFAULT_FOV,
-    flags: { lines: false, labels: true, grid: false, sphere: false, deepsky: false, night: false, edit: false },
+    flags,
   };
 
   // Persisting on every aim/fov change would write to localStorage on every drag frame; throttle so we
@@ -55,6 +78,12 @@ export function createState() {
       try { localStorage.setItem(STORE_KEY_VIEW, JSON.stringify({ aim: state.aim, fov: state.fov })); } catch { /* ignore */ }
     }, 250);
   };
+  const saveFlags = () => {
+    if (typeof localStorage === 'undefined') return;
+    const subset = {};
+    for (const k of PERSISTED_FLAGS) subset[k] = state.flags[k];
+    try { localStorage.setItem(STORE_KEY_FLAGS, JSON.stringify(subset)); } catch { /* ignore */ }
+  };
   const listeners = new Set();
   const emit = () => { for (const fn of listeners) fn(state); };
 
@@ -64,7 +93,7 @@ export function createState() {
     getState: () => state,
     subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     setAim(az, alt) {
-      state = { ...state, aim: { az: wrap360(az), alt: clamp(alt, -MAX_ALT, MAX_ALT) } };
+      state = { ...state, aim: { az: wrap360(az), alt: clamp(alt, minAltFor(state.flags), MAX_ALT) } };
       saveView();
       emit();
     },
@@ -88,7 +117,13 @@ export function createState() {
     },
     setFlag(name, value) {
       if (!(name in state.flags)) throw new Error(`Unknown flag: ${name}`);
-      state = { ...state, flags: { ...state.flags, [name]: value } };
+      const flags = { ...state.flags, [name]: value };
+      // Turning full-sphere off while aimed below the horizon snaps the pitch back up to 0°.
+      const alt = clamp(state.aim.alt, minAltFor(flags), MAX_ALT);
+      const aimChanged = alt !== state.aim.alt;
+      state = { ...state, flags, aim: aimChanged ? { ...state.aim, alt } : state.aim };
+      if (PERSISTED_FLAGS.includes(name)) saveFlags();
+      if (aimChanged) saveView();
       emit();
     },
   };

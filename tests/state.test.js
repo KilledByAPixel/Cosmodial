@@ -13,14 +13,30 @@ test('subscribers are notified on change and can unsubscribe', () => {
   assert.equal(calls, 1, 'no notification after unsubscribe');
 });
 
-test('setAim wraps azimuth and clamps altitude', () => {
+test('setAim wraps azimuth and clamps altitude (horizon lock without full-sphere)', () => {
   const s = createState();
   s.setAim(370, 100);
   assert.equal(s.getState().aim.az, 10);
   assert.equal(s.getState().aim.alt, MAX_ALT);
   s.setAim(-10, -200);
   assert.equal(s.getState().aim.az, 350);
+  assert.equal(s.getState().aim.alt, 0, 'cannot aim below the horizon when full-sphere is off');
+});
+
+test('full-sphere unlocks aiming below the horizon, down to -MAX_ALT', () => {
+  const s = createState();
+  s.setFlag('sphere', true);
+  s.setAim(0, -200);
   assert.equal(s.getState().aim.alt, -MAX_ALT);
+});
+
+test('turning full-sphere off snaps a below-horizon aim back up to 0', () => {
+  const s = createState();
+  s.setFlag('sphere', true);
+  s.setAim(0, -45);
+  assert.equal(s.getState().aim.alt, -45);
+  s.setFlag('sphere', false);
+  assert.equal(s.getState().aim.alt, 0, 'pitch is pulled back to the horizon when the lower sky is hidden');
 });
 
 test('setFov clamps to [MIN_FOV, MAX_FOV]', () => {

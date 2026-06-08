@@ -11,7 +11,7 @@ import { createRenderScheduler } from './core/scheduler.js';
 import { attachInput } from './ui/input.js';
 import { splitSegments, toggleEdge, pickNearest, circularCentroid, exportFigures } from './edit/figures.js';
 import { createProjector } from './core/projection.js';
-import { openCard, closeCard, colorWord, constellationName } from './ui/card.js';
+import { openCard, closeCard, colorWord, constellationName, isCardOpen } from './ui/card.js';
 import { rankCandidates, altazToWhere } from './guide/ranking.js';
 import { buildGuide } from './ui/guide.js';
 import { buildSearch, buildSearchIndex } from './ui/search.js';
@@ -114,6 +114,7 @@ function computeSky() {
     guide.setPicks(buildPicks(), { isDay });
     guide.setEvent(buildTonightEvent());
   }
+  syncSelection();
 }
 
 // Approximate glow brightness (0..1) for a Sun/Moon/planet marker from its apparent magnitude:
@@ -218,7 +219,7 @@ function onIdentifyTap(x, y) {
   const cam = { az: st.aim.az, alt: st.aim.alt, fov: st.fov, width: canvas.clientWidth, height: canvas.clientHeight };
   const projector = createProjector(cam);
   const candidates = [
-    ...skyObjects.map((s) => ({ kind: 'star', name: s.name, mag: s.mag, bv: s.bv, con: s.con, dist: s.dist, altaz: s.altaz })),
+    ...skyObjects.map((s) => ({ kind: 'star', id: s.id, name: s.name, mag: s.mag, bv: s.bv, con: s.con, dist: s.dist, altaz: s.altaz })),
     ...markers.map((m) => ({ kind: m.label === 'Moon' ? 'moon' : m.label === 'Sun' ? 'sun' : 'planet', label: m.label, body: m.body, mag: m.mag, altaz: m.altaz })),
     ...dsoObjects,
   ].filter((o) => o.altaz.alt >= 0);
@@ -236,7 +237,7 @@ function onIdentifyTap(x, y) {
 function buildPicks() {
   const stars = skyObjects
     .filter((s) => s.name && s.altaz.alt >= 0 && s.mag <= 2.0)
-    .map((s) => ({ kind: 'star', name: s.name, mag: s.mag, bv: s.bv, con: s.con, dist: s.dist, altaz: s.altaz, why: `a bright ${colorWord(s.bv)} star` }));
+    .map((s) => ({ kind: 'star', id: s.id, name: s.name, mag: s.mag, bv: s.bv, con: s.con, dist: s.dist, altaz: s.altaz, why: `a bright ${colorWord(s.bv)} star` }));
   const bodies = markers
     .filter((m) => m.label !== 'Sun' && m.altaz.alt >= 0)
     .map((m) => ({
@@ -259,6 +260,30 @@ function eclipseForMoon(kind) {
   if (eclipseCtx.inProgress) return { ...eclipseCtx.inProgress, live: true };
   if (eclipseCtx.next) return { ...eclipseCtx.next, live: false };
   return null;
+}
+
+// Current alt/az for the selected object, re-resolved from the freshly recomputed arrays so the
+// highlight ring tracks it as time advances. Stars/DSOs match by id, Sun/Moon/planets by label.
+// Null if it can't be matched (e.g. an object that's no longer in the catalogue).
+function liveAltAzFor(sel) {
+  if (sel.kind === 'star') { const s = skyObjects.find((o) => o.id === sel.id); return s ? s.altaz : null; }
+  if (sel.kind === 'dso') { const d = dsoObjects.find((o) => o.id === sel.id); return d ? d.altaz : null; }
+  const m = markers.find((o) => o.label === sel.label); // moon / sun / planet
+  return m ? m.altaz : null;
+}
+
+// Keep the selection's highlight ring (and its open card) pinned to the object's live position as the
+// sky advances. Called at the end of each computeSky. Bare find-aims (shower radiant / conjunction
+// midpoint) have no `kind` and stay put — they're transient and barely drift.
+function syncSelection() {
+  if (!highlighted || !highlighted.kind) return;
+  const altaz = liveAltAzFor(highlighted);
+  if (altaz) highlighted.altaz = altaz;            // ring follows the object
+  if (!isCardOpen()) return;                       // refresh the card's where-now / distance / phase readouts
+  const st = store.getState();
+  const observer = makeObserver(st.location.lat, st.location.lng);
+  const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
+  openCard(highlighted, cardCtx(observer, time, eclipseForMoon(highlighted.kind)));
 }
 
 // The single most notable thing happening tonight, for the always-visible banner. Tonight-only:
@@ -355,7 +380,7 @@ function onSearchSelect(entry) {
     if (d) onFindObject(d);
   } else if (entry.type === 'star') {
     const s = skyObjects.find((o) => o.id === entry.ref);
-    if (s) onFindObject({ kind: 'star', name: s.name, mag: s.mag, bv: s.bv, con: s.con, dist: s.dist, altaz: s.altaz });
+    if (s) onFindObject({ kind: 'star', id: s.id, name: s.name, mag: s.mag, bv: s.bv, con: s.con, dist: s.dist, altaz: s.altaz });
   } else if (entry.type === 'body') {
     const m = markers.find((o) => o.label === entry.ref);
     if (m) {

@@ -16,7 +16,9 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
   position: fixed; left: 0; right: 0; bottom: 0;
   display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center;
   padding: 8px 12px; font: 13px system-ui, sans-serif; color: #cdd6e6;
-  background: linear-gradient(to top, rgba(5,7,13,0.92), rgba(5,7,13,0.0));
+  /* Match the compass ribbon's shade (rgba(5,7,13,0.55), drawn on the canvas just above this bar) so
+     the dark backdrop is continuous from the ribbon down behind the buttons to the screen bottom. */
+  background: rgba(5, 7, 13, 0.55);
   user-select: none;
 }
 #controls .ctrl { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

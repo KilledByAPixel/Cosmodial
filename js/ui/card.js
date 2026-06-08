@@ -159,3 +159,9 @@ export function closeCard() {
   const cb = onCloseCb; onCloseCb = null;
   if (cb) cb();
 }
+
+// Is an object card currently showing? Used to decide whether to refresh it as the live sky advances.
+export function isCardOpen() {
+  const host = document.getElementById('card-host');
+  return !!host && host.childElementCount > 0;
+}
