@@ -48,18 +48,22 @@ function drawHorizon(ctx, cam) {
   ctx.stroke();
   ctx.font = '12px system-ui, sans-serif';
   ctx.fillStyle = 'rgba(150, 190, 230, 0.85)';
+  ctx.textBaseline = 'top'; // sit the letters just BELOW the horizon line
   for (const c of [{ az: 0, l: 'N' }, { az: 90, l: 'E' }, { az: 180, l: 'S' }, { az: 270, l: 'W' }]) {
     const p = projector(c.az, 0);
     if (p.visible && p.x >= 0 && p.x <= cam.width && p.y >= 0 && p.y <= cam.height) {
-      ctx.fillText(c.l, p.x + 3, p.y - 3);
+      ctx.fillText(c.l, p.x + 3, p.y + 3);
     }
   }
+  ctx.textBaseline = 'alphabetic'; // restore default for the rest of the HUD
 }
 
-// The always-visible compass ribbon along the bottom.
+// The always-visible compass ribbon along the bottom. `bottomInset` lifts it above the on-screen
+// control bar (whose measured height main.js passes in) so the labels aren't hidden behind buttons.
 function drawCompass(ctx, cam) {
-  const barTop = cam.height - 36;
-  const labelY = cam.height - 13;
+  const inset = cam.bottomInset || 0;
+  const barTop = cam.height - inset - 36;
+  const labelY = cam.height - inset - 13;
   ctx.fillStyle = 'rgba(5, 7, 13, 0.55)';
   ctx.fillRect(0, barTop, cam.width, 36);
   ctx.strokeStyle = 'rgba(150, 190, 230, 0.4)';
@@ -74,7 +78,7 @@ function drawCompass(ctx, cam) {
     ctx.strokeStyle = 'rgba(150, 190, 230, 0.4)';
     ctx.beginPath(); ctx.moveTo(m.x, barTop); ctx.lineTo(m.x, barTop + 6); ctx.stroke();
   }
-  // center pointer (where the reticle faces)
+  // center pointer (marks where the view is aimed)
   ctx.strokeStyle = 'rgba(120, 200, 255, 0.95)';
   ctx.beginPath(); ctx.moveTo(cam.width / 2, barTop); ctx.lineTo(cam.width / 2, barTop + 10); ctx.stroke();
   ctx.textAlign = 'left';
@@ -86,7 +90,7 @@ function drawReadout(ctx, cam) {
   ctx.fillStyle = 'rgba(200, 220, 245, 0.9)';
   ctx.textAlign = 'left';
   const txt = `facing ${azToCompass(cam.az)} ${Math.round(cam.az) % 360}° · alt ${Math.round(cam.alt)}° · FOV ${Math.round(cam.fov)}°`;
-  ctx.fillText(txt, 12, cam.height - 48);
+  ctx.fillText(txt, 12, cam.height - (cam.bottomInset || 0) - 48);
 }
 
 export function drawHud(ctx, cam) {

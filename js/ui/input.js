@@ -23,13 +23,16 @@ export function pinchToFov(startFov, startDist, currentDist) {
 
 // Map a keyboard key to a state flag to toggle, or null if the key isn't a toggle.
 export function toggleKeyAction(key) {
-  if (key === 'c' || key === 'C') return 'lines'; // 'c' = constellation lines
-  if (key === 'e' || key === 'E') return 'edit';  // 'e' = edit mode
+  if (key === 'c' || key === 'C') return 'lines';  // 'c' = constellation lines
+  if (key === 'l' || key === 'L') return 'labels'; // 'l' = object name labels
+  if (key === 'g' || key === 'G') return 'grid';   // 'g' = alt-az grid
+  if (key === 's' || key === 'S') return 'sphere'; // 's' = show the whole sphere (below horizon too)
+  if (key === 'e' || key === 'E') return 'edit';   // 'e' = edit mode
   return null;
 }
 
 // Attach pointer/wheel input to the canvas. Mouse + single-finger touch drag the sky
-// (grab-the-sky); the wheel and two-finger pinch zoom toward the reticle. Returns a detach()
+// (grab-the-sky); the wheel and two-finger pinch zoom toward the view center. Returns a detach()
 // function that removes all listeners.
 export function attachInput(canvas, store, opts = {}) {
   const pointers = new Map(); // pointerId -> { x, y }

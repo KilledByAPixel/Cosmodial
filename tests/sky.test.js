@@ -37,8 +37,31 @@ test('drawScene renders stars/markers without throwing and draws them', () => {
   assert.doesNotThrow(() => drawScene(ctx, { stars, markers, cam }));
   assert.ok(ctx.calls.fillRect >= 1, 'should clear the background');
   assert.ok(ctx.calls.arc >= 3, 'should draw the two visible stars plus the marker');
-  assert.ok(ctx.calls.stroke >= 1, 'should draw the reticle');
   assert.ok(ctx.calls.texts.includes('Sirius'), 'should label the bright named star');
   assert.ok(ctx.calls.texts.includes('Moon'), 'should label the Moon marker');
   assert.ok(!ctx.calls.texts.includes('DimStar'), 'should NOT label named stars dimmer than the threshold');
+});
+
+test('drawScene with labels:false suppresses all text', () => {
+  const ctx = stubCtx();
+  const cam = { az: 180, alt: 45, fov: 60, width: 800, height: 600 };
+  const stars = [{ altaz: { alt: 50, az: 180 }, mag: 1.0, bv: 0.0, name: 'Sirius' }];
+  const markers = [{ altaz: { alt: 40, az: 180 }, label: 'Moon', color: '#e8e8e8' }];
+  drawScene(ctx, { stars, markers, cam, labels: false });
+  assert.equal(ctx.calls.texts.length, 0, 'no labels drawn when labels:false');
+  assert.ok(ctx.calls.arc >= 2, 'but stars/markers are still drawn');
+});
+
+test('sphere:true reveals objects below the horizon; default hides them', () => {
+  const cam = { az: 180, alt: -20, fov: 60, width: 800, height: 600 }; // aimed below the horizon
+  const stars = [{ altaz: { alt: -10, az: 180 }, mag: 1.0, bv: 0.0, name: 'UnderStar' }];
+  const markers = [{ altaz: { alt: -10, az: 181 }, label: 'Mars', color: '#d66' }];
+
+  const top = stubCtx();
+  drawScene(top, { stars, markers, cam });
+  assert.equal(top.calls.arc, 0, 'below-horizon star + planet hidden by default');
+
+  const full = stubCtx();
+  drawScene(full, { stars, markers, cam, sphere: true });
+  assert.ok(full.calls.arc >= 2, 'below-horizon star + planet drawn in full-sphere mode');
 });

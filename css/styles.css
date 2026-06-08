@@ -22,7 +22,23 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 #controls .ctrl-label { opacity: 0.8; }
 #controls .now-badge { min-width: 130px; opacity: 0.7; }
 #controls .now-badge.live { color: #8fdcb0; opacity: 1; }
-@media (max-width: 640px) { #controls { font-size: 12px; gap: 6px 10px; } #controls input[type="range"] { width: 120px; } }
+@media (max-width: 640px) { #controls { font-size: 12px; gap: 6px 10px; } #controls input[type="range"] { width: 120px; } #controls .search input[type="search"] { width: 110px; } }
+
+/* View toggles (Constellations / Labels / Grid / Night): lit when active. */
+#controls .view-toggle.on { color: #9fd0ff; border-color: #2d5b8a; background: #16263c; }
+
+/* Object search: input in the bar, results list opens upward over the sky. */
+#controls .search { position: relative; }
+#controls .search input[type="search"] { width: 150px; }
+.search-results { display: none; list-style: none; margin: 0; padding: 4px;
+  position: absolute; left: 0; bottom: calc(100% + 6px); width: 240px; max-height: 280px; overflow-y: auto;
+  background: rgba(12,16,26,0.97); border: 1px solid #2a3550; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,0.5); z-index: 7; }
+.search.open .search-results { display: block; }
+.search-item { display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.search-item:hover, .search-item.active { background: #1b2336; }
+.search-name { color: #dce3f0; }
+.search-type { font-size: 11px; color: #8fb0e0; opacity: 0.85; }
 
 #card-host:empty { display: none; }
 #card-host { position: fixed; left: 0; right: 0; bottom: 48px; display: flex; justify-content: center; pointer-events: none; z-index: 5; }

@@ -1,10 +1,22 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatClock, presetInstants, scrubFraction, scrubInstant } from '../js/ui/time-controls.js';
+import {
+  formatClock, formatDate, toLocalInputValue,
+  scrubFraction, scrubInstant, startOfDay, dayFraction, instantOnDay,
+} from '../js/ui/time-controls.js';
 
 test('formatClock is zero-padded 24h local HH:MM', () => {
   assert.equal(formatClock(new Date(2026, 5, 7, 20, 5)), '20:05');
   assert.equal(formatClock(new Date(2026, 5, 7, 9, 0)), '09:00');
+});
+
+test('formatDate is a short, deterministic local date', () => {
+  assert.equal(formatDate(new Date(2026, 5, 7, 20, 5)), 'Sun Jun 7'); // 2026-06-07 is a Sunday
+  assert.equal(formatDate(new Date(2026, 0, 1, 0, 0)), 'Thu Jan 1');
+});
+
+test('toLocalInputValue matches the datetime-local format', () => {
+  assert.equal(toLocalInputValue(new Date(2026, 5, 7, 9, 4)), '2026-06-07T09:04');
 });
 
 test('scrubFraction / scrubInstant round-trip and clamp', () => {
@@ -17,14 +29,21 @@ test('scrubFraction / scrubInstant round-trip and clamp', () => {
   assert.equal(scrubFraction(new Date('2026-06-07T20:00:00Z'), start, end), 1); // after -> 1
 });
 
-test('presetInstants: now=null, tonight=sunset+2h, midnight=next local 00:00', () => {
-  const sunset = new Date(2026, 5, 7, 20, 30);
-  const sunrise = new Date(2026, 5, 8, 6, 15);
-  const ref = new Date(2026, 5, 7, 21, 0);
-  const p = presetInstants({ sunset, sunrise, ref });
-  assert.equal(p.now, null);
-  assert.equal(p.sunset.getTime(), sunset.getTime());
-  assert.equal(p.sunrise.getTime(), sunrise.getTime());
-  assert.equal(p.tonight.getTime(), sunset.getTime() + 2 * 3.6e6);
-  assert.equal(p.midnight.getTime(), new Date(2026, 5, 8, 0, 0, 0, 0).getTime());
+test('startOfDay zeroes the local time-of-day', () => {
+  const s = startOfDay(new Date(2026, 5, 7, 13, 37, 12, 500));
+  assert.equal(s.getHours(), 0);
+  assert.equal(s.getMinutes(), 0);
+  assert.equal(s.getSeconds(), 0);
+  assert.equal(s.getDate(), 7);
+});
+
+test('dayFraction maps midnight->0, noon->0.5, and instantOnDay inverts it', () => {
+  const noon = new Date(2026, 5, 7, 12, 0, 0);
+  assert.ok(Math.abs(dayFraction(noon) - 0.5) < 1e-9);
+  assert.equal(dayFraction(new Date(2026, 5, 7, 0, 0, 0)), 0);
+  // instantOnDay keeps the day of the reference but applies the fraction's time-of-day
+  const ref = new Date(2026, 5, 7, 22, 0, 0);
+  const back = instantOnDay(0.5, ref);
+  assert.equal(back.getDate(), 7);
+  assert.equal(back.getHours(), 12);
 });
