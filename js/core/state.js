@@ -4,7 +4,7 @@ export const MIN_FOV = 1;    // telescope
 export const MAX_FOV = 120;   // widest zoom-out (wide-angle); gnomonic edges start to stretch past ~120°
 export const DEFAULT_FOV = 60; // startup FOV (comfortable naked-eye view); zoom-out can widen to MAX_FOV
 export const MAX_ALT = 89;   // clamp pitch just below the zenith to avoid the gimbal-lock singularity
-const STORE_KEY = 'skyscope.location';
+const STORE_KEY = 'volvella.location';
 
 // Default location (used until the user sets one): Austin, TX.
 const DEFAULT_LOCATION = { lat: 30.27, lng: -97.74, label: 'Austin, TX' };

@@ -234,7 +234,7 @@ function compileShader(gl, type, src) {
   gl.shaderSource(sh, src);
   gl.compileShader(sh);
   if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
-    console.error('[skyscope] star shader compile failed:', gl.getShaderInfoLog(sh));
+    console.error('[volvella] star shader compile failed:', gl.getShaderInfoLog(sh));
     gl.deleteShader(sh);
     return null;
   }
@@ -252,7 +252,7 @@ function buildProgram(gl, vsSrc, fsSrc) {
   gl.deleteShader(vs);
   gl.deleteShader(fs);
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    console.error('[skyscope] star program link failed:', gl.getProgramInfoLog(program));
+    console.error('[volvella] star program link failed:', gl.getProgramInfoLog(program));
     gl.deleteProgram(program);
     return null;
   }
@@ -324,7 +324,7 @@ export function createStarfield(glCanvas) {
 
   if (!setupGL()) return null;
   if (maxPointSize < 64) {
-    console.warn(`[skyscope] WebGL max point size is ${maxPointSize}px — very large stars may be clamped.`);
+    console.warn(`[volvella] WebGL max point size is ${maxPointSize}px — very large stars may be clamped.`);
   }
 
   glCanvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); lost = true; });
