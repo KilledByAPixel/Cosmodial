@@ -1,5 +1,5 @@
 // Curation weight by kind: Moon/planets float above a coincidentally-up star.
-const CURATION = { moon: 100, planet: 80, star: 30 };
+const CURATION = { moon: 100, planet: 80, dso: 60, star: 30 };
 
 // Ease tag. The Moon is always naked-eye; planets and stars go by magnitude (so the faint outer
 // planets read as binoculars/telescope, not naked-eye). A planet with no magnitude defaults to

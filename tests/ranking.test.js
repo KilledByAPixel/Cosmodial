@@ -45,3 +45,21 @@ test('headline reflects day vs night and pick count', () => {
   assert.match(headline([], { isDay: false }), /Nothing/);
   assert.match(headline([{ name: 'Jupiter' }], { isDay: false }), /Jupiter/);
 });
+
+test('a DSO outranks a dim star but trails a planet at similar altitude', () => {
+  const at = (alt) => ({ alt, az: 180 });
+  const list = rankCandidates([
+    { kind: 'star', mag: 4.5, altaz: at(40) },
+    { kind: 'dso', mag: 6, altaz: at(40), name: 'Test Neb' },
+    { kind: 'planet', mag: 0, altaz: at(40) },
+  ]);
+  const kinds = list.map((c) => c.kind);
+  assert.ok(kinds.indexOf('planet') < kinds.indexOf('dso'), 'planet ranks above dso');
+  assert.ok(kinds.indexOf('dso') < kinds.indexOf('star'), 'dso ranks above a dim star');
+});
+
+test('easeFor tags a DSO by magnitude', () => {
+  assert.equal(easeFor('dso', 4), 'naked eye');
+  assert.equal(easeFor('dso', 7), 'binoculars');
+  assert.equal(easeFor('dso', 11), 'telescope');
+});
