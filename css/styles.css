@@ -60,3 +60,9 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
   border-radius: 6px; padding: 4px 10px; cursor: pointer; }
 .pick-find:hover { background: #243049; }
 .guide-seeall { margin-top: 6px; font: inherit; color: #8fb0e0; background: none; border: 0; padding: 4px 0; cursor: pointer; }
+
+/* Night mode: a single multiply-red overlay tints the whole app (canvas + panels) red-on-black. */
+#night-overlay { position: fixed; inset: 0; background: #ff0000; mix-blend-mode: multiply;
+  pointer-events: none; z-index: 9999; display: none; }
+body.night #night-overlay { display: block; }
+.night-toggle.on { color: #ff9a8c; border-color: #5a2a26; }
