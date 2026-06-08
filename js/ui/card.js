@@ -42,6 +42,23 @@ export function constellationName(abbr) {
   return NAMES[abbr] || abbr || '';
 }
 
+// Plain-language visibility phrase for an eclipse.
+export function visWord(visibility) {
+  return visibility === 'partial' ? 'partly visible from here' : 'visible from here';
+}
+
+// Ordered [label, Date] contact pairs that actually occur for this eclipse (peak always present).
+export function eclipseContacts(e) {
+  const c = e.contacts;
+  const out = [];
+  if (c.partialBegin) out.push(['partial begins', c.partialBegin]);
+  if (c.totalBegin) out.push(['totality begins', c.totalBegin]);
+  out.push(['peak', c.peak]);
+  if (c.totalEnd) out.push(['totality ends', c.totalEnd]);
+  if (c.partialEnd) out.push(['partial ends', c.partialEnd]);
+  return out;
+}
+
 const AU_TO_KM = 1.495978707e8;
 const MIN_PER_AU = 8.317; // light travel time per AU
 
@@ -73,6 +90,21 @@ function bodyLines(obj, ctx) {
     lines.push(row(`The Moon — <b>${m.phaseName}</b>, ${m.illumPct}% lit.`));
     lines.push(row(`<b>Distance:</b> ${km.toLocaleString()} km away`));
     lines.push(row(`<b>How to see it:</b> naked eye`));
+    if (ctx.eclipse) {
+      const e = ctx.eclipse;
+      if (e.live) {
+        const kindWord = e.kind === 'total' ? 'Total' : 'Partial';
+        const note = e.visibility === 'partial' ? ' (partly visible from here)' : '';
+        const fmt = (d) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        lines.push(row(`🌘 <b>${kindWord} lunar eclipse${note}.</b>`));
+        lines.push(row(`<b>Times:</b> ${eclipseContacts(e).map(([label, d]) => `${label} ${fmt(d)}`).join(' · ')}`));
+        if (e.totalityMinutes) lines.push(row(`<b>Totality:</b> ${Math.round(e.totalityMinutes)} min`));
+        lines.push(row(`✨ Sunlight bent through Earth's atmosphere paints it coppery-red — dimmer than the photos, but unmistakable to the eye.`));
+      } else {
+        const when = e.peak.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+        lines.push(row(`<b>Next lunar eclipse:</b> ${when} (${e.kind}), ${visWord(e.visibility)}.`));
+      }
+    }
   } else if (obj.kind === 'sun') {
     lines.push(row(`The Sun.`));
     lines.push(row(`⚠️ <b>Never look at the Sun</b> through binoculars or a telescope without a proper solar filter.`));

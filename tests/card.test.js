@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { colorWord, easeTag, distanceLy, lightLeftPhrase, constellationName } from '../js/ui/card.js';
+import { colorWord, easeTag, distanceLy, lightLeftPhrase, constellationName, eclipseContacts, visWord } from '../js/ui/card.js';
 
 test('colorWord buckets B-V into plain colors', () => {
   assert.equal(colorWord(-0.1), 'blue-white');
@@ -32,4 +32,26 @@ test('lightLeftPhrase handles AD and BC', () => {
 test('constellationName resolves abbreviations', () => {
   assert.equal(constellationName('Ori'), 'Orion');
   assert.equal(constellationName('ZZZ'), 'ZZZ');
+});
+
+test('visWord phrases visibility', () => {
+  assert.equal(visWord('full'), 'visible from here');
+  assert.equal(visWord('partial'), 'partly visible from here');
+});
+
+test('eclipseContacts lists only the phases that occur, in order', () => {
+  const peak = new Date('2026-07-01T05:00:00Z');
+  const mk = (sdPartial, sdTotal) => ({
+    contacts: {
+      partialBegin: sdPartial ? new Date(peak.getTime() - sdPartial * 60000) : null,
+      totalBegin: sdTotal ? new Date(peak.getTime() - sdTotal * 60000) : null,
+      peak,
+      totalEnd: sdTotal ? new Date(peak.getTime() + sdTotal * 60000) : null,
+      partialEnd: sdPartial ? new Date(peak.getTime() + sdPartial * 60000) : null,
+    },
+  });
+  const total = eclipseContacts(mk(90, 30)).map(([label]) => label);
+  assert.deepEqual(total, ['partial begins', 'totality begins', 'peak', 'totality ends', 'partial ends']);
+  const partial = eclipseContacts(mk(60, 0)).map(([label]) => label);
+  assert.deepEqual(partial, ['partial begins', 'peak', 'partial ends']);
 });
