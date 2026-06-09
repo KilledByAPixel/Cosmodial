@@ -78,10 +78,11 @@ function loadSavedFigures(currentFile) {
   } catch { return null; }
 }
 
-// Recompute alt/az for every object from the current time + location. Called only from render()
-// when skyDirty is set (via requestRecompute), so location/time/scrub/edit changes and the live
-// tick all coalesce into one recompute per frame. The EQJ->EQD precession is computed once here
-// (makeStarAltAz) rather than per star.
+// Recompute the sky from the current time + location. Two tiers: the FREQUENT pass (every skyDirty
+// render — per frame in live mode) refreshes everything cheap that's on screen: markers, lit-sphere
+// inputs, constellation lines, named-star label positions, DSOs, sky colours. The FULL pass adds the
+// 62k skyObjects remap (now only the picking/guide data source — the GL stars transform on the GPU)
+// plus the eclipse/guide work. The 2D fallback always runs full (its stars draw from skyObjects).
 function computeSky(full) {
   const st = store.getState();
   const observer = makeObserver(st.location.lat, st.location.lng);
@@ -111,7 +112,7 @@ function computeSky(full) {
   ];
   if (useGL) {
     // Sky background: atmosphere colour + star wash-out are driven by the Sun's altitude; the warm
-    // glow lobe needs its direction. (Phase 3 adds the ENU->EQJ matrix here for the Milky Way.)
+    // glow lobe needs its direction, and the Milky Way texture its ENU->galactic sampling matrix.
     const sun = markers.find((m) => m.label === 'Sun');
     const sunAlt = sun ? sun.altaz.alt : -90;
     const p = skyParams(sunAlt);
@@ -310,7 +311,7 @@ function ensureFreshPickData() {
   const locChanged = !skyStamp || skyStamp.lat !== st.location.lat || skyStamp.lng !== st.location.lng;
   const driftDeg = skyStamp ? (Math.abs(ms - skyStamp.ms) / 1000) * 0.00418 : Infinity;
   const pickRadiusDeg = 18 * (st.fov / canvas.clientWidth);
-  if (locChanged || driftDeg > pickRadiusDeg * 0.5) computeSky(true);
+  if (locChanged || driftDeg > pickRadiusDeg * 0.5) { computeSky(true); fullDirty = false; } // full just ran; don't repeat it next render
 }
 
 // Outside edit mode, a tap identifies the nearest visible object and opens its card.

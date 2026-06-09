@@ -60,12 +60,12 @@ export function transformStarJ2000(v, m) {
   return [e0 * k, e1 * k, Math.sin(app)];
 }
 
-// Per-star GPU attributes from the RAW catalogue (ra/dec/mag/bv) — built ONCE at boot. Identical
-// interleaved layout to buildStarAttributes in starfield-gl.js (dir 3, rgb 3, mag 1, alphaScale 1),
-// except dir is the FIXED J2000 vector instead of a precomputed ENU direction.
+// Per-star GPU attributes from the RAW catalogue (ra/dec/mag/bv) — built ONCE at boot. Interleaved
+// 8-float layout matching the star VAO in starfield-gl.js (FLOATS_PER_STAR there): dir 3 (the FIXED
+// J2000 unit vector — the shader transforms it per frame), rgb 3, mag 1, alphaScale 1.
 export function buildStarAttributesJ2000(rawStars) {
   const count = rawStars.length;
-  const data = new Float32Array(count * 8);
+  const data = new Float32Array(count * 8); // 8 = FLOATS_PER_STAR in starfield-gl.js
   for (let i = 0; i < count; i++) {
     const s = rawStars[i];
     const d = j2000Vec(s.ra, s.dec);

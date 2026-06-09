@@ -395,8 +395,8 @@ export function createStarfield(glCanvas) {
     gl.uniform1f(L.uShowBelow, showBelow ? 1 : 0);
   }
 
-  // Stash the latest sky-background params (sun-driven colours + ENU->EQJ matrix). Called from
-  // computeSky() on the same cadence as uploadStars(). Until the first call, the bg pass is skipped.
+  // Stash the latest sky-background params (sun-driven colours + ENU->galactic matrix). Called from
+  // every computeSky() pass (per frame in live mode). Until the first call, the bg pass is skipped.
   function setSkyParams(params) { skyParamsStash = params; }
 
   // Start loading the all-sky Milky Way texture (relative URL). Atmosphere renders fine until it lands.
