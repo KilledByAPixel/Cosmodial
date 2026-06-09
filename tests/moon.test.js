@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nudgedToward, screenAngleCWFromUp, moonScreenOrientation } from '../js/core/moon.js';
+import { nudgedToward, screenAngleCWFromUp, bodyScreenOrientation } from '../js/core/moon.js';
 import { vec } from '../js/core/projection.js';
 
 const near = (a, b, tol = 1e-6) => Math.abs(a - b) <= tol;
@@ -28,11 +28,11 @@ test('screenAngleCWFromUp: up=0, right=+90, down=180 (y grows down)', () => {
   assert.ok(near(Math.abs(screenAngleCWFromUp(o, { x: 100, y: 110 })), 180), 'down');
 });
 
-test('moonScreenOrientation: bright limb points up/down as the Sun is higher/lower than the Moon', () => {
+test('bodyScreenOrientation: bright limb points up/down as the Sun is higher/lower than the Moon', () => {
   const cam = { az: 180, alt: 30, fov: 60, width: 800, height: 600, roll: 0 };
   const moonDir = vec(180, 30), poleDir = vec(0, 40);
-  const up = moonScreenOrientation(cam, moonDir, vec(180, 55), poleDir);   // Sun above the Moon
-  const down = moonScreenOrientation(cam, moonDir, vec(180, 5), poleDir);  // Sun below the Moon
+  const up = bodyScreenOrientation(cam, moonDir, vec(180, 55), poleDir);   // Sun above the Moon
+  const down = bodyScreenOrientation(cam, moonDir, vec(180, 5), poleDir);  // Sun below the Moon
   assert.ok(Math.abs(up.brightLimbAngle) < 5, `Sun above -> limb points up (${up.brightLimbAngle})`);
   assert.ok(Math.abs(Math.abs(down.brightLimbAngle) - 180) < 5, `Sun below -> limb points down (${down.brightLimbAngle})`);
 });

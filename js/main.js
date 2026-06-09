@@ -1,7 +1,7 @@
 import { createState } from './core/state.js';
 import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000 } from './core/astro.js';
 import { makeStarAltAz, horToEqjRotation, eqjToGalRotation } from './core/astro.js';
-import { moonScreenOrientation } from './core/moon.js';
+import { bodyScreenOrientation } from './core/moon.js';
 import { buildLocationControl } from './ui/location.js';
 import { buildTimeControls } from './ui/time-controls.js';
 import { PLANETS, planetRadius } from './render/planets.js';
@@ -32,7 +32,7 @@ const starfield = glCanvas ? createStarfield(glCanvas) : null;
 const useGL = !!starfield;
 if (!useGL) console.warn('[volvella] WebGL2 unavailable — using the 2D star fallback');
 if (useGL) starfield.setMilkyWay('./data/milkyway-4k.webp'); // all-sky background; renders atmosphere-only until it loads
-if (useGL) starfield.setMoon('./data/moon-2k.webp');
+if (useGL) starfield.setBodyTexture('moon', './data/moon-2k.webp');
 const store = createState();
 
 let stars = [];        // raw catalogue from stars.json
@@ -114,8 +114,8 @@ function computeSky() {
         moonDir: vec(moonM.altaz.az, moonM.altaz.alt),
         sunDir: vec(sunM.altaz.az, sunM.altaz.alt),
         poleDir: vec(poleAA.az, poleAA.alt),
+        phaseAngleDeg: bodyPhaseAngleDeg(Body.Moon, time),
       };
-      starfield.setMoonParams({ dir: moonOrient.moonDir, phaseAngleDeg: bodyPhaseAngleDeg(Body.Moon, time) });
     } else {
       moonOrient = null;
     }
@@ -183,12 +183,16 @@ function render() {
   if (useGL) {
     starfield.resize(view.width, view.height, window.devicePixelRatio || 1);
     const moonM = markers.find((m) => m.label === 'Moon');
+    const bodyList = [];
     if (moonM && moonOrient) {
-      // Per-frame: the Moon's screen orientation depends on the live camera (pan/roll/zoom), so derive
-      // the bright-limb + north angles here, before draw (the Moon pass runs inside draw()).
-      const o = moonScreenOrientation(cam, moonOrient.moonDir, moonOrient.sunDir, moonOrient.poleDir);
-      starfield.updateMoonFrame({ radiusPx: markerRadius(moonM, cam), brightLimbAngle: o.brightLimbAngle, northAngle: o.northAngle });
+      const o = bodyScreenOrientation(cam, moonOrient.moonDir, moonOrient.sunDir, moonOrient.poleDir);
+      bodyList.push({
+        texKey: 'moon', tint: [232, 232, 232], dir: moonOrient.moonDir,
+        radiusPx: markerRadius(moonM, cam), phaseAngleDeg: moonOrient.phaseAngleDeg,
+        brightLimbAngle: o.brightLimbAngle, northAngle: o.northAngle,
+      });
     }
+    starfield.setBodies(bodyList);
     starfield.draw(cam, { showBelow: st.flags.sphere, edit: st.flags.edit });
     // Sun/Moon/planets as glowing discs: size from markerRadius (angular for Sun/Moon, disk for
     // planets), tint from the body's colour, brightness from magnitude. Hidden in edit mode.

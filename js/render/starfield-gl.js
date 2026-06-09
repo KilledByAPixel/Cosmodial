@@ -15,7 +15,7 @@ import { cameraBasis, vec } from '../core/projection.js';
 import { bvToRGB, colorBrightness, zoomScale, STAR_CONSTS } from './starstyle.js';
 import { EXT_K, milkyWayZoomFade } from './atmosphere.js';
 import { createSkyBackground } from './sky-background.js';
-import { createMoon } from './moon.js';
+import { createBodySphere } from './body-sphere.js';
 
 // --- Star glow tunables (tweak to taste) ---
 const GLOW_SCALE = 9.0;    // sprite diameter as a multiple of the 2D core radius — room for the halo
@@ -295,8 +295,8 @@ export function createStarfield(glCanvas) {
   let dpr = 1;
   let skyBg = null;          // sky-background pass (atmosphere + Milky Way); null if it failed to build
   let skyParamsStash = null; // latest sky params from computeSky; bg is skipped until the first one
-  let moon = null;            // Moon pass (lit textured sphere); null if it failed to build
-  let moonParamsStash = null; // latest Moon render params from computeSky (+ per-frame radius)
+  let bodySphere = null;      // lit-sphere pass for Moon + planets; null if it failed to build
+  let bodyList = null;        // per-frame draw list (Moon + sphere-planets)
 
   const cameraUniforms = (program) => ({
     uRight: gl.getUniformLocation(program, 'uRight'),
@@ -351,14 +351,14 @@ export function createStarfield(glCanvas) {
     console.warn(`[volvella] WebGL max point size is ${maxPointSize}px — very large stars may be clamped.`);
   }
   skyBg = createSkyBackground(gl); // null-safe: draw() falls back to the black clear if this is null
-  moon = createMoon(gl);
+  bodySphere = createBodySphere(gl);
 
   glCanvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); lost = true; });
   glCanvas.addEventListener('webglcontextrestored', () => {
     lost = false;
     if (setupGL()) {
       if (skyBg) skyBg.onContextRestored();
-      if (moon) moon.onContextRestored();
+      if (bodySphere) bodySphere.onContextRestored();
       if (lastSky) uploadStars(lastSky);
     }
   });
@@ -410,9 +410,8 @@ export function createStarfield(glCanvas) {
   // Start loading the all-sky Milky Way texture (relative URL). Atmosphere renders fine until it lands.
   function setMilkyWay(url) { if (skyBg) skyBg.setMilkyWay(url); }
 
-  function setMoonParams(params) { moonParamsStash = params; }
-  function setMoon(url) { if (moon) moon.setTexture(url); }
-  function updateMoonFrame(frame) { if (moonParamsStash) Object.assign(moonParamsStash, frame); } // per-frame: radiusPx + screen angles
+  function setBodies(list) { bodyList = list; }                 // per-frame draw list (Moon + sphere-planets)
+  function setBodyTexture(name, url) { if (bodySphere) bodySphere.setTexture(name, url); }
 
   // Draw the sky background (opaque) then all stars. cam: { az, alt, fov, width, height } (CSS px).
   function draw(cam, { showBelow = false, edit = false } = {}) {
@@ -435,7 +434,7 @@ export function createStarfield(glCanvas) {
       gl.drawArrays(gl.POINTS, 0, count);
       gl.bindVertexArray(null);
     }
-    if (moon && moonParamsStash) moon.draw(cam, moonParamsStash); // after the stars (opaque, occludes them); independent of star count
+    if (bodySphere && bodyList) bodySphere.draw(cam, bodyList); // after the stars (opaque, occludes them); independent of star count
   }
 
   // Draw the Sun/Moon/planet markers as glowing discs. Call AFTER draw() (which does the clear) so the
@@ -461,8 +460,8 @@ export function createStarfield(glCanvas) {
     gl.deleteVertexArray(markerVao);
     gl.deleteProgram(markerProgram);
     if (skyBg) skyBg.dispose();
-    if (moon) moon.dispose();
+    if (bodySphere) bodySphere.dispose();
   }
 
-  return { uploadStars, draw, drawMarkers, resize, dispose, setSkyParams, setMilkyWay, setMoonParams, setMoon, updateMoonFrame };
+  return { uploadStars, draw, drawMarkers, resize, dispose, setSkyParams, setMilkyWay, setBodies, setBodyTexture };
 }

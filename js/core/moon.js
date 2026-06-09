@@ -30,10 +30,10 @@ export function screenAngleCWFromUp(a, b) {
   return radToDeg(Math.atan2(b.x - a.x, -(b.y - a.y)));
 }
 
-// The Moon's bright-limb and north-pole angles on screen (degrees, CW from screen-up) for a camera.
-// dirs are unit ENU vectors: the Moon centre, a direction toward the Sun, and toward the Moon's north
+// A body's bright-limb and north-pole angles on screen (degrees, CW from screen-up) for a camera.
+// dirs are unit ENU vectors: the body centre, a direction toward the Sun, and toward the body's north
 // pole. Falls back to 0 if a point projects behind the camera (the Moon pass culls it anyway).
-export function moonScreenOrientation(cam, moonDir, sunDir, poleDir) {
+export function bodyScreenOrientation(cam, moonDir, sunDir, poleDir) {
   const B = cameraBasis(cam);
   const m = projectVec(B, moonDir);
   const s = projectVec(B, nudgedToward(moonDir, sunDir));

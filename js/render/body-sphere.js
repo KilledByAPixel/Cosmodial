@@ -1,0 +1,187 @@
+// WebGL2 lit-sphere pass for solar-system bodies (the Moon + the detail-capable planets). Each body is a
+// lit, textured sphere with correct phase + screen orientation; a flat-colour body uses a 1x1 tint texture
+// through the same path. Receives the shared gl (like sky-background.js); drawn AFTER the stars with alpha
+// blending so the opaque disc occludes the background. Orientation/phase come from js/core/moon.js + astro.
+// A screen-space quad (4 verts via gl_VertexID) avoids the gl.POINTS size cap when zoomed in.
+import { cameraBasis } from '../core/projection.js';
+
+const SCREEN_ANGLE_SIGN = 1.0;  // verified for the Moon; -1.0 would mirror limb+north together
+const TERMINATOR_SOFT = 0.2;    // terminator fade width (fraction of the lit dot product); higher = softer
+const EDGE_AA = 0.02;           // rim antialiasing width (fraction of radius)
+
+function vertexShaderSource() {
+  return `#version 300 es
+precision highp float;
+uniform vec3 uRight, uUp, uFwd;
+uniform float uFocal;
+uniform vec2 uViewport;
+uniform vec3 uBodyDir;
+uniform float uRadiusPx;
+out vec2 vCorner;
+void main() {
+  float z = dot(uBodyDir, uFwd);
+  vec2 corner = vec2((gl_VertexID == 1 || gl_VertexID == 3) ? 1.0 : -1.0,
+                     (gl_VertexID == 2 || gl_VertexID == 3) ? 1.0 : -1.0);
+  vCorner = corner;
+  if (z <= 0.000001) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+  float sx = uFocal * dot(uBodyDir, uRight) / z;
+  float sy = uFocal * dot(uBodyDir, uUp) / z;
+  vec2 centerNdc = vec2(sx / (uViewport.x * 0.5), sy / (uViewport.y * 0.5));
+  vec2 cornerNdc = (corner * uRadiusPx) / (uViewport * 0.5);
+  gl_Position = vec4(centerNdc + cornerNdc, 0.0, 1.0);
+}`;
+}
+
+function fragmentShaderSource() {
+  return `#version 300 es
+precision highp float;
+in vec2 vCorner;
+uniform sampler2D uTex;
+uniform float uPhaseAngle;   // radians: 0 = full, PI = new
+uniform float uLimbAngle;    // radians: bright-limb screen angle (CW from screen-up)
+uniform float uNorthAngle;   // radians: north-pole screen angle (CW from screen-up)
+out vec4 fragColor;
+const float PI = 3.14159265358979;
+vec2 dirFromUp(float a) { return vec2(sin(a), cos(a)); }
+void main() {
+  vec2 d = vCorner;
+  float r2 = dot(d, d);
+  if (r2 > 1.0) discard;
+  float zc = sqrt(1.0 - r2);
+  vec3 N = vec3(d.x, d.y, zc);
+  vec2 limb = dirFromUp(uLimbAngle);
+  vec3 L = vec3(sin(uPhaseAngle) * limb, cos(uPhaseAngle));
+  float lit = smoothstep(-${TERMINATOR_SOFT.toFixed(3)}, ${TERMINATOR_SOFT.toFixed(3)}, dot(N, L));
+  float c = cos(uNorthAngle), s = sin(uNorthAngle);
+  vec3 P = vec3(d.x * c - d.y * s, d.x * s + d.y * c, zc);
+  float lat = asin(clamp(P.y, -1.0, 1.0));
+  float lon = atan(P.x, P.z);
+  vec2 uv = vec2(0.5 + lon / (2.0 * PI), 0.5 - lat / PI);
+  vec3 surf = texture(uTex, uv).rgb;
+  float alpha = 1.0 - smoothstep(1.0 - ${EDGE_AA.toFixed(3)}, 1.0, sqrt(r2));
+  fragColor = vec4(surf * lit, alpha);
+}`;
+}
+
+function compile(gl, type, src) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    console.error('[volvella] body-sphere shader compile failed:', gl.getShaderInfoLog(sh));
+    gl.deleteShader(sh); return null;
+  }
+  return sh;
+}
+
+export function createBodySphere(gl) {
+  let program, vao, loc;
+  const maps = new Map();   // name -> { tex, img|null, ready }   real surface maps (async)
+  const tints = new Map();  // 'r,g,b' (0..255) -> tex            1x1 flat-tint textures
+
+  function newTex() {
+    const t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);        // longitude wraps
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); // latitude clamps
+    return t;
+  }
+  function tintTex(rgb) {
+    const key = rgb.join(',');
+    let t = tints.get(key);
+    if (!t) {
+      t = newTex();
+      gl.bindTexture(gl.TEXTURE_2D, t);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, 1, 1, 0, gl.RGB, gl.UNSIGNED_BYTE, new Uint8Array(rgb));
+      tints.set(key, t);
+    }
+    return t;
+  }
+  function uploadImage(name, image) {
+    const e = maps.get(name) || { tex: newTex(), img: null, ready: false };
+    e.img = image;
+    gl.bindTexture(gl.TEXTURE_2D, e.tex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    e.ready = true;
+    maps.set(name, e);
+  }
+
+  function setupGL() {
+    const vs = compile(gl, gl.VERTEX_SHADER, vertexShaderSource());
+    const fs = compile(gl, gl.FRAGMENT_SHADER, fragmentShaderSource());
+    if (!vs || !fs) return false;
+    program = gl.createProgram();
+    gl.attachShader(program, vs); gl.attachShader(program, fs); gl.linkProgram(program);
+    gl.deleteShader(vs); gl.deleteShader(fs);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      console.error('[volvella] body-sphere link failed:', gl.getProgramInfoLog(program)); return false;
+    }
+    vao = gl.createVertexArray();
+    const names = ['uRight','uUp','uFwd','uFocal','uViewport','uBodyDir','uRadiusPx','uTex','uPhaseAngle','uLimbAngle','uNorthAngle'];
+    loc = Object.fromEntries(names.map((n) => [n, gl.getUniformLocation(program, n)]));
+    return true;
+  }
+  if (!setupGL()) return null;
+
+  // Start loading a named surface map (async). The body shows its tint until the map arrives.
+  function setTexture(name, url) {
+    if (!maps.has(name)) maps.set(name, { tex: newTex(), img: null, ready: false });
+    const im = new Image(); im.decoding = 'async';
+    im.onload = () => { try { uploadImage(name, im); } catch (e) { console.warn('[volvella] body tex upload failed', name, e); } };
+    im.onerror = () => console.warn('[volvella] body texture failed to load:', url);
+    im.src = url;
+  }
+
+  // bodies: [{ texKey, tint:[r,g,b] 0..255, dir:[x,y,z], radiusPx, phaseAngleDeg, brightLimbAngle, northAngle }]
+  // Camera uniforms are set once; per-body uniforms + texture bind per draw. Alpha-blended (opaque disc),
+  // restores additive afterward for the marker pass.
+  function draw(cam, bodies) {
+    if (!bodies || bodies.length === 0) return;
+    const { right, up, fwd, focal } = cameraBasis(cam);
+    const D2R = Math.PI / 180;
+    gl.useProgram(program);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.uniform3f(loc.uRight, right[0], right[1], right[2]);
+    gl.uniform3f(loc.uUp, up[0], up[1], up[2]);
+    gl.uniform3f(loc.uFwd, fwd[0], fwd[1], fwd[2]);
+    gl.uniform1f(loc.uFocal, focal);
+    gl.uniform2f(loc.uViewport, cam.width, cam.height);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.uniform1i(loc.uTex, 0);
+    gl.bindVertexArray(vao);
+    for (const b of bodies) {
+      if (!b || !b.dir) continue;
+      const map = b.texKey ? maps.get(b.texKey) : null;
+      gl.bindTexture(gl.TEXTURE_2D, (map && map.ready) ? map.tex : tintTex(b.tint || [128, 128, 128]));
+      gl.uniform3f(loc.uBodyDir, b.dir[0], b.dir[1], b.dir[2]);
+      gl.uniform1f(loc.uRadiusPx, b.radiusPx);
+      gl.uniform1f(loc.uPhaseAngle, b.phaseAngleDeg * D2R);
+      gl.uniform1f(loc.uLimbAngle, SCREEN_ANGLE_SIGN * b.brightLimbAngle * D2R);
+      gl.uniform1f(loc.uNorthAngle, SCREEN_ANGLE_SIGN * b.northAngle * D2R);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+    gl.bindVertexArray(null);
+    gl.blendFunc(gl.ONE, gl.ONE); // restore additive for the marker pass
+  }
+
+  function onContextRestored() {
+    if (!setupGL()) return;
+    tints.clear(); // 1x1 tints regenerate lazily in draw()
+    for (const [name, e] of maps) {
+      e.ready = false; e.tex = newTex();
+      if (e.img) { try { uploadImage(name, e.img); } catch { /* stays tint until next setTexture */ } }
+    }
+  }
+  function dispose() {
+    gl.deleteProgram(program); gl.deleteVertexArray(vao);
+    for (const e of maps.values()) gl.deleteTexture(e.tex);
+    for (const t of tints.values()) gl.deleteTexture(t);
+  }
+  return { draw, setTexture, onContextRestored, dispose };
+}
