@@ -21,5 +21,8 @@
 - **Planet maps:** Jupiter, Mars, and Saturn equirectangular surface textures from Solar System Scope
   (https://www.solarsystemscope.com/textures/), **CC-BY 4.0**. Downscaled to 2048×1024 WebPs in
   `data/jupiter-2k.webp`, `data/mars-2k.webp`, `data/saturn-2k.webp` for the planet-disc render.
+- **Saturn ring texture:** "Saturn Ring" alpha texture from Solar System Scope
+  (https://www.solarsystemscope.com/textures/), **CC-BY 4.0**. Reduced to a 1024×16 RGBA radial strip in
+  `data/saturn-rings.webp` (u spans the visible ring system, C-ring inner to A-ring outer edge).
 
 - **Application code:** MIT (see `LICENSE`).
