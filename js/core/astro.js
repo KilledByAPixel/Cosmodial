@@ -94,9 +94,11 @@ const GALILEAN_MAGS = { Io: 5.0, Europa: 5.3, Ganymede: 4.6, Callisto: 5.7 };
 // Jupiter's distance). `behind` = occulted by the disc: farther than Jupiter AND within its physical
 // radius of the line of sight.
 export function jupiterMoonsAltAz(observer, time) {
-  const jm = Astronomy.JupiterMoons(time);
   const jup = Astronomy.GeoVector(Body.Jupiter, time, /*aberration*/ true);
   const jlen = Math.hypot(jup.x, jup.y, jup.z);
+  // Light-travel time: we see the moons where they were when the light LEFT Jupiter (~35-50 min ago).
+  // Io sweeps ~6 deg of orbital phase in that interval — skipping this visibly shifts elongations.
+  const jm = Astronomy.JupiterMoons(time.AddDays(-jlen * (499.00478939 / 86400)));
   const los = [jup.x / jlen, jup.y / jlen, jup.z / jlen]; // unit line of sight to Jupiter
   return ['Io', 'Europa', 'Ganymede', 'Callisto'].map((name) => {
     const sv = jm[name.toLowerCase()];
