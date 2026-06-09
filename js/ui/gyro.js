@@ -1,4 +1,5 @@
 import { deviceToCamera } from '../core/orientation.js';
+import { wrap360 } from '../core/angles.js';
 
 // True when the browser exposes device-orientation events (mobile). Desktop -> false, so the AR
 // toggle is simply never shown there.
@@ -23,6 +24,21 @@ export async function requestGyroPermission() {
 // Shortest-path angular interpolation (degrees), so azimuth smooths across the 0/360 seam.
 function lerpAngle(a, b, t) { return a + (((b - a + 540) % 360) - 180) * t; }
 
+// Resolve one device-orientation sample into camera { az, alt, roll } (degrees).
+// `alt` and `roll` come from the device tilt (beta/gamma) and are independent of the yaw zero-point,
+// so the matrix supplies them. The azimuth source is platform-specific:
+//   - Android's `deviceorientationabsolute` gives a north-referenced `alpha`, so the matrix azimuth
+//     is already a true bearing — use it.
+//   - iOS has no absolute alpha; it provides `compass` (webkitCompassHeading), a tilt-compensated
+//     true-north heading of where the device points. Use it DIRECTLY as the aim azimuth. Feeding
+//     `360 - compass` into the Euler `alpha` is wrong off-portrait — the heading is tilt-compensated
+//     but the Euler alpha is not — which flipped the view ~180° when aiming up in landscape.
+export function sampleToCamera({ alpha, beta, gamma, compass, screen }) {
+  const s = deviceToCamera({ alpha: Number.isFinite(alpha) ? alpha : 0, beta: beta || 0, gamma: gamma || 0, screen: screen || 0 });
+  const az = Number.isFinite(compass) ? wrap360(compass) : s.az;
+  return { az, alt: s.alt, roll: s.roll };
+}
+
 // Stream device orientation into store.setOrientation(az, alt, roll). Picks the heading source
 // (iOS webkitCompassHeading, else the absolute event's north-referenced alpha), corrects for screen
 // orientation, and low-pass smooths to kill jitter. Returns detach() removing the listener.
@@ -36,19 +52,11 @@ export function attachGyro(store, opts = {}) {
   let prev = null;
 
   const onOrient = (e) => {
-    // Yaw source: iOS reports a true-north compass heading directly (webkitCompassHeading, clockwise
-    // from north); the W3C alpha that yields that heading is (360 - heading). Android's absolute
-    // event already provides a north-referenced alpha, so pass it through.
-    const screen = screenAngle();
-    let alpha = Number.isFinite(e.alpha) ? e.alpha : 0; // also coerces a NaN heading from buggy drivers
-    if (Number.isFinite(e.webkitCompassHeading)) alpha = 360 - e.webkitCompassHeading; // NaN-safe (uncalibrated compass)
-    const s = deviceToCamera({ alpha, beta: e.beta || 0, gamma: e.gamma || 0, screen });
+    const s = sampleToCamera({ alpha: e.alpha, beta: e.beta, gamma: e.gamma, compass: e.webkitCompassHeading, screen: screenAngle() });
     prev = prev
       ? { az: lerpAngle(prev.az, s.az, smoothing), alt: lerpAngle(prev.alt, s.alt, smoothing), roll: lerpAngle(prev.roll, s.roll, smoothing) }
       : s;
     store.setOrientation(prev.az, prev.alt, prev.roll);
-    // TEMP DIAGNOSTIC: surface raw + computed values so the landscape flip can be traced. Remove after.
-    if (opts.onSample) opts.onSample({ evName, alpha: e.alpha, beta: e.beta, gamma: e.gamma, compass: e.webkitCompassHeading, screen, az: prev.az, alt: prev.alt, roll: prev.roll });
   };
 
   // Prefer the absolute (north-referenced) event when the platform has it (Android Chrome); otherwise
