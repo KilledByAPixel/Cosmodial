@@ -133,3 +133,13 @@ test('setOrientation is a no-op when gyro mode is off', () => {
   assert.equal(s.getState().aim.alt, before.aim.alt, 'aim alt unchanged');
   assert.equal(s.getState().roll, 0, 'roll unchanged');
 });
+
+test('setOrientation ignores a non-finite sensor reading', () => {
+  const s = createState();
+  s.setFlag('gyro', true);
+  s.setOrientation(120, 35, 10);        // a good reading
+  s.setOrientation(NaN, NaN, NaN);      // a bad reading must be ignored, not corrupt the aim
+  assert.equal(s.getState().aim.az, 120, 'az unchanged by the bad reading');
+  assert.equal(s.getState().aim.alt, 35, 'alt unchanged by the bad reading');
+  assert.equal(s.getState().roll, 10, 'roll unchanged by the bad reading');
+});

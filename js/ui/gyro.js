@@ -30,7 +30,8 @@ export function attachGyro(store, opts = {}) {
   const smoothing = opts.smoothing ?? 0.2; // 0..1; higher = snappier but noisier
   const screenAngle = () => {
     if (typeof window === 'undefined') return 0;
-    return (window.screen && window.screen.orientation && window.screen.orientation.angle) || window.orientation || 0;
+    const a = window.screen && window.screen.orientation && window.screen.orientation.angle;
+    return Number.isFinite(a) ? a : (window.orientation || 0); // angle 0 (portrait) is valid, not a fallthrough
   };
   let prev = null;
 
@@ -39,7 +40,7 @@ export function attachGyro(store, opts = {}) {
     // from north); the W3C alpha that yields that heading is (360 - heading). Android's absolute
     // event already provides a north-referenced alpha, so pass it through.
     let alpha = Number.isFinite(e.alpha) ? e.alpha : 0; // also coerces a NaN heading from buggy drivers
-    if (typeof e.webkitCompassHeading === 'number') alpha = 360 - e.webkitCompassHeading;
+    if (Number.isFinite(e.webkitCompassHeading)) alpha = 360 - e.webkitCompassHeading; // NaN-safe (uncalibrated compass)
     const s = deviceToCamera({ alpha, beta: e.beta || 0, gamma: e.gamma || 0, screen: screenAngle() });
     prev = prev
       ? { az: lerpAngle(prev.az, s.az, smoothing), alt: lerpAngle(prev.alt, s.alt, smoothing), roll: lerpAngle(prev.roll, s.roll, smoothing) }
