@@ -1,6 +1,7 @@
 import { createState } from './core/state.js';
 import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000 } from './core/astro.js';
 import { makeStarAltAz, horToEqjRotation, eqjToGalRotation } from './core/astro.js';
+import { eqjToEnuMatrix } from './render/star-transform.js';
 import { bodyScreenOrientation } from './core/moon.js';
 import { buildLocationControl } from './ui/location.js';
 import { buildTimeControls } from './ui/time-controls.js';
@@ -55,6 +56,7 @@ let selected = null;        // first star picked in edit mode (a skyObjects entr
 let highlighted = null;     // object whose card is currently open (gets a ring on canvas)
 let followTarget = null;    // object kept centred as time changes (set by Find/search; cleared on drag/tap)
 let bodyInputs = [];   // per-recompute lit-sphere inputs (Moon + planets); see computeSky()
+let gpuStars = true; // TEMP scaffold: 'x' flips to the legacy CPU star path for A/B verification (strip after sign-off)
 let editIndex = 0;          // index into figures[] of the currently active constellation
 let prevEdit = false;       // tracks previous edit-mode state to detect enter/exit transitions
 const FIGURES_KEY = 'volvella.figures.v2';
@@ -169,7 +171,7 @@ function markerAlpha(mag) {
 function render() {
   if (skyDirty) {
     computeSky();
-    if (useGL) starfield.uploadStars(skyObjects); // re-upload on the same cadence as the CPU recompute
+    if (useGL && !gpuStars) starfield.uploadStars(skyObjects); // CPU A/B path re-uploads on the recompute cadence; the GPU path uploads once at boot
     // Locked onto an object: re-aim to keep it centred as time/location change (skipped under gyro aim,
     // which owns the aim). setAim below is read by getState() further down, so this frame uses it.
     if (followTarget && !store.getState().flags.gyro) {
@@ -190,6 +192,11 @@ function render() {
     : (st.flags.lines ? constellations : []);
   if (useGL) {
     starfield.resize(view.width, view.height, window.devicePixelRatio || 1);
+    if (gpuStars) {
+      // One EQJ->ENU rotation per frame: stars sweep smoothly in live/play/scrub at zero per-star CPU cost.
+      const t = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
+      starfield.setStarMatrix(eqjToEnuMatrix(horToEqjRotation(makeObserver(st.location.lat, st.location.lng), t)));
+    }
     const focal = (view.width / 2) / Math.tan((st.fov * Math.PI) / 360); // px per radian at screen centre
     const sphereLabels = new Set();
     const bodyList = [];
@@ -621,6 +628,7 @@ async function boot() {
     const res = await fetch('./data/stars.json');
     if (!res.ok) throw new Error(`stars.json: HTTP ${res.status}`);
     stars = await res.json();
+    if (useGL) starfield.uploadStarsJ2000(stars); // J2000 attrs upload ONCE; per-frame motion is the matrix uniform
   } catch (err) {
     console.error('[volvella] Failed to load star catalogue:', err);
   }
@@ -654,6 +662,16 @@ async function boot() {
   store.subscribe(onEditToggle);
   window.addEventListener('resize', requestRender);
   attachInput(canvas, store, { onTap, onAction: onEditAction, onViewDrag: () => { followTarget = null; } });
+  // TEMP DEBUG (strip after GPU verification): 'x' A/Bs the GPU star transform against the CPU path.
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'x' && e.key !== 'X' || !useGL) return;
+    const tag = e.target && e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) return;
+    gpuStars = !gpuStars;
+    if (gpuStars) starfield.uploadStarsJ2000(stars); else { skyDirty = true; }
+    console.log('[volvella] star transform:', gpuStars ? 'GPU' : 'CPU');
+    requestRender();
+  });
   const controls = document.getElementById('controls');
   const bodyLabels = ['Moon', 'Sun', ...PLANETS.map((p) => p.name)];
   const search = buildSearch(buildSearchIndex(stars, figures, bodyLabels, dsos), { onSelect: onSearchSelect });

@@ -16,6 +16,7 @@ import { bvToRGB, colorBrightness, zoomScale, STAR_CONSTS } from './starstyle.js
 import { EXT_K, milkyWayZoomFade } from './atmosphere.js';
 import { createSkyBackground } from './sky-background.js';
 import { createBodySphere } from './body-sphere.js';
+import { REFRACTION_GLSL, buildStarAttributesJ2000 } from './star-transform.js';
 
 // --- Star glow tunables (tweak to taste) ---
 const GLOW_SCALE = 9.0;    // sprite diameter as a multiple of the 2D core radius — room for the halo
@@ -112,26 +113,41 @@ uniform float uZoom;      // zoomScale(fov)
 uniform float uMaxPointSize;
 uniform float uShowBelow; // 1 = also draw stars below the horizon
 uniform float uStarDayFade; // 1 at night, 0 in daylight — fades stars out when the sky is bright
+uniform mat3 uEqjToEnu;      // J2000 -> ENU (true direction); used when uGpuTransform = 1
+uniform float uGpuTransform; // 1 = aDir is a fixed J2000 vector (transform on the GPU); 0 = aDir is apparent ENU
 
 out vec3 vColor;
 out float vAlpha;
 
+${REFRACTION_GLSL}
+
 void main() {
-  // aDir.z == sin(alt): cull below-horizon stars unless full-sphere/edit is on.
-  if (uShowBelow < 0.5 && aDir.z < 0.0) {
+  // GPU star transform: aDir holds the star's FIXED J2000 vector. Rotate by the per-frame EQJ->ENU
+  // matrix, then lift true altitude to apparent with the same forward refraction the CPU path
+  // (Horizon 'normal') applies. In CPU mode (uGpuTransform = 0) aDir is already an apparent ENU vector.
+  vec3 dir = aDir;
+  if (uGpuTransform > 0.5) {
+    vec3 e = uEqjToEnu * aDir;
+    float trueAlt = degrees(asin(clamp(e.z, -1.0, 1.0)));
+    float appAlt = radians(trueAlt + refractionDeg(trueAlt));
+    float hxy = length(e.xy);
+    dir = (hxy < 1e-6) ? e : vec3(e.xy * (cos(appAlt) / hxy), sin(appAlt));
+  }
+  // dir.z == sin(alt): cull below-horizon stars unless full-sphere/edit is on.
+  if (uShowBelow < 0.5 && dir.z < 0.0) {
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
     gl_PointSize = 0.0;
     return;
   }
-  float z = dot(aDir, uFwd);            // along the view axis; front hemisphere when > 0
+  float z = dot(dir, uFwd);            // along the view axis; front hemisphere when > 0
   if (z <= 0.000001) {                  // behind the camera
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
     gl_PointSize = 0.0;
     return;
   }
   // Gnomonic projection in CSS px, identical to projectPoint() in projection.js.
-  float sx = uFocal * dot(aDir, uRight) / z;
-  float sy = uFocal * dot(aDir, uUp) / z;   // +y is UP here (NDC y is up): do NOT negate.
+  float sx = uFocal * dot(dir, uRight) / z;
+  float sy = uFocal * dot(dir, uUp) / z;   // +y is UP here (NDC y is up): do NOT negate.
   gl_Position = vec4(sx / (uViewport.x * 0.5), sy / (uViewport.y * 0.5), 0.0, 1.0);
 
   // starSize(mag, zoom) from starstyle.js (constants embedded from STAR_CONSTS).
@@ -151,7 +167,7 @@ void main() {
   // Full-sphere mode mirrors the gradient below the horizon, so mirror the air mass too (|alt|) —
   // otherwise every below-horizon star clamps to the horizon's ~11 magnitudes of extinction and
   // vanishes. Normal mode culls below-horizon stars anyway, so max(alt,0) is equivalent there.
-  float altDeg = degrees(asin(clamp(aDir.z, -1.0, 1.0)));
+  float altDeg = degrees(asin(clamp(dir.z, -1.0, 1.0)));
   float hh = (uShowBelow > 0.5) ? abs(altDeg) : max(altDeg, 0.0);
   float airmass = 1.0 / (sin(radians(hh)) + 0.50572 * pow(hh + 6.07995, -1.6364));
   vec3 extK = vec3(${glslFloat(EXT_K.r)}, ${glslFloat(EXT_K.g)}, ${glslFloat(EXT_K.b)});
@@ -291,6 +307,9 @@ export function createStarfield(glCanvas) {
   let count = 0;       // stars currently uploaded
   let capacity = 0;    // floats allocated in the VBO
   let lastSky = null;  // retained so we can re-upload after context restore
+  let starMode = 0;      // 0 = ENU attrs (CPU transform), 1 = J2000 attrs (GPU transform). TEMP: 0-path removed after verification.
+  let starMatrix = null; // EQJ->ENU column-major mat3; set per frame in GPU mode
+  let lastJ2000 = null;  // raw catalogue retained for context restore
   let lost = false;
   let dpr = 1;
   let skyBg = null;          // sky-background pass (atmosphere + Milky Way); null if it failed to build
@@ -329,6 +348,8 @@ export function createStarfield(glCanvas) {
       ...cameraUniforms(program),
       uZoom: gl.getUniformLocation(program, 'uZoom'),
       uStarDayFade: gl.getUniformLocation(program, 'uStarDayFade'),
+      uEqjToEnu: gl.getUniformLocation(program, 'uEqjToEnu'),
+      uGpuTransform: gl.getUniformLocation(program, 'uGpuTransform'),
     };
     markerLoc = cameraUniforms(markerProgram);
     vao = gl.createVertexArray();
@@ -359,13 +380,13 @@ export function createStarfield(glCanvas) {
     if (setupGL()) {
       if (skyBg) skyBg.onContextRestored();
       if (bodySphere) bodySphere.onContextRestored();
-      if (lastSky) uploadStars(lastSky);
+      if (lastSky) uploadStars(lastSky); else if (lastJ2000) uploadStarsJ2000(lastJ2000);
     }
   });
 
   // Rebuild + upload the per-star buffer. Call ONLY when the sky changed (skyDirty), mirroring computeSky().
   function uploadStars(skyObjects) {
-    lastSky = skyObjects;
+    lastSky = skyObjects; lastJ2000 = null; starMode = 0;
     if (lost) return;
     const { data, count: n } = buildStarAttributes(skyObjects);
     count = n;
@@ -377,6 +398,18 @@ export function createStarfield(glCanvas) {
       gl.bufferSubData(gl.ARRAY_BUFFER, 0, data);
     }
   }
+
+  // Upload the FIXED J2000 star attributes (once at boot); per-frame motion comes from setStarMatrix().
+  function uploadStarsJ2000(rawStars) {
+    lastJ2000 = rawStars; lastSky = null; starMode = 1;
+    if (lost) return;
+    const { data, count: n } = buildStarAttributesJ2000(rawStars);
+    count = n;
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+    if (data.length > capacity) { gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW); capacity = data.length; }
+    else gl.bufferSubData(gl.ARRAY_BUFFER, 0, data);
+  }
+  function setStarMatrix(m) { starMatrix = m; }
 
   // Size the backing store to device pixels (guarded to avoid needless GL state churn).
   function resize(cssW, cssH, devicePixelRatio = 1) {
@@ -425,11 +458,13 @@ export function createStarfield(glCanvas) {
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.ONE, gl.ONE);
     }
-    if (count) {
+    if (count && (starMode === 0 || starMatrix)) {
       gl.useProgram(program);
       setCameraUniforms(loc, cam, showBelow || edit);
       gl.uniform1f(loc.uZoom, zoomScale(cam.fov));
       gl.uniform1f(loc.uStarDayFade, skyParamsStash ? skyParamsStash.starDayFade : 1);
+      gl.uniform1f(loc.uGpuTransform, starMode);
+      if (starMode === 1) gl.uniformMatrix3fv(loc.uEqjToEnu, false, starMatrix);
       gl.bindVertexArray(vao);
       gl.drawArrays(gl.POINTS, 0, count);
       gl.bindVertexArray(null);
@@ -463,5 +498,5 @@ export function createStarfield(glCanvas) {
     if (bodySphere) bodySphere.dispose();
   }
 
-  return { uploadStars, draw, drawMarkers, resize, dispose, setSkyParams, setMilkyWay, setBodies, setBodyTexture };
+  return { uploadStars, uploadStarsJ2000, setStarMatrix, draw, drawMarkers, resize, dispose, setSkyParams, setMilkyWay, setBodies, setBodyTexture };
 }
