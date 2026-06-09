@@ -415,6 +415,25 @@ function makeToggle(label, flag, className = '') {
   return btn;
 }
 
+// TEMP DIAGNOSTIC: write the raw sensor + computed values to a fixed on-screen overlay so the
+// landscape-flip root cause can be read off a phone. Remove (with its onSample wiring) once fixed.
+function gyroDebugSample(d) {
+  let el = document.getElementById('gyro-debug');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'gyro-debug';
+    el.style.cssText = 'position:fixed;top:4px;left:4px;z-index:99999;background:rgba(0,0,0,0.78);color:#3f6;'
+      + 'font:11px/1.35 monospace;padding:6px 8px;white-space:pre;pointer-events:none;border-radius:4px;';
+    document.body.appendChild(el);
+  }
+  const f = (v) => (v == null ? 'n/a' : (typeof v === 'number' ? v.toFixed(1) : String(v)));
+  el.textContent =
+    `evt ${d.evName}\n`
+    + `α ${f(d.alpha)}  β ${f(d.beta)}  γ ${f(d.gamma)}\n`
+    + `compass ${f(d.compass)}  screen ${f(d.screen)}\n`
+    + `→ az ${f(d.az)}  alt ${f(d.alt)}  roll ${f(d.roll)}`;
+}
+
 // The gyroscope/AR toggle: shown only on devices with orientation sensors. Activating it requests
 // permission (must run inside this click handler for iOS) and, if granted, streams device orientation
 // into store.setOrientation; deactivating detaches and lets setFlag('gyro', false) level the roll.
@@ -428,6 +447,7 @@ function makeGyroToggle() {
   btn.addEventListener('click', async () => {
     if (store.getState().flags.gyro) {            // turn OFF
       if (detach) { detach(); detach = null; }
+      const dbg = document.getElementById('gyro-debug'); if (dbg) dbg.remove(); // TEMP DIAGNOSTIC
       store.setFlag('gyro', false);
       return;
     }
@@ -437,7 +457,7 @@ function makeGyroToggle() {
       const perm = await requestGyroPermission(); // turn ON — request inside the gesture (iOS)
       if (perm !== 'granted') { console.warn(`[volvella] gyroscope unavailable: ${perm}`); return; }
       store.setFlag('gyro', true);                // set the flag BEFORE attaching, so the first
-      detach = attachGyro(store);                 // setOrientation events are honored (not no-op'd)
+      detach = attachGyro(store, { onSample: gyroDebugSample }); // setOrientation events honored (not no-op'd)
       if (store.getState().fov < 30) store.setFov(50); // don't wave the phone in a telescope view
     } finally {
       activating = false;
