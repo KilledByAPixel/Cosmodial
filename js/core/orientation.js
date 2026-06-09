@@ -19,7 +19,7 @@ function deviceColumns(alpha, beta, gamma) {
 //     (absolute) for the azimuth to be a true compass bearing; ui/gyro.js supplies that.
 //   screen: screen.orientation.angle (degrees) — spins page content about the viewing axis only.
 // Returns { az, alt, roll } in our ENU frame: az clockwise from North (matching vec()), alt in
-// [-90,90], roll in (-180,180]. Pure.
+// [-90,90], roll in [-180,180). Pure.
 export function deviceToCamera({ alpha = 0, beta = 0, gamma = 0, screen = 0 } = {}) {
   const { up, out } = deviceColumns(alpha, beta, gamma);
   const aim = [-out[0], -out[1], -out[2]];                 // back-camera direction (device -Z)
@@ -32,6 +32,6 @@ export function deviceToCamera({ alpha = 0, beta = 0, gamma = 0, screen = 0 } = 
   // The device's screen-up against the no-roll basis is the physical roll; subtract the page's
   // screen-orientation rotation (a pure spin about the viewing axis).
   let roll = radToDeg(Math.atan2(-dot(up, right0), dot(up, up0))) - screen;
-  roll = ((roll + 540) % 360) - 180;                       // normalize to (-180, 180]
+  roll = ((roll + 540) % 360) - 180;                       // normalize to [-180, 180)
   return { az, alt, roll };
 }
