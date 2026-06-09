@@ -406,16 +406,14 @@ export function createStarfield(glCanvas) {
   function setMilkyWay(url) { if (skyBg) skyBg.setMilkyWay(url); }
 
   // Draw the sky background (opaque) then all stars. cam: { az, alt, fov, width, height } (CSS px).
-  // debugMw isolates the Milky Way (background paints the band full-bright on black) and keeps stars
-  // lit regardless of daytime, so the band's alignment against the catalogue is easy to eyeball.
-  function draw(cam, { showBelow = false, edit = false, debugMw = false, mwCalib = null } = {}) {
+  function draw(cam, { showBelow = false, edit = false } = {}) {
     if (lost) return;
     gl.clear(gl.COLOR_BUFFER_BIT);
     // Sky background first: an OPAQUE base under the additive star pass. Blend is disabled so the
     // fragment's alpha=1 fully replaces the pixel; restore additive (ONE,ONE) before the stars.
     if (skyBg && skyParamsStash) {
       gl.disable(gl.BLEND);
-      skyBg.draw(cam, { ...skyParamsStash, dpr, showBelow: showBelow || edit, mwZoomFade: milkyWayZoomFade(cam.fov), debugMw, mwCalib });
+      skyBg.draw(cam, { ...skyParamsStash, dpr, showBelow: showBelow || edit, mwZoomFade: milkyWayZoomFade(cam.fov) });
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.ONE, gl.ONE);
     }
@@ -423,7 +421,7 @@ export function createStarfield(glCanvas) {
     gl.useProgram(program);
     setCameraUniforms(loc, cam, showBelow || edit);
     gl.uniform1f(loc.uZoom, zoomScale(cam.fov));
-    gl.uniform1f(loc.uStarDayFade, debugMw ? 1 : (skyParamsStash ? skyParamsStash.starDayFade : 1));
+    gl.uniform1f(loc.uStarDayFade, skyParamsStash ? skyParamsStash.starDayFade : 1);
     gl.bindVertexArray(vao);
     gl.drawArrays(gl.POINTS, 0, count);
     gl.bindVertexArray(null);

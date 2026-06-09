@@ -157,7 +157,7 @@ function render() {
     : (st.flags.lines ? constellations : []);
   if (useGL) {
     starfield.resize(view.width, view.height, window.devicePixelRatio || 1);
-    starfield.draw(cam, { showBelow: st.flags.sphere, edit: st.flags.edit, debugMw: st.flags.mwdebug, mwCalib });
+    starfield.draw(cam, { showBelow: st.flags.sphere, edit: st.flags.edit });
     // Sun/Moon/planets as glowing discs: size from markerRadius (angular for Sun/Moon, disk for
     // planets), tint from the body's colour, brightness from magnitude. Hidden in edit mode.
     const glMarkers = st.flags.edit ? [] : markers.map((m) => ({
@@ -192,37 +192,6 @@ function render() {
 const requestRender = createRenderScheduler(render, (cb) => requestAnimationFrame(cb));
 
 function requestRecompute() { skyDirty = true; requestRender(); }
-
-// Milky Way texture alignment calibration (console-tweakable). Refraction is corrected in the shader,
-// so this is identity by default; it's here for fine-tuning any residual offset by hand.
-const MWCALIB_KEY = 'volvella.mwcalib';
-const MWCALIB_DEFAULT = { refract: 1, altScale: 1, shiftU: 0, shiftV: 0, scaleU: 1, scaleV: 1 };
-function loadMwCalib() {
-  try {
-    const v = JSON.parse(localStorage.getItem(MWCALIB_KEY) || 'null');
-    if (v && typeof v === 'object') return {
-      refract: v.refract == null ? 1 : Number(v.refract),
-      altScale: v.altScale == null ? 1 : Number(v.altScale),
-      shiftU: Number(v.shiftU) || 0, shiftV: Number(v.shiftV) || 0,
-      scaleU: Number(v.scaleU) || 1, scaleV: Number(v.scaleV) || 1,
-    };
-  } catch { /* ignore */ }
-  return { ...MWCALIB_DEFAULT };
-}
-let mwCalib = loadMwCalib();
-// Console knob, e.g.:  volvella.mw({ scaleV: 1.01 })  ·  volvella.mw({ shiftV: -0.002 })  ·  volvella.mw('reset')
-if (typeof window !== 'undefined') {
-  window.volvella = Object.assign(window.volvella || {}, {
-    mw(o) {
-      if (o === 'reset') mwCalib = { ...MWCALIB_DEFAULT };
-      else if (o && typeof o === 'object') mwCalib = { ...mwCalib, ...o };
-      try { localStorage.setItem(MWCALIB_KEY, JSON.stringify(mwCalib)); } catch { /* ignore */ }
-      requestRender();
-      console.log('[volvella] MW calib =', JSON.stringify(mwCalib));
-      return mwCalib;
-    },
-  });
-}
 
 function saveFigures() {
   if (typeof localStorage === 'undefined') return;
