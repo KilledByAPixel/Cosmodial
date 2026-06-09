@@ -31,6 +31,10 @@ export function toggleKeyAction(key) {
   return null;
 }
 
+// Single-finger drag steers the aim only when gyroscope aim mode is OFF. In gyro mode the device
+// orientation owns the aim, so a stray finger drag must not fight it. (Pinch-zoom and tap still work.)
+export function dragAimEnabled(flags) { return !flags.gyro; }
+
 // Attach pointer/wheel input to the canvas. Mouse + single-finger touch drag the sky
 // (grab-the-sky); the wheel and two-finger pinch zoom toward the view center. Returns a detach()
 // function that removes all listeners.
@@ -63,6 +67,7 @@ export function attachInput(canvas, store, opts = {}) {
       return;
     }
     const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
+    if (!dragAimEnabled(store.getState().flags)) return; // gyro/AR owns the aim
     const { fov, aim } = store.getState();
     const { dAz, dAlt } = dragToAimDelta(dx, dy, fov, canvas.clientWidth);
     store.setAim(aim.az + dAz, aim.alt + dAlt);

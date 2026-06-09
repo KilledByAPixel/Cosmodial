@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dragToAimDelta, wheelToFov, pinchToFov, toggleKeyAction } from '../js/ui/input.js';
+import { dragToAimDelta, wheelToFov, pinchToFov, toggleKeyAction, dragAimEnabled } from '../js/ui/input.js';
 
 test('grab-the-sky: dragging right moves the sky right (azimuth decreases)', () => {
   const { dAz, dAlt } = dragToAimDelta(10, 0, 60, 600); // 60deg FOV over 600px -> 0.1 deg/px
@@ -42,4 +42,9 @@ test('toggleKeyAction maps c/l/g/s/e keys to flags (case-insensitive), ignores o
   assert.equal(toggleKeyAction('S'), 'sphere');
   assert.equal(toggleKeyAction('e'), 'edit');
   assert.equal(toggleKeyAction('x'), null);
+});
+
+test('dragAimEnabled: drag steers the aim only when gyro mode is off', () => {
+  assert.equal(dragAimEnabled({ gyro: false }), true);
+  assert.equal(dragAimEnabled({ gyro: true }), false);
 });
