@@ -43,7 +43,7 @@ test('setFov clamps to [MIN_FOV, MAX_FOV]', () => {
   const s = createState();
   s.setFov(1000);
   assert.equal(s.getState().fov, MAX_FOV);
-  s.setFov(0.1);
+  s.setFov(MIN_FOV / 2); // below the floor clamps up to it
   assert.equal(s.getState().fov, MIN_FOV);
 });
 
