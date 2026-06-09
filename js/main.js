@@ -23,7 +23,7 @@ import { activeShower } from './guide/showers.js';
 import { findConjunctions, midpointAltAz } from './guide/conjunctions.js';
 import { isGyroSupported, requestGyroPermission, attachGyro } from './ui/gyro.js';
 
-const PLANET_SCALE = 8; // visibility exaggeration for planet discs (like the Sun/Moon's ~2x); tune by eye
+const PLANET_SCALE = 2; // planet disc size vs true angular size — matches the Sun/Moon's 2x; tune by eye
 
 const canvas = document.getElementById('sky');
 const ctx = canvas.getContext('2d');
