@@ -1,6 +1,7 @@
 import { createState } from './core/state.js';
-import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, moonPhaseInfo } from './core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, moonPhaseInfo, moonPhaseAngleDeg, bodyEquatorialJ2000, northPoleJ2000, bodyHourAngleDeg } from './core/astro.js';
 import { makeStarAltAz, horToEqjRotation, eqjToGalRotation } from './core/astro.js';
+import { moonScreenAngles } from './core/moon.js';
 import { buildLocationControl } from './ui/location.js';
 import { buildTimeControls } from './ui/time-controls.js';
 import { PLANETS, planetRadius } from './render/planets.js';
@@ -31,6 +32,7 @@ const starfield = glCanvas ? createStarfield(glCanvas) : null;
 const useGL = !!starfield;
 if (!useGL) console.warn('[volvella] WebGL2 unavailable — using the 2D star fallback');
 if (useGL) starfield.setMilkyWay('./data/milkyway-4k.webp'); // all-sky background; renders atmosphere-only until it loads
+if (useGL) starfield.setMoon('./data/moon-2k.webp');
 const store = createState();
 
 let stars = [];        // raw catalogue from stars.json
@@ -100,6 +102,25 @@ function computeSky() {
     p.sunDir = vec(sun ? sun.altaz.az : 0, sunAlt);
     p.enuToGal = enuToGalMatrix(horToEqjRotation(observer, time), eqjToGalRotation()); // sample the galactic-frame Milky Way
     starfield.setSkyParams(p);
+    const moonM = markers.find((m) => m.label === 'Moon');
+    if (moonM) {
+      const moonEq = bodyEquatorialJ2000(Body.Moon, observer, time);
+      const sunEq = bodyEquatorialJ2000(Body.Sun, observer, time);
+      const pole = northPoleJ2000(Body.Moon, time);
+      const angles = moonScreenAngles({
+        moonRaDeg: moonEq.raDeg, moonDecDeg: moonEq.decDeg,
+        sunRaDeg: sunEq.raDeg, sunDecDeg: sunEq.decDeg,
+        poleRaDeg: pole.raDeg, poleDecDeg: pole.decDeg,
+        haDeg: bodyHourAngleDeg(Body.Moon, observer, time), latDeg: st.location.lat,
+      });
+      starfield.setMoonParams({
+        dir: vec(moonM.altaz.az, moonM.altaz.alt),
+        radiusPx: 0, // filled per-frame in render() via updateMoonRadius (depends on camera/fov)
+        phaseAngleDeg: moonPhaseAngleDeg(time),
+        brightLimbAngle: angles.brightLimbAngle,
+        northAngle: angles.northAngle,
+      });
+    }
   }
   const eclipseAt = st.time.instant ? new Date(st.time.instant) : new Date();
   eclipseCtx = findEclipseContext({
@@ -157,13 +178,17 @@ function render() {
     : (st.flags.lines ? constellations : []);
   if (useGL) {
     starfield.resize(view.width, view.height, window.devicePixelRatio || 1);
+    const moonM = markers.find((m) => m.label === 'Moon');
+    if (moonM) starfield.updateMoonRadius(markerRadius(moonM, cam)); // before draw: the Moon pass runs in draw()
     starfield.draw(cam, { showBelow: st.flags.sphere, edit: st.flags.edit });
     // Sun/Moon/planets as glowing discs: size from markerRadius (angular for Sun/Moon, disk for
     // planets), tint from the body's colour, brightness from magnitude. Hidden in edit mode.
-    const glMarkers = st.flags.edit ? [] : markers.map((m) => ({
-      az: m.altaz.az, alt: m.altaz.alt, color: m.color,
-      radiusPx: markerRadius(m, cam), alpha: m.alpha,
-    }));
+    const glMarkers = st.flags.edit ? [] : markers
+      .filter((m) => m.label !== 'Moon')   // the Moon is drawn by its own phased pass, not as a disc
+      .map((m) => ({
+        az: m.altaz.az, alt: m.altaz.alt, color: m.color,
+        radiusPx: markerRadius(m, cam), alpha: m.alpha,
+      }));
     starfield.drawMarkers(glMarkers, cam, { showBelow: st.flags.sphere });
   }
   drawScene(ctx, {
