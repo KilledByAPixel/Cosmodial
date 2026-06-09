@@ -59,7 +59,6 @@ let followTarget = null;    // object kept centred as time changes (set by Find/
 let bodyInputs = [];   // per-recompute lit-sphere inputs (Moon + planets); see computeSky()
 let namedStars = []; // skyObjects with names — label positions refresh on the frequent cadence
 let skyStamp = null; // { lat, lng, ms } of the last FULL recompute (pick-staleness guard)
-let gpuStars = true; // TEMP scaffold: 'x' flips to the legacy CPU star path for A/B verification (strip after sign-off)
 let editIndex = 0;          // index into figures[] of the currently active constellation
 let prevEdit = false;       // tracks previous edit-mode state to detect enter/exit transitions
 const FIGURES_KEY = 'volvella.figures.v2';
@@ -185,7 +184,6 @@ function render() {
   if (skyDirty) {
     computeSky(fullDirty || !useGL); // the 2D fallback has no GPU stars — it always needs the full remap
     fullDirty = false;
-    if (useGL && !gpuStars) starfield.uploadStars(skyObjects); // CPU A/B path re-uploads on the recompute cadence; the GPU path uploads once at boot
     // Locked onto an object: re-aim to keep it centred as time/location change (skipped under gyro aim,
     // which owns the aim). setAim below is read by getState() further down, so this frame uses it.
     if (followTarget && !store.getState().flags.gyro) {
@@ -206,11 +204,9 @@ function render() {
     : (st.flags.lines ? constellations : []);
   if (useGL) {
     starfield.resize(view.width, view.height, window.devicePixelRatio || 1);
-    if (gpuStars) {
-      // One EQJ->ENU rotation per frame: stars sweep smoothly in live/play/scrub at zero per-star CPU cost.
-      const t = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
-      starfield.setStarMatrix(eqjToEnuMatrix(horToEqjRotation(makeObserver(st.location.lat, st.location.lng), t)));
-    }
+    // One EQJ->ENU rotation per frame: stars sweep smoothly in live/play/scrub at zero per-star CPU cost.
+    const t = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
+    starfield.setStarMatrix(eqjToEnuMatrix(horToEqjRotation(makeObserver(st.location.lat, st.location.lng), t)));
     const focal = (view.width / 2) / Math.tan((st.fov * Math.PI) / 360); // px per radian at screen centre
     const sphereLabels = new Set();
     const bodyList = [];
@@ -703,16 +699,6 @@ async function boot() {
   store.subscribe(onEditToggle);
   window.addEventListener('resize', requestRender);
   attachInput(canvas, store, { onTap, onAction: onEditAction, onViewDrag: () => { followTarget = null; } });
-  // TEMP DEBUG (strip after GPU verification): 'x' A/Bs the GPU star transform against the CPU path.
-  window.addEventListener('keydown', (e) => {
-    if (e.key !== 'x' && e.key !== 'X' || !useGL) return;
-    const tag = e.target && e.target.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) return;
-    gpuStars = !gpuStars;
-    if (gpuStars) starfield.uploadStarsJ2000(stars); else { fullDirty = true; skyDirty = true; } // CPU flip needs the fresh 62k remap, not just overlays
-    console.log('[volvella] star transform:', gpuStars ? 'GPU' : 'CPU');
-    requestRender();
-  });
   const controls = document.getElementById('controls');
   const bodyLabels = ['Moon', 'Sun', ...PLANETS.map((p) => p.name)];
   const search = buildSearch(buildSearchIndex(stars, figures, bodyLabels, dsos), { onSelect: onSearchSelect });

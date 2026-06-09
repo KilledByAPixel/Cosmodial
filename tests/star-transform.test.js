@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { j2000Vec, eqjToEnuMatrix, refractAltDeg, transformStarJ2000, buildStarAttributesJ2000, REFRACTION_GLSL } from '../js/render/star-transform.js';
-import { buildStarAttributes } from '../js/render/starfield-gl.js';
+import { bvToRGB, colorBrightness } from '../js/render/starstyle.js';
 import { makeObserver, makeTime, makeStarAltAz, horToEqjRotation } from '../js/core/astro.js';
 import { vec } from '../js/core/projection.js';
 
@@ -52,9 +52,13 @@ test('REFRACTION_GLSL embeds the same constants as the JS twin', () => {
 
 test('buildStarAttributesJ2000: layout parity (colour/mag/alpha) + J2000 direction', () => {
   const a = buildStarAttributesJ2000([{ ra: 0, dec: 0, mag: 2.5, bv: 0.65 }]);
-  const b = buildStarAttributes([{ altaz: { az: 90, alt: 0 }, mag: 2.5, bv: 0.65 }]);
   assert.equal(a.count, 1);
-  assert.deepEqual([...a.data.slice(3, 8)], [...b.data.slice(3, 8)], 'colour/mag/alphaScale identical to the ENU builder');
+  const c = bvToRGB(0.65);
+  assert.deepEqual(
+    [...a.data.slice(3, 8)],
+    [Math.fround(c.r / 255), Math.fround(c.g / 255), Math.fround(c.b / 255), Math.fround(2.5), Math.fround(colorBrightness(c))],
+    'colour/mag/alphaScale matches expected values',
+  );
   assert.ok(sepDeg([a.data[0], a.data[1], a.data[2]], [1, 0, 0]) < 1e-4, 'RA 0 / Dec 0 -> +x');
   const p = buildStarAttributesJ2000([{ ra: 123, dec: 90, mag: 1, bv: 0 }]);
   assert.ok(sepDeg([p.data[0], p.data[1], p.data[2]], [0, 0, 1]) < 1e-4, 'Dec 90 -> +z (north pole)');
