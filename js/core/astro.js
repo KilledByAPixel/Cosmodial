@@ -76,8 +76,8 @@ export function northPoleJ2000(body, time) {
   return { raDeg: ax.ra * 15, decDeg: ax.dec };
 }
 
-// Apparent angular RADIUS (degrees) of the Sun or Moon from the observer (uses current distance).
-// Returns null for bodies we don't size this way (planets render as fixed disks).
+// Apparent angular RADIUS (degrees) of a body from the observer (uses its current distance).
+// Returns null for any body not in BODY_RADIUS_AU.
 export function bodyAngularRadiusDeg(body, observer, time) {
   const r = BODY_RADIUS_AU[body];
   if (r == null) return null;
