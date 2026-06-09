@@ -132,12 +132,19 @@ function titleOf(obj) {
   return obj.label;
 }
 
-// Render the card into #card-host (replacing any open card).
+// Render the card into #card-host (replacing any open card). Re-called on every sky recompute to
+// refresh the live readouts — PER FRAME in live mode — so two rules keep it clickable and calm:
+// the close handler is DELEGATED to the persistent host (a listener on the rebuilt button would be
+// destroyed between pointer-down and click), and the swap is SKIPPED when the content is unchanged
+// (readouts are rounded, so they only tick occasionally).
 export function openCard(obj, ctx) {
   const host = document.getElementById('card-host');
   if (!host) return;
-  host.innerHTML = '';
   onCloseCb = (ctx && ctx.onClose) || null;
+  if (!host.dataset.closeWired) {
+    host.dataset.closeWired = '1';
+    host.addEventListener('click', (e) => { if (e.target.closest('.card-close')) closeCard(); });
+  }
   const card = document.createElement('div');
   card.className = 'card';
   const close = document.createElement('button');
@@ -145,11 +152,12 @@ export function openCard(obj, ctx) {
   close.type = 'button';
   close.setAttribute('aria-label', 'Close');
   close.textContent = '×';
-  close.addEventListener('click', closeCard);
   const h = document.createElement('h2');
   h.className = 'card-title';
   h.textContent = titleOf(obj);
   card.append(close, h, ...bodyLines(obj, ctx), whereLine(obj.altaz));
+  if (host.firstChild && host.firstChild.innerHTML === card.innerHTML) return; // unchanged: keep the live DOM
+  host.innerHTML = '';
   host.append(card);
 }
 

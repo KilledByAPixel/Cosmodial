@@ -3,7 +3,7 @@ import { wrap360, clamp } from './angles.js';
 export const MIN_FOV = 0.02;  // deepest zoom (~1.2 arcmin) — lets the true-scale (1:1) planets resolve large
 export const MAX_FOV = 120;   // widest zoom-out (wide-angle); gnomonic edges start to stretch past ~120°
 export const DEFAULT_FOV = 60; // startup FOV (comfortable naked-eye view); zoom-out can widen to MAX_FOV
-export const MAX_ALT = 89;   // clamp pitch just below the zenith to avoid the gimbal-lock singularity
+export const MAX_ALT = 90;   // pitch reaches the zenith/nadir exactly (cameraBasis swaps its up-reference near the poles)
 const STORE_KEY = 'volvella.location';
 const STORE_KEY_VIEW = 'volvella.view'; // last aim + fov, so a reload resumes where you were looking
 const STORE_KEY_FLAGS = 'volvella.flags'; // remembered view toggles (see PERSISTED_FLAGS)

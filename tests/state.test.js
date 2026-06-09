@@ -88,11 +88,10 @@ test('setLocation ignores non-finite coordinates', () => {
   assert.equal(s.getState().location.label, 'Valid'); // unchanged by the bad call
 });
 
-test('altitude is clamped just below vertical to avoid the zenith singularity', () => {
-  assert.equal(MAX_ALT, 89);
+test('altitude is clamped at the zenith (cameraBasis handles the pole)', () => {
   const s = createState();
-  s.setAim(0, 89.9);
-  assert.ok(s.getState().aim.alt <= 89, 'cannot aim into the gimbal-lock zone');
+  s.setAim(0, 91);
+  assert.equal(s.getState().aim.alt, MAX_ALT, 'aim reaches but never exceeds straight up');
 });
 
 test('setOrientation sets aim azimuth/altitude and roll together', () => {
