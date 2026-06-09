@@ -124,3 +124,12 @@ test('leaving gyro mode levels the roll and re-clamps a below-horizon aim', () =
 test('roll defaults to 0 on a fresh state', () => {
   assert.equal(createState().getState().roll, 0);
 });
+
+test('setOrientation is a no-op when gyro mode is off', () => {
+  const s = createState();
+  const before = s.getState();
+  s.setOrientation(99, -50, 30);
+  assert.equal(s.getState().aim.az, before.aim.az, 'aim az unchanged');
+  assert.equal(s.getState().aim.alt, before.aim.alt, 'aim alt unchanged');
+  assert.equal(s.getState().roll, 0, 'roll unchanged');
+});

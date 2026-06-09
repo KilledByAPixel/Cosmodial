@@ -106,6 +106,7 @@ export function createState() {
     // Gyro/AR aim: set azimuth, altitude, and roll in one update. Honors the gyro horizon unlock
     // (minAltFor) and does NOT persist — the live orientation isn't a resting view to restore.
     setOrientation(az, alt, roll) {
+      if (!state.flags.gyro) return; // AR aim only; ignore stray calls when gyro mode is off
       state = {
         ...state,
         aim: { az: wrap360(az), alt: clamp(alt, minAltFor(state.flags), MAX_ALT) },
