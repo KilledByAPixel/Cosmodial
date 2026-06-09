@@ -27,6 +27,7 @@ test('ringPointRadius: along the projected pole the ring is foreshortened by |ti
   const tilt = 0.4, s = 0.5;
   assert.ok(near(ringPointRadius(0, s, 0, tilt), s / Math.abs(tilt), 1e-9));
   assert.ok(near(ringPointRadius(s, 0, 90, tilt), s / Math.abs(tilt), 1e-9), 'north angle 90 -> pole projects screen-right');
+  assert.ok(near(ringPointRadius(0, -s, 0, -tilt), s / Math.abs(tilt), 1e-9), 'negative tilt: symmetric foreshortening on the opposite arm');
 });
 
 test('ringPointRadius: perpendicular to the pole the radius is unforeshortened', () => {

@@ -1,7 +1,9 @@
 // WebGL2 lit-sphere pass for solar-system bodies (the Moon + the detail-capable planets). Each body is a
 // lit, textured sphere with correct phase + screen orientation; a flat-colour body uses a 1x1 tint texture
-// through the same path. Receives the shared gl (like sky-background.js); drawn AFTER the stars with alpha
-// blending so the opaque disc occludes the background. Orientation/phase come from js/core/moon.js + astro.
+// through the same path; Saturn additionally gets its ring annulus composited in the same quad. Receives
+// the shared gl (like sky-background.js); drawn AFTER the stars with premultiplied "over" blending — the
+// disc is opaque and occludes the background, the rings are semi-transparent beyond it. Orientation/phase
+// come from js/core/moon.js + astro; ring geometry from js/render/ring-math.js.
 // A screen-space quad (4 verts via gl_VertexID) avoids the gl.POINTS size cap when zoomed in.
 import { cameraBasis } from '../core/projection.js';
 
@@ -69,9 +71,12 @@ void main() {
     }
   }
 
+  // Output is PREMULTIPLIED alpha (the pass blends with ONE, ONE_MINUS_SRC_ALPHA) so the sphere and
+  // ring can be layered "over" each other in-shader. Crucially, the globe's antialiased limb must fade
+  // into the RING behind it, not punch a transparent seam through to the sky.
   if (r2 > 1.0) {                   // off the globe: ring only
     if (ringA <= 0.003) discard;
-    fragColor = vec4(ringC, ringA);
+    fragColor = vec4(ringC * ringA, ringA);
     return;
   }
 
@@ -86,10 +91,14 @@ void main() {
   float lon = atan(P.x, P.z);
   vec2 uv = vec2(0.5 + lon / (2.0 * PI), 0.5 - lat / PI);
   vec3 surf = texture(uTex, uv).rgb;
-  float alpha = 1.0 - smoothstep(1.0 - ${EDGE_AA.toFixed(3)}, 1.0, sqrt(r2));
-  vec3 col = surf * lit;
-  if (ringA > 0.0 && ringZ > zc) col = mix(col, ringC, ringA); // ring segment crossing IN FRONT of the globe
-  fragColor = vec4(col, alpha);
+  float sphA = 1.0 - smoothstep(1.0 - ${EDGE_AA.toFixed(3)}, 1.0, sqrt(r2)); // rim AA
+  vec3 sph = surf * lit * sphA;     // premultiplied sphere layer
+  vec3 ring = ringC * ringA;        // premultiplied ring layer
+  if (ringA > 0.0 && ringZ > zc) {  // ring crosses IN FRONT of the globe: ring over sphere
+    fragColor = vec4(ring + sph * (1.0 - ringA), ringA + sphA * (1.0 - ringA));
+  } else {                          // ring behind (or none): sphere over ring — the limb fades into the ring
+    fragColor = vec4(sph + ring * (1.0 - sphA), sphA + ringA * (1.0 - sphA));
+  }
 }`;
 }
 
@@ -181,15 +190,15 @@ export function createBodySphere(gl) {
   // bodies: [{ texKey, tint:[r,g,b] 0..255, dir:[x,y,z], radiusPx, phaseAngleDeg, brightLimbAngle, northAngle,
   //            quadScale (optional, default 1), ringTilt (optional), ringRadii (optional [inner,outer]),
   //            ringTexKey (optional) }]
-  // Camera uniforms are set once; per-body uniforms + texture bind per draw. Alpha-blended (opaque disc),
-  // restores additive afterward for the marker pass.
+  // Camera uniforms are set once; per-body uniforms + texture bind per draw. Premultiplied-alpha "over"
+  // blending (opaque disc, semi-transparent rings); restores additive afterward for the marker pass.
   function draw(cam, bodies) {
     if (!bodies || bodies.length === 0) return;
     const { right, up, fwd, focal } = cameraBasis(cam);
     const D2R = Math.PI / 180;
     gl.useProgram(program);
     gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); // premultiplied "over" (the shader outputs premultiplied rgb)
     gl.uniform3f(loc.uRight, right[0], right[1], right[2]);
     gl.uniform3f(loc.uUp, up[0], up[1], up[2]);
     gl.uniform3f(loc.uFwd, fwd[0], fwd[1], fwd[2]);
