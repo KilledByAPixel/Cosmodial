@@ -1,7 +1,7 @@
 import { createState } from './core/state.js';
 import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, moonPhaseInfo, moonPhaseAngleDeg, bodyEquatorialJ2000, northPoleJ2000, bodyHourAngleDeg } from './core/astro.js';
 import { makeStarAltAz, horToEqjRotation, eqjToGalRotation } from './core/astro.js';
-import { moonScreenAngles } from './core/moon.js';
+import { moonScreenOrientation } from './core/moon.js';
 import { buildLocationControl } from './ui/location.js';
 import { buildTimeControls } from './ui/time-controls.js';
 import { PLANETS, planetRadius } from './render/planets.js';
@@ -52,6 +52,7 @@ let skyDirty = true; // next render recomputes the sky first (coalesces scrub/ti
 let selected = null;        // first star picked in edit mode (a skyObjects entry)
 let highlighted = null;     // object whose card is currently open (gets a ring on canvas)
 let followTarget = null;    // object kept centred as time changes (set by Find/search; cleared on drag/tap)
+let moonOrient = null;      // { moonDir, sunDir, poleDir } unit ENU vecs for the Moon phase render
 let editIndex = 0;          // index into figures[] of the currently active constellation
 let prevEdit = false;       // tracks previous edit-mode state to detect enter/exit transitions
 const FIGURES_KEY = 'volvella.figures.v2';
@@ -104,23 +105,19 @@ function computeSky() {
     p.enuToGal = enuToGalMatrix(horToEqjRotation(observer, time), eqjToGalRotation()); // sample the galactic-frame Milky Way
     starfield.setSkyParams(p);
     const moonM = markers.find((m) => m.label === 'Moon');
-    if (moonM) {
-      const moonEq = bodyEquatorialJ2000(Body.Moon, observer, time);
-      const sunEq = bodyEquatorialJ2000(Body.Sun, observer, time);
-      const pole = northPoleJ2000(Body.Moon, time);
-      const angles = moonScreenAngles({
-        moonRaDeg: moonEq.raDeg, moonDecDeg: moonEq.decDeg,
-        sunRaDeg: sunEq.raDeg, sunDecDeg: sunEq.decDeg,
-        poleRaDeg: pole.raDeg, poleDecDeg: pole.decDeg,
-        haDeg: bodyHourAngleDeg(Body.Moon, observer, time), latDeg: st.location.lat,
-      });
-      starfield.setMoonParams({
-        dir: vec(moonM.altaz.az, moonM.altaz.alt),
-        radiusPx: 0, // filled per-frame in render() via updateMoonRadius (depends on camera/fov)
-        phaseAngleDeg: moonPhaseAngleDeg(time),
-        brightLimbAngle: angles.brightLimbAngle,
-        northAngle: angles.northAngle,
-      });
+    const sunM = markers.find((m) => m.label === 'Sun');
+    if (moonM && sunM) {
+      const pole = northPoleJ2000(Body.Moon, time);                       // J2000 RA/Dec of the lunar pole
+      const poleAA = altAzOfStar(pole.raDeg, pole.decDeg, observer, time); // -> alt/az direction
+      // Camera-independent inputs; the on-screen orientation angles are derived per-frame in render().
+      moonOrient = {
+        moonDir: vec(moonM.altaz.az, moonM.altaz.alt),
+        sunDir: vec(sunM.altaz.az, sunM.altaz.alt),
+        poleDir: vec(poleAA.az, poleAA.alt),
+      };
+      starfield.setMoonParams({ dir: moonOrient.moonDir, phaseAngleDeg: moonPhaseAngleDeg(time) });
+    } else {
+      moonOrient = null;
     }
   }
   const eclipseAt = st.time.instant ? new Date(st.time.instant) : new Date();
@@ -186,7 +183,12 @@ function render() {
   if (useGL) {
     starfield.resize(view.width, view.height, window.devicePixelRatio || 1);
     const moonM = markers.find((m) => m.label === 'Moon');
-    if (moonM) starfield.updateMoonRadius(markerRadius(moonM, cam)); // before draw: the Moon pass runs in draw()
+    if (moonM && moonOrient) {
+      // Per-frame: the Moon's screen orientation depends on the live camera (pan/roll/zoom), so derive
+      // the bright-limb + north angles here, before draw (the Moon pass runs inside draw()).
+      const o = moonScreenOrientation(cam, moonOrient.moonDir, moonOrient.sunDir, moonOrient.poleDir);
+      starfield.updateMoonFrame({ radiusPx: markerRadius(moonM, cam), brightLimbAngle: o.brightLimbAngle, northAngle: o.northAngle });
+    }
     starfield.draw(cam, { showBelow: st.flags.sphere, edit: st.flags.edit });
     // Sun/Moon/planets as glowing discs: size from markerRadius (angular for Sun/Moon, disk for
     // planets), tint from the body's colour, brightness from magnitude. Hidden in edit mode.

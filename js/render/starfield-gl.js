@@ -412,7 +412,7 @@ export function createStarfield(glCanvas) {
 
   function setMoonParams(params) { moonParamsStash = params; }
   function setMoon(url) { if (moon) moon.setTexture(url); }
-  function updateMoonRadius(radiusPx) { if (moonParamsStash) moonParamsStash.radiusPx = radiusPx; }
+  function updateMoonFrame(frame) { if (moonParamsStash) Object.assign(moonParamsStash, frame); } // per-frame: radiusPx + screen angles
 
   // Draw the sky background (opaque) then all stars. cam: { az, alt, fov, width, height } (CSS px).
   function draw(cam, { showBelow = false, edit = false } = {}) {
@@ -463,5 +463,5 @@ export function createStarfield(glCanvas) {
     if (moon) moon.dispose();
   }
 
-  return { uploadStars, draw, drawMarkers, resize, dispose, setSkyParams, setMilkyWay, setMoonParams, setMoon, updateMoonRadius };
+  return { uploadStars, draw, drawMarkers, resize, dispose, setSkyParams, setMilkyWay, setMoonParams, setMoon, updateMoonFrame };
 }

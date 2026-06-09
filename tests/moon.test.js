@@ -1,33 +1,30 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parallacticAngle, positionAngle, moonScreenAngles } from '../js/core/moon.js';
+import { nudgedToward, screenAngleCWFromUp, moonScreenOrientation } from '../js/core/moon.js';
+import { vec } from '../js/core/projection.js';
 
 const near = (a, b, tol = 1e-6) => Math.abs(a - b) <= tol;
+const d3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
-test('parallacticAngle is 0 on the meridian', () => {
-  assert.ok(near(parallacticAngle(0, 20, 40), 0), `q=${parallacticAngle(0, 20, 40)}`);
+test('nudgedToward returns a unit vector leaning toward the target', () => {
+  const from = vec(180, 30), to = vec(180, 60);
+  const n = nudgedToward(from, to, 0.05);
+  assert.ok(near(Math.hypot(n[0], n[1], n[2]), 1), 'unit length');
+  assert.ok(d3(n, to) > d3(from, to), 'leans toward the target');
 });
 
-test('parallacticAngle flips sign east vs west of the meridian', () => {
-  const west = parallacticAngle(30, 10, 45);  // HA +30 (west)
-  const east = parallacticAngle(-30, 10, 45);
-  assert.ok(west > 0 && east < 0, `west=${west} east=${east}`);
-  assert.ok(near(west, -east, 1e-9), 'symmetric about the meridian');
+test('screenAngleCWFromUp: up=0, right=+90, down=180 (y grows down)', () => {
+  const o = { x: 100, y: 100 };
+  assert.ok(near(screenAngleCWFromUp(o, { x: 100, y: 90 }), 0), 'up');       // smaller y = up
+  assert.ok(near(screenAngleCWFromUp(o, { x: 110, y: 100 }), 90), 'right');
+  assert.ok(near(Math.abs(screenAngleCWFromUp(o, { x: 100, y: 110 })), 180), 'down');
 });
 
-test('positionAngle: due north is 0, due east is +90', () => {
-  assert.ok(near(positionAngle(100, 10, 100, 30), 0), `north PA=${positionAngle(100, 10, 100, 30)}`);
-  assert.ok(near(positionAngle(100, 10, 100.01, 10), 90, 0.01), `east PA=${positionAngle(100, 10, 100.01, 10)}`);
-});
-
-test('moonScreenAngles composes PA minus parallactic for limb and pole', () => {
-  const args = {
-    moonRaDeg: 100, moonDecDeg: 10,
-    sunRaDeg: 100, sunDecDeg: 30,   // Sun due celestial-north of the Moon -> limb PA 0
-    poleRaDeg: 100.01, poleDecDeg: 10, // pole due east -> pole PA +90
-    haDeg: 0, latDeg: 40,            // on meridian -> q = 0
-  };
-  const { brightLimbAngle, northAngle } = moonScreenAngles(args);
-  assert.ok(near(brightLimbAngle, 0, 1e-6), `limb=${brightLimbAngle}`);
-  assert.ok(near(northAngle, 90, 0.01), `north=${northAngle}`);
+test('moonScreenOrientation: bright limb points up/down as the Sun is higher/lower than the Moon', () => {
+  const cam = { az: 180, alt: 30, fov: 60, width: 800, height: 600, roll: 0 };
+  const moonDir = vec(180, 30), poleDir = vec(0, 40);
+  const up = moonScreenOrientation(cam, moonDir, vec(180, 55), poleDir);   // Sun above the Moon
+  const down = moonScreenOrientation(cam, moonDir, vec(180, 5), poleDir);  // Sun below the Moon
+  assert.ok(Math.abs(up.brightLimbAngle) < 5, `Sun above -> limb points up (${up.brightLimbAngle})`);
+  assert.ok(Math.abs(Math.abs(down.brightLimbAngle) - 180) < 5, `Sun below -> limb points down (${down.brightLimbAngle})`);
 });
