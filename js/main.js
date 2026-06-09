@@ -25,7 +25,11 @@ import { activeShower } from './guide/showers.js';
 import { findConjunctions, midpointAltAz } from './guide/conjunctions.js';
 import { isGyroSupported, requestGyroPermission, attachGyro } from './ui/gyro.js';
 
-const PLANET_SCALE = 2; // planet disc size vs true angular size — matches the Sun/Moon's 2x; tune by eye
+// Planet disc size vs true angular size. 1 = true scale (Stellarium-like): zoomed out, planets are the
+// oversized glow DOTS (visibility); the textured sphere appears exactly when its TRUE disc outgrows the
+// dot, and from there the disc, Saturn's rings, and the Galilean moons' orbits are all 1:1 (they all
+// key off this constant, so raising it inflates the whole system proportionally).
+const PLANET_SCALE = 1;
 
 const canvas = document.getElementById('sky');
 const ctx = canvas.getContext('2d');
