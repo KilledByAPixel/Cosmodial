@@ -3,7 +3,7 @@ import { wrap360, clamp } from './angles.js';
 export const MIN_FOV = 0.02;  // deepest zoom (~1.2 arcmin) — lets the true-scale (1:1) planets resolve large
 export const MAX_FOV = 120;   // widest zoom-out (wide-angle); gnomonic edges start to stretch past ~120°
 export const DEFAULT_FOV = 60; // startup FOV (comfortable naked-eye view); zoom-out can widen to MAX_FOV
-export const MAX_ALT = 90;   // pitch reaches the zenith/nadir exactly (cameraBasis swaps its up-reference near the poles)
+export const MAX_ALT = 89;   // clamp pitch just shy of the zenith/nadir — at the pole the screen-up reference snaps
 const STORE_KEY = 'volvella.location';
 const STORE_KEY_VIEW = 'volvella.view'; // last aim + fov, so a reload resumes where you were looking
 const STORE_KEY_FLAGS = 'volvella.flags'; // remembered view toggles (see PERSISTED_FLAGS)
@@ -16,9 +16,9 @@ const PERSISTED_FLAGS = ['labels', 'grid', 'deepsky', 'sphere', 'night'];
 const DEFAULT_LOCATION = { lat: 30.27, lng: -97.74, label: 'Austin, TX' };
 const DEFAULT_AIM = { az: 180, alt: 45 };
 
-// Lowest altitude the camera may aim at. Normally the horizon (0°), so you can't tilt down into the
-// empty black below it; full-sphere mode unlocks the lower hemisphere down to near the nadir.
-const minAltFor = (flags) => (flags.sphere || flags.gyro ? -MAX_ALT : 0);
+// Lowest altitude the camera may aim at: near the nadir. Aiming below the horizon is always allowed —
+// the full-sphere flag only controls whether below-horizon OBJECTS are drawn, not where you can look.
+const minAltFor = () => -MAX_ALT;
 
 function loadSavedLocation() {
   if (typeof localStorage === 'undefined') return null;
@@ -131,14 +131,10 @@ export function createState() {
     setFlag(name, value) {
       if (!(name in state.flags)) throw new Error(`Unknown flag: ${name}`);
       const flags = { ...state.flags, [name]: value };
-      // Turning full-sphere (or gyro) off while aimed below the horizon snaps the pitch back up to 0°.
-      const alt = clamp(state.aim.alt, minAltFor(flags), MAX_ALT);
-      const aimChanged = alt !== state.aim.alt;
       // Exiting gyro/AR levels the view (roll back to 0); other flag changes leave roll untouched.
       const roll = (name === 'gyro' && value === false) ? 0 : state.roll;
-      state = { ...state, flags, aim: aimChanged ? { ...state.aim, alt } : state.aim, roll };
+      state = { ...state, flags, roll };
       if (PERSISTED_FLAGS.includes(name)) saveFlags();
-      if (aimChanged) saveView();
       emit();
     },
   };

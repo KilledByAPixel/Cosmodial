@@ -13,30 +13,23 @@ test('subscribers are notified on change and can unsubscribe', () => {
   assert.equal(calls, 1, 'no notification after unsubscribe');
 });
 
-test('setAim wraps azimuth and clamps altitude (horizon lock without full-sphere)', () => {
+test('setAim wraps azimuth and clamps altitude to ±MAX_ALT (below-horizon aiming always allowed)', () => {
   const s = createState();
   s.setAim(370, 100);
   assert.equal(s.getState().aim.az, 10);
   assert.equal(s.getState().aim.alt, MAX_ALT);
   s.setAim(-10, -200);
   assert.equal(s.getState().aim.az, 350);
-  assert.equal(s.getState().aim.alt, 0, 'cannot aim below the horizon when full-sphere is off');
+  assert.equal(s.getState().aim.alt, -MAX_ALT, 'can aim below the horizon even with full-sphere off');
 });
 
-test('full-sphere unlocks aiming below the horizon, down to -MAX_ALT', () => {
+test('toggling full-sphere never moves the aim', () => {
   const s = createState();
-  s.setFlag('sphere', true);
-  s.setAim(0, -200);
-  assert.equal(s.getState().aim.alt, -MAX_ALT);
-});
-
-test('turning full-sphere off snaps a below-horizon aim back up to 0', () => {
-  const s = createState();
-  s.setFlag('sphere', true);
   s.setAim(0, -45);
   assert.equal(s.getState().aim.alt, -45);
+  s.setFlag('sphere', true);
   s.setFlag('sphere', false);
-  assert.equal(s.getState().aim.alt, 0, 'pitch is pulled back to the horizon when the lower sky is hidden');
+  assert.equal(s.getState().aim.alt, -45, 'the flag controls drawing, not where you can look');
 });
 
 test('setFov clamps to [MIN_FOV, MAX_FOV]', () => {
@@ -110,14 +103,14 @@ test('gyro mode unlocks aiming below the horizon (like full-sphere)', () => {
   assert.equal(s.getState().aim.alt, -40, 'can aim below the horizon while gyro is on');
 });
 
-test('leaving gyro mode levels the roll and re-clamps a below-horizon aim', () => {
+test('leaving gyro mode levels the roll and keeps the aim', () => {
   const s = createState();
   s.setFlag('gyro', true);
   s.setOrientation(0, -40, 90);
   assert.equal(s.getState().roll, 90);
   s.setFlag('gyro', false);
   assert.equal(s.getState().roll, 0, 'roll levels on exit');
-  assert.equal(s.getState().aim.alt, 0, 'below-horizon aim snaps back above the horizon');
+  assert.equal(s.getState().aim.alt, -40, 'aim stays where the device left it');
 });
 
 test('roll defaults to 0 on a fresh state', () => {
