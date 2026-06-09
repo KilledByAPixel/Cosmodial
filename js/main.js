@@ -424,17 +424,24 @@ function makeGyroToggle() {
   btn.className = 'view-toggle';
   btn.textContent = '📱 AR';
   let detach = null;
+  let activating = false; // guards against a second tap while the (async) permission prompt is open
   btn.addEventListener('click', async () => {
     if (store.getState().flags.gyro) {            // turn OFF
       if (detach) { detach(); detach = null; }
       store.setFlag('gyro', false);
       return;
     }
-    const perm = await requestGyroPermission();   // turn ON — request inside the gesture (iOS)
-    if (perm !== 'granted') { console.warn(`[volvella] gyroscope unavailable: ${perm}`); return; }
-    store.setFlag('gyro', true);                  // set the flag BEFORE attaching, so the first
-    detach = attachGyro(store);                   // setOrientation events are honored (not no-op'd)
-    if (store.getState().fov < 30) store.setFov(50); // don't wave the phone in a telescope view
+    if (activating) return;                       // a permission request is already in flight
+    activating = true;
+    try {
+      const perm = await requestGyroPermission(); // turn ON — request inside the gesture (iOS)
+      if (perm !== 'granted') { console.warn(`[volvella] gyroscope unavailable: ${perm}`); return; }
+      store.setFlag('gyro', true);                // set the flag BEFORE attaching, so the first
+      detach = attachGyro(store);                 // setOrientation events are honored (not no-op'd)
+      if (store.getState().fov < 30) store.setFov(50); // don't wave the phone in a telescope view
+    } finally {
+      activating = false;
+    }
   });
   const sync = () => {
     const on = store.getState().flags.gyro;
