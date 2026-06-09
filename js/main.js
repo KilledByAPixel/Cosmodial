@@ -262,6 +262,10 @@ function render() {
   drawHud(ctx, cam);
   if (st.flags.edit) drawEditOverlay(ctx, cam);
   drawHighlight(ctx, cam);
+  // Live mode: self-sustaining render loop (one render per animation frame) so the sky moves smoothly —
+  // the GPU stars get a fresh matrix and the frequent recompute (~3 ms: markers, spheres, lines, labels)
+  // runs per frame. Ends the moment live is switched off; rAF itself pauses in background tabs.
+  if (useGL && st.time.live) { skyDirty = true; requestRender(); }
 }
 
 const requestRender = createRenderScheduler(render, (cb) => requestAnimationFrame(cb));
@@ -695,8 +699,7 @@ async function boot() {
       settleTimer = setTimeout(requestFullRecompute, 350); // events/guide/pick array once the scrub settles
     }
   });
-  setInterval(() => { if (store.getState().time.live) requestFullRecompute(); }, 30000); // events/guide/pick array
-  setInterval(() => { if (useGL && store.getState().time.live) requestRecompute(); }, 1000); // overlays track the GPU stars
+  setInterval(() => { if (store.getState().time.live) requestFullRecompute(); }, 30000); // events/guide/pick array (and the 2D fallback's whole live refresh)
   store.subscribe(onEditToggle);
   window.addEventListener('resize', requestRender);
   attachInput(canvas, store, { onTap, onAction: onEditAction, onViewDrag: () => { followTarget = null; } });
