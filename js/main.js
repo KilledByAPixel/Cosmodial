@@ -241,12 +241,12 @@ function render() {
       const m = markers.find((x) => x.label === bi.label);
       if (!m) continue;
       const dotR = markerRadius(m, cam);                       // current glow-dot radius (px)
-      const scale = bi.label === 'Moon' ? 1 : PLANET_SCALE;    // Moon already sized by angular radius
+      const scale = bi.label === 'Moon' ? 1 : PLANET_SCALE;    // the Moon is always true-scale
       const rPx = bi.angularRadiusDeg * (Math.PI / 180) * focal * scale;
       const span = bi.ring ? bi.ring.OUTER : 1;                // rings widen the on-screen footprint
       if (bi.label !== 'Moon' && rPx * span <= dotR) continue; // too small -> leave it as a glow dot
       const o = bodyScreenOrientation(cam, bi.bodyDir, bi.sunDir, bi.poleDir);
-      const radiusPx = bi.label === 'Moon' ? dotR : rPx;       // Moon keeps its existing markerRadius size
+      const radiusPx = rPx;                                    // true projected size for every sphere
       bodyList.push({
         texKey: bi.texKey, tint: bi.tint, dir: bi.bodyDir, radiusPx,
         phaseAngleDeg: bi.phaseAngleDeg, brightLimbAngle: o.brightLimbAngle, northAngle: o.northAngle,

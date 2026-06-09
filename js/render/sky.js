@@ -81,19 +81,19 @@ export function drawStarLabels(ctx, stars, projector, cam, labels = true, below 
   }
 }
 
-const MARKER_MIN_R = 5; // px floor so the Sun/Moon stay visible/obvious even at the widest FOV
-// The Sun and Moon are really only ~0.5° across, which reads as a tiny dot on screen (the
-// "moon illusion" — people expect them bigger). Gently exaggerate their apparent size, as most
-// planetarium apps do, so they read as discs. 1 = true size; bump for a larger Sun/Moon.
-const SUN_MOON_SCALE = 2;
+// Apparent-size scales for the bodies that carry a true angular radius. 1 = honest apparent size at
+// every zoom (the Sun/Moon are only ~0.5° across, so they read small wide out — that's real life).
+// The Sun keeps its own knob for taste-tweaking independently of the true-scale Moon.
+const MOON_SCALE = 1;
+const SUN_SCALE = 1;
 
-// Disk radius (px) for a marker. Sun/Moon carry angularRadiusDeg -> projected to their true on-screen
-// size for the current FOV (grows as you zoom in), exaggerated by SUN_MOON_SCALE and floored. Others
-// use a fixed radius. Exported so the WebGL marker pass (starfield-gl.js, via main.js) sizes discs identically.
+// Disk radius (px) for a marker. Sun/Moon carry angularRadiusDeg -> projected to their on-screen size
+// for the current FOV (grows as you zoom in), times their scale knob. Others use a fixed dot radius.
+// Exported so the WebGL marker pass (starfield-gl.js, via main.js) sizes discs identically.
 export function markerRadius(m, cam) {
   if (m.angularRadiusDeg != null) {
     const focal = (cam.width / 2) / Math.tan(degToRad(cam.fov) / 2);
-    return Math.max(focal * Math.tan(degToRad(m.angularRadiusDeg)) * SUN_MOON_SCALE, MARKER_MIN_R);
+    return focal * Math.tan(degToRad(m.angularRadiusDeg)) * (m.label === 'Sun' ? SUN_SCALE : MOON_SCALE);
   }
   return m.radius || 4;
 }
