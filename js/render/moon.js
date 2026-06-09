@@ -129,7 +129,7 @@ export function createMoon(gl) {
 
   // p: { dir:[x,y,z], radiusPx, phaseAngleDeg, brightLimbAngle, northAngle }  (angles in degrees)
   function draw(cam, p) {
-    if (!hasTex || !p) return;
+    if (!hasTex || !p || !p.dir) return; // need the texture and fully-populated params (dir/angles)
     const { right, up, fwd, focal } = cameraBasis(cam);
     const D2R = Math.PI / 180;
     gl.useProgram(program);
