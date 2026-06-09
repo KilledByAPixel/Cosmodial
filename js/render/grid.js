@@ -1,4 +1,5 @@
 import { degToRad } from '../core/angles.js';
+import { LINE_STYLES } from './line-styles.js';
 
 // Alt-az grid: altitude rings (constant altitude) + azimuth lines (constant azimuth), drawn as
 // projected polylines so they curve naturally — rings tighten into small circles near the zenith,
@@ -6,8 +7,6 @@ import { degToRad } from '../core/angles.js';
 // view; coverage adapts to where you look. Glance up and the full wheel is drawn, but the spoke
 // step widens with altitude so they don't crowd into a dense fan overhead.
 
-const GRID_COLOR = 'rgba(110, 150, 195, 0.18)'; // fainter than the horizon line
-const GRID_LINE_WIDTH = 2.0; // CSS px stroke width for rings + spokes; bump for thicker grid lines
 const GRID_LABEL_COLOR = 'rgba(140, 175, 215, 0.5)';
 const GRID_LABEL_FONT = '10px system-ui, sans-serif';
 const TARGET_LINES = 4;       // aim for ~this many altitude rings across the view
@@ -98,8 +97,8 @@ function onScreen(p, cam) {
 
 export function drawGrid(ctx, projector, cam, below = false) {
   const { azimuths, altitudes } = gridSpec(cam, { below });
-  ctx.strokeStyle = GRID_COLOR;
-  ctx.lineWidth = GRID_LINE_WIDTH;
+  ctx.strokeStyle = LINE_STYLES.grid.color;
+  ctx.lineWidth = LINE_STYLES.grid.width;
   // Altitude rings: full 360° so the whole circle — including the part overhead — is drawn; the
   // projector culls the half behind the camera.
   for (const alt of altitudes) {

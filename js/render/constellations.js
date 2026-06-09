@@ -1,4 +1,5 @@
-const LINE_COLOR = 'rgba(120, 160, 210, 0.33)'; // subtle, sits under the stars
+import { LINE_STYLES } from './line-styles.js';
+
 const LABEL_COLOR = 'rgba(140, 175, 215, 0.6)';
 const LABEL_FONT = '12px system-ui, sans-serif';
 
@@ -13,8 +14,8 @@ function visiblePoint(altaz, projector, edit, below) {
 // Draw constellation figures (cached alt/az), projected with the per-frame projector.
 // constellations: [ { name, label:{alt,az}, lines: [ [ {alt,az}, ... ], ... ] } ]
 export function drawConstellations(ctx, projector, constellations, cam, edit, labels = true, below = false) {
-  ctx.strokeStyle = LINE_COLOR;
-  ctx.lineWidth = 1;
+  ctx.strokeStyle = LINE_STYLES.constellation.color;
+  ctx.lineWidth = LINE_STYLES.constellation.width;
   for (const con of constellations) {
     for (const poly of con.lines) {
       ctx.beginPath();

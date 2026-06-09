@@ -16,8 +16,9 @@ import { cameraBasis } from '../core/projection.js';
 // centre (l=0) at the horizontal centre, longitude increasing leftward, the North Galactic Pole
 // (b=+90) at the top. If the band comes out mirrored, flip a sign (verified by eye via the 'm' debug
 // toggle; the galactic centre bulge should sit in Sagittarius).
-const GAL_LON_LEFT = true; // true: galactic longitude increases to the left (standard)
-const GAL_NGP_TOP = true;  // true: North Galactic Pole at the top of the image (standard)
+const GAL_LON_LEFT = true; // true: galactic longitude increases to the left (verified via the LMC at u~0.72)
+const GAL_NGP_TOP = false; // this texture is vertically flipped: the South galactic hemisphere is at the top
+                           // (the LMC, galactic latitude -33, sits at v~0.32 in the upper half)
 const MW_GAIN = 0.6;       // brightness of the Milky Way layer in normal mode — a background glow, not foreground
 
 function vertexShaderSource() {
@@ -44,6 +45,10 @@ uniform float uShowBelow;   // 1 = full sphere (mirror the gradient below the ho
 uniform vec3 uZenithColor, uHorizonColor, uSunGlowColor, uSunDir;
 uniform float uSunGlowStrength, uHorizonAirglow, uMwVisibility, uMwZoomFade, uHasMilkyWay;
 uniform float uDebugMw;     // 1 = show ONLY the Milky Way at full brightness (alignment debug)
+uniform float uRefract;     // refraction-push strength (1 = physical); horizon-region vertical knob
+uniform float uAltScale;    // zenith-distance scale about the zenith (1 = none); whole-sphere vertical knob
+uniform vec2 uMwShift;      // manual UV calibration (console-tweakable): texture-fraction offset
+uniform vec2 uMwScale;      // manual UV calibration: scale about the texture centre
 uniform mat3 uEnuToGal;
 uniform sampler2D uMilkyWay;
 
@@ -51,6 +56,17 @@ out vec4 fragColor;
 
 const float PI  = 3.14159265358979;
 const float TAU = 6.28318530717959;
+
+// Atmospheric refraction (degrees) for a TRUE altitude, replicating Astronomy Engine's 'normal' mode
+// (Saemundsson, clamped at -1 deg, with a linear taper to 0 at the nadir). The catalogue stars are
+// plotted at apparent = true + refraction, so matching this lets the textured sky line up with them.
+float refractionDeg(float altDeg) {
+  if (altDeg < -90.0 || altDeg > 90.0) return 0.0;
+  float hd = max(altDeg, -1.0);
+  float r = (1.02 / tan(radians(hd + 10.3 / (hd + 5.11)))) / 60.0;
+  if (altDeg < -1.0) r *= (altDeg + 90.0) / 89.0; // taper below the horizon toward the nadir
+  return r;
+}
 
 void main() {
   // Reconstruct the ENU view ray for this pixel — exact inverse of the gnomonic projectPoint().
@@ -61,11 +77,25 @@ void main() {
   float dy = fragCss.y - center.y;
   vec3 ray = normalize(uRight * dx + uUp * dy + uFwd * uFocal);
 
-  // Galactic coordinates of this view direction -> equirectangular UV of the galactic-frame texture.
-  vec3 gal = normalize(uEnuToGal * ray);
+  // Texture-sampling direction = the pixel's apparent direction warped to TRUE altitude, so the
+  // textured sky lines up with the catalogue stars (drawn at apparent = true + refraction). Invert
+  // refraction by two fixed-point iterations (it's small); the taper in refractionDeg() means this also
+  // works BELOW the horizon in full-sphere mode. uRefract scales it (1 = physical); uAltScale is an
+  // extra zenith-distance scale (1 = none). Both are identity at the zenith and leave azimuth alone.
+  float az = atan(ray.x, ray.y);
+  float hApp = degrees(asin(clamp(ray.z, -1.0, 1.0)));
+  float hTrue = hApp - uRefract * refractionDeg(hApp);
+  hTrue = hApp - uRefract * refractionDeg(hTrue);
+  hTrue = 90.0 - (90.0 - hTrue) * uAltScale;
+  float hr = radians(hTrue);
+  vec3 rayGeo = vec3(cos(hr) * sin(az), cos(hr) * cos(az), sin(hr));
+
+  // Galactic coordinates of this direction -> equirectangular UV of the galactic-frame texture.
+  vec3 gal = normalize(uEnuToGal * rayGeo);
   float l = atan(gal.y, gal.x);            // galactic longitude (0 at the galactic centre)
   float b = atan(gal.z, length(gal.xy));   // galactic latitude
   vec2 uv = vec2(${lonExpr}, ${latExpr});  // u may exit [0,1]; wrapS=REPEAT handles the longitude seam
+  uv = (uv - 0.5) * uMwScale + 0.5 + uMwShift; // manual calibration (console knob); identity by default
 
   // Debug: show ONLY the Milky Way at full brightness on black, ignoring atmosphere + all gating.
   if (uDebugMw > 0.5) {
@@ -140,7 +170,7 @@ export function createSkyBackground(gl) {
       'uRight', 'uUp', 'uFwd', 'uFocal', 'uViewport', 'uDpr', 'uShowBelow',
       'uZenithColor', 'uHorizonColor', 'uSunGlowColor', 'uSunDir',
       'uSunGlowStrength', 'uHorizonAirglow', 'uMwVisibility', 'uMwZoomFade', 'uHasMilkyWay',
-      'uDebugMw', 'uEnuToGal', 'uMilkyWay',
+      'uDebugMw', 'uRefract', 'uAltScale', 'uMwShift', 'uMwScale', 'uEnuToGal', 'uMilkyWay',
     ];
     loc = Object.fromEntries(names.map((n) => [n, gl.getUniformLocation(program, n)]));
     // 1x1 black placeholder so the sampler always has a valid binding until the real image loads.
@@ -200,6 +230,11 @@ export function createSkyBackground(gl) {
     gl.uniform1f(loc.uMwZoomFade, p.mwZoomFade || 0);
     gl.uniform1f(loc.uHasMilkyWay, hasMilkyWay ? 1 : 0);
     gl.uniform1f(loc.uDebugMw, p.debugMw ? 1 : 0);
+    const c = p.mwCalib || {};
+    gl.uniform1f(loc.uRefract, c.refract == null ? 1 : c.refract);
+    gl.uniform1f(loc.uAltScale, c.altScale == null ? 1 : c.altScale);
+    gl.uniform2f(loc.uMwShift, c.shiftU || 0, c.shiftV || 0);
+    gl.uniform2f(loc.uMwScale, c.scaleU || 1, c.scaleV || 1);
     gl.uniformMatrix3fv(loc.uEnuToGal, false, p.enuToGal || IDENTITY3);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, tex);

@@ -147,8 +147,11 @@ void main() {
   // star's altitude (aDir.z == sin(alt)); this mirrors airmass()/extinction() in atmosphere.js, with
   // the EXT_K coefficients embedded as literals (a test guards against drift). Below-horizon stars
   // (full-sphere/edit) clamp at the horizon air mass rather than blowing up.
+  // Full-sphere mode mirrors the gradient below the horizon, so mirror the air mass too (|alt|) —
+  // otherwise every below-horizon star clamps to the horizon's ~11 magnitudes of extinction and
+  // vanishes. Normal mode culls below-horizon stars anyway, so max(alt,0) is equivalent there.
   float altDeg = degrees(asin(clamp(aDir.z, -1.0, 1.0)));
-  float hh = max(altDeg, 0.0);
+  float hh = (uShowBelow > 0.5) ? abs(altDeg) : max(altDeg, 0.0);
   float airmass = 1.0 / (sin(radians(hh)) + 0.50572 * pow(hh + 6.07995, -1.6364));
   vec3 extK = vec3(${glslFloat(EXT_K.r)}, ${glslFloat(EXT_K.g)}, ${glslFloat(EXT_K.b)});
   vColor = aColor * pow(vec3(10.0), -0.4 * extK * (airmass - 1.0));
@@ -405,14 +408,14 @@ export function createStarfield(glCanvas) {
   // Draw the sky background (opaque) then all stars. cam: { az, alt, fov, width, height } (CSS px).
   // debugMw isolates the Milky Way (background paints the band full-bright on black) and keeps stars
   // lit regardless of daytime, so the band's alignment against the catalogue is easy to eyeball.
-  function draw(cam, { showBelow = false, edit = false, debugMw = false } = {}) {
+  function draw(cam, { showBelow = false, edit = false, debugMw = false, mwCalib = null } = {}) {
     if (lost) return;
     gl.clear(gl.COLOR_BUFFER_BIT);
     // Sky background first: an OPAQUE base under the additive star pass. Blend is disabled so the
     // fragment's alpha=1 fully replaces the pixel; restore additive (ONE,ONE) before the stars.
     if (skyBg && skyParamsStash) {
       gl.disable(gl.BLEND);
-      skyBg.draw(cam, { ...skyParamsStash, dpr, showBelow: showBelow || edit, mwZoomFade: milkyWayZoomFade(cam.fov), debugMw });
+      skyBg.draw(cam, { ...skyParamsStash, dpr, showBelow: showBelow || edit, mwZoomFade: milkyWayZoomFade(cam.fov), debugMw, mwCalib });
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.ONE, gl.ONE);
     }
