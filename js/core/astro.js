@@ -85,6 +85,34 @@ export function bodyAngularRadiusDeg(body, observer, time) {
   return (Math.asin(Math.min(1, r / eq.dist)) * 180) / Math.PI;
 }
 
+// Mean visual magnitudes of the Galilean moons (they vary by a few tenths; fine for dot sizing).
+const GALILEAN_MAGS = { Io: 5.0, Europa: 5.3, Ganymede: 4.6, Callisto: 5.7 };
+
+// The four Galilean moons as sky positions: [{ name, altaz:{alt,az}, mag, behind }].
+// Jovicentric EQJ offsets (vendor L1.2 theory) added to Jupiter's geocentric vector, then through the
+// same J2000 -> precessed -> refracted alt/az path as the stars (topocentric parallax is negligible at
+// Jupiter's distance). `behind` = occulted by the disc: farther than Jupiter AND within its physical
+// radius of the line of sight.
+export function jupiterMoonsAltAz(observer, time) {
+  const jm = Astronomy.JupiterMoons(time);
+  const jup = Astronomy.GeoVector(Body.Jupiter, time, /*aberration*/ true);
+  const jlen = Math.hypot(jup.x, jup.y, jup.z);
+  const los = [jup.x / jlen, jup.y / jlen, jup.z / jlen]; // unit line of sight to Jupiter
+  return ['Io', 'Europa', 'Ganymede', 'Callisto'].map((name) => {
+    const sv = jm[name.toLowerCase()];
+    const g = new Astronomy.Vector(jup.x + sv.x, jup.y + sv.y, jup.z + sv.z, time);
+    const eq = Astronomy.EquatorFromVector(g); // ra HOURS, dec deg (J2000)
+    const along = sv.x * los[0] + sv.y * los[1] + sv.z * los[2]; // AU beyond (+) / before (-) Jupiter
+    const perp = Math.hypot(sv.x - along * los[0], sv.y - along * los[1], sv.z - along * los[2]);
+    return {
+      name,
+      altaz: altAzOfStar(eq.ra * 15, eq.dec, observer, time),
+      mag: GALILEAN_MAGS[name],
+      behind: along > 0 && perp < BODY_RADIUS_AU.Jupiter,
+    };
+  });
+}
+
 // Build a reusable J2000->alt/az converter for a fixed (observer, time): the EQJ->EQD precession
 // rotation is computed ONCE here instead of once per star (computeSky calls this on ~15.6k stars).
 export function makeStarAltAz(observer, time) {
