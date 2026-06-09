@@ -23,8 +23,17 @@ export function norm(v) {
 export function cameraBasis(cam) {
   const fwd = vec(cam.az, cam.alt);
   const upRef = Math.abs(cam.alt) > 89.5 ? [0, 1, 0] : [0, 0, 1];
-  const right = norm(cross(fwd, upRef));          // +x: world East when facing the horizon
-  const up = norm(cross(right, fwd));             // +y: toward the zenith
+  let right = norm(cross(fwd, upRef));          // +x: world East when facing the horizon
+  let up = norm(cross(right, fwd));             // +y: toward the zenith
+  // Optional camera roll (degrees) about the viewing axis, used by gyro/AR aim so the on-screen
+  // image rotates with the phone. roll=0 (the default) leaves the basis level — identical to before.
+  if (cam.roll) {
+    const r = degToRad(cam.roll);
+    const cr = Math.cos(r), sr = Math.sin(r);
+    const rRight = [right[0] * cr + up[0] * sr, right[1] * cr + up[1] * sr, right[2] * cr + up[2] * sr];
+    const rUp = [up[0] * cr - right[0] * sr, up[1] * cr - right[1] * sr, up[2] * cr - right[2] * sr];
+    right = rRight; up = rUp;
+  }
   const focal = (cam.width / 2) / Math.tan(degToRad(cam.fov) / 2);
   return { right, up, fwd, focal, cx: cam.width / 2, cy: cam.height / 2 };
 }

@@ -41,3 +41,17 @@ test('looking straight down does not divide by zero', () => {
   const p = project(90, -85, { az: 0, alt: -90, fov: 60, ...VIEW });
   assert.ok(Number.isFinite(p.x) && Number.isFinite(p.y));
 });
+
+test('roll defaults to 0: an unset roll matches roll:0 and the no-roll projection', () => {
+  const base = project(0, 5, { az: 0, alt: 0, fov: 60, ...VIEW });
+  const explicit = project(0, 5, { az: 0, alt: 0, fov: 60, roll: 0, ...VIEW });
+  assert.ok(Math.abs(base.x - explicit.x) < 1e-9 && Math.abs(base.y - explicit.y) < 1e-9);
+});
+
+test('roll=90 rotates the view: an object above center moves to the right edge-ward', () => {
+  const cam = { az: 0, alt: 0, fov: 60, ...VIEW };
+  const up = project(0, 5, cam); // 5 deg above center, no roll
+  assert.ok(up.y < cy && Math.abs(up.x - cx) < 1e-6, 'no roll: straight up');
+  const rolled = project(0, 5, { ...cam, roll: 90 });
+  assert.ok(rolled.x > cx && Math.abs(rolled.y - cy) < 1e-6, 'roll 90: that object is now to the right');
+});
