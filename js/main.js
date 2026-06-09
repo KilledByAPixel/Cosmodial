@@ -1,5 +1,5 @@
 import { createState } from './core/state.js';
-import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, moonPhaseInfo, moonPhaseAngleDeg, northPoleJ2000 } from './core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000 } from './core/astro.js';
 import { makeStarAltAz, horToEqjRotation, eqjToGalRotation } from './core/astro.js';
 import { moonScreenOrientation } from './core/moon.js';
 import { buildLocationControl } from './ui/location.js';
@@ -115,7 +115,7 @@ function computeSky() {
         sunDir: vec(sunM.altaz.az, sunM.altaz.alt),
         poleDir: vec(poleAA.az, poleAA.alt),
       };
-      starfield.setMoonParams({ dir: moonOrient.moonDir, phaseAngleDeg: moonPhaseAngleDeg(time) });
+      starfield.setMoonParams({ dir: moonOrient.moonDir, phaseAngleDeg: bodyPhaseAngleDeg(Body.Moon, time) });
     } else {
       moonOrient = null;
     }

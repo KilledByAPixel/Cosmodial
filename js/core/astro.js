@@ -59,11 +59,15 @@ export function bodyMagnitude(body, time) {
 }
 
 // Physical radii in AU, used for the apparent angular size of the Sun and Moon.
-const BODY_RADIUS_AU = { Sun: 0.00465047, Moon: 1.16138e-5 };
+const BODY_RADIUS_AU = {
+  Sun: 0.00465047, Moon: 1.16138e-5,
+  Mercury: 1.6310e-5, Venus: 4.0454e-5, Mars: 2.2654e-5,
+  Jupiter: 4.7789e-4, Saturn: 4.0288e-4, Uranus: 1.7081e-4, Neptune: 1.6554e-4,
+};
 
-// Sun-Moon-Earth phase angle in degrees (0 = full, 180 = new). Drives where the terminator sits.
-export function moonPhaseAngleDeg(time) {
-  return Astronomy.Illumination(Body.Moon, time).phase_angle;
+// Sun-body-Earth phase angle in degrees (0 = full, 180 = new). Drives where the terminator sits.
+export function bodyPhaseAngleDeg(body, time) {
+  return Astronomy.Illumination(body, time).phase_angle;
 }
 
 // A body's north rotation-axis pole as J2000 RA/Dec (degrees), from the IAU rotation model.

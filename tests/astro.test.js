@@ -58,14 +58,15 @@ test('bodyMagnitude returns a sane apparent magnitude for a planet', () => {
   assert.ok(Number.isFinite(mag) && mag > -4 && mag < 1, `Jupiter mag ${mag} should be ~ -2..-1`);
 });
 
-test('bodyAngularRadiusDeg ~0.25 deg for Sun/Moon, null for planets', () => {
+test('bodyAngularRadiusDeg ~0.25 deg for Sun/Moon, plausible for planets', () => {
   const obs = makeObserver(40, -105);
   const t = makeTime(new Date('2025-06-06T06:00:00Z'));
   const sun = bodyAngularRadiusDeg(Body.Sun, obs, t);
   const moon = bodyAngularRadiusDeg(Body.Moon, obs, t);
   assert.ok(sun > 0.2 && sun < 0.3, `sun angular radius ${sun} should be ~0.27`);
   assert.ok(moon > 0.2 && moon < 0.32, `moon angular radius ${moon} should be ~0.25`);
-  assert.equal(bodyAngularRadiusDeg(Body.Jupiter, obs, t), null);
+  const jup = bodyAngularRadiusDeg(Body.Jupiter, obs, t);
+  assert.ok(jup > 0.002 && jup < 0.01, `jupiter angular radius ${jup} should be tiny`);
 });
 
 test('makeStarAltAz matches altAzOfStar (precession computed once, reused)', () => {
