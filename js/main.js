@@ -706,7 +706,7 @@ async function boot() {
     const tag = e.target && e.target.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) return;
     gpuStars = !gpuStars;
-    if (gpuStars) starfield.uploadStarsJ2000(stars); else { skyDirty = true; }
+    if (gpuStars) starfield.uploadStarsJ2000(stars); else { fullDirty = true; skyDirty = true; } // CPU flip needs the fresh 62k remap, not just overlays
     console.log('[volvella] star transform:', gpuStars ? 'GPU' : 'CPU');
     requestRender();
   });
