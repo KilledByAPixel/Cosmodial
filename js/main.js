@@ -1,5 +1,5 @@
 import { createState } from './core/state.js';
-import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, moonPhaseInfo, moonPhaseAngleDeg, bodyEquatorialJ2000, northPoleJ2000, bodyHourAngleDeg } from './core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, moonPhaseInfo, moonPhaseAngleDeg, northPoleJ2000 } from './core/astro.js';
 import { makeStarAltAz, horToEqjRotation, eqjToGalRotation } from './core/astro.js';
 import { moonScreenOrientation } from './core/moon.js';
 import { buildLocationControl } from './ui/location.js';

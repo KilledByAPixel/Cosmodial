@@ -66,25 +66,10 @@ export function moonPhaseAngleDeg(time) {
   return Astronomy.Illumination(Body.Moon, time).phase_angle;
 }
 
-// Apparent J2000 equatorial RA/Dec (degrees) for a body. ofdate=false keeps the frame consistent with
-// RotationAxis (also J2000) for the orientation math.
-export function bodyEquatorialJ2000(body, observer, time) {
-  const eq = Astronomy.Equator(body, time, observer, /*ofdate*/ false, /*aberration*/ true); // ra HOURS
-  return { raDeg: eq.ra * 15, decDeg: eq.dec };
-}
-
 // A body's north rotation-axis pole as J2000 RA/Dec (degrees), from the IAU rotation model.
 export function northPoleJ2000(body, time) {
   const ax = Astronomy.RotationAxis(body, time); // ra HOURS, dec deg (J2000)
   return { raDeg: ax.ra * 15, decDeg: ax.dec };
-}
-
-// Local hour angle (degrees, -180..180; positive = west of the meridian) of a body.
-export function bodyHourAngleDeg(body, observer, time) {
-  const h = Astronomy.HourAngle(body, time, observer); // sidereal HOURS 0..24
-  let deg = h * 15;
-  if (deg > 180) deg -= 360;
-  return deg;
 }
 
 // Apparent angular RADIUS (degrees) of the Sun or Moon from the observer (uses current distance).
