@@ -1,5 +1,5 @@
 import { createState } from './core/state.js';
-import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000 } from './core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, jupiterMoonsAltAz } from './core/astro.js';
 import { makeStarAltAz, horToEqjRotation, eqjToGalRotation } from './core/astro.js';
 import { eqjToEnuMatrix } from './render/star-transform.js';
 import { bodyScreenOrientation } from './core/moon.js';
@@ -65,6 +65,7 @@ let selected = null;        // first star picked in edit mode (a skyObjects entr
 let highlighted = null;     // object whose card is currently open (gets a ring on canvas)
 let followTarget = null;    // object kept centred as time changes (set by Find/search; cleared on drag/tap)
 let bodyInputs = [];   // per-recompute lit-sphere inputs (Moon + planets); see computeSky()
+let jupiterMoons = [];      // Galilean moons {name, altaz, mag, behind}; drawn when Jupiter is a sphere
 let namedStars = []; // skyObjects with names — label positions refresh on the frequent cadence
 let skyStamp = null; // { lat, lng, ms } of the last FULL recompute (pick-staleness guard)
 let editIndex = 0;          // index into figures[] of the currently active constellation
@@ -118,6 +119,7 @@ function computeSky(full) {
     { altaz: altAzOfBody(Body.Sun, observer, time), label: 'Sun', color: '#ffd27f', angularRadiusDeg: bodyAngularRadiusDeg(Body.Sun, observer, time), body: Body.Sun, alpha: 1 },
     ...planetMarkers,
   ];
+  jupiterMoons = jupiterMoonsAltAz(observer, time); // cheap analytic theory; fine on the frequent cadence
   if (useGL) {
     // Sky background: atmosphere colour + star wash-out are driven by the Sun's altitude; the warm
     // glow lobe needs its direction, and the Milky Way texture its ENU->galactic sampling matrix.
@@ -211,6 +213,7 @@ function render() {
   const visibleCons = st.flags.edit
     ? (constellations[editIndex] ? [constellations[editIndex]] : [])
     : (st.flags.lines ? constellations : []);
+  let drawList = st.flags.edit ? [] : markers; // markers (+ Galilean moons when Jupiter is a sphere)
   if (useGL) {
     starfield.resize(view.width, view.height, window.devicePixelRatio || 1);
     // One EQJ->ENU rotation per frame: stars sweep smoothly in live/play/scrub at zero per-star CPU cost.
@@ -240,10 +243,20 @@ function render() {
       sphereLabels.add(bi.label);
     }
     starfield.setBodies(bodyList);
+    // Galilean moons: labeled glow dots, only once Jupiter has resolved into a disc. Render-local
+    // pseudo-markers (NOT in the module markers array) so picking/guide/conjunctions never see them;
+    // occulted moons (behind the disc) are hidden, transiting ones stay drawn.
+    const moonMarkers = sphereLabels.has('Jupiter')
+      ? jupiterMoons.filter((m) => !m.behind).map((m) => ({
+          altaz: m.altaz, label: m.name, color: '#d8cfc0',
+          mag: m.mag, alpha: markerAlpha(m.mag), radius: planetRadius(m.mag),
+        }))
+      : [];
+    drawList = st.flags.edit ? [] : markers.concat(moonMarkers);
     starfield.draw(cam, { showBelow: st.flags.sphere, edit: st.flags.edit });
     // Sun/Moon/planets as glowing discs: size from markerRadius (angular for Sun/Moon, disk for
     // planets), tint from the body's colour, brightness from magnitude. Hidden in edit mode.
-    const glMarkers = st.flags.edit ? [] : markers
+    const glMarkers = drawList
       .filter((m) => !sphereLabels.has(m.label))   // spheres (Moon + zoomed-in planets) draw via the body pass
       .map((m) => ({
         az: m.altaz.az, alt: m.altaz.alt, color: m.color,
@@ -253,7 +266,7 @@ function render() {
   }
   drawScene(ctx, {
     stars: skyObjects,
-    markers: st.flags.edit ? [] : markers,   // hide Sun/Moon/planets in edit mode so they don't overlap stars
+    markers: drawList,   // hide Sun/Moon/planets in edit mode so they don't overlap stars
     constellations: visibleCons,
     cam,
     edit: st.flags.edit,
