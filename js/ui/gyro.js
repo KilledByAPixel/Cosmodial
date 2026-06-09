@@ -38,7 +38,7 @@ export function attachGyro(store, opts = {}) {
     // Yaw source: iOS reports a true-north compass heading directly (webkitCompassHeading, clockwise
     // from north); the W3C alpha that yields that heading is (360 - heading). Android's absolute
     // event already provides a north-referenced alpha, so pass it through.
-    let alpha = typeof e.alpha === 'number' ? e.alpha : 0;
+    let alpha = Number.isFinite(e.alpha) ? e.alpha : 0; // also coerces a NaN heading from buggy drivers
     if (typeof e.webkitCompassHeading === 'number') alpha = 360 - e.webkitCompassHeading;
     const s = deviceToCamera({ alpha, beta: e.beta || 0, gamma: e.gamma || 0, screen: screenAngle() });
     prev = prev
