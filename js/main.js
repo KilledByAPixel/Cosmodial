@@ -19,6 +19,7 @@ import { animateSlew } from './ui/slew.js';
 import { findEclipseContext } from './guide/eclipses.js';
 import { activeShower } from './guide/showers.js';
 import { findConjunctions, midpointAltAz } from './guide/conjunctions.js';
+import { isGyroSupported, requestGyroPermission, attachGyro } from './ui/gyro.js';
 
 const canvas = document.getElementById('sky');
 const ctx = canvas.getContext('2d');
@@ -137,7 +138,7 @@ function render() {
   // Lift the compass ribbon/readout above the on-screen control bar so they aren't hidden behind it.
   const controlsEl = document.getElementById('controls');
   const bottomInset = controlsEl ? controlsEl.offsetHeight : 0;
-  const cam = { az: st.aim.az, alt: st.aim.alt, fov: st.fov, width: view.width, height: view.height, bottomInset };
+  const cam = { az: st.aim.az, alt: st.aim.alt, fov: st.fov, roll: st.roll, width: view.width, height: view.height, bottomInset };
   // In edit mode, show ONLY the active constellation's lines (focus); otherwise honor the lines flag.
   const visibleCons = st.flags.edit
     ? (constellations[editIndex] ? [constellations[editIndex]] : [])
@@ -190,7 +191,7 @@ function onEditTap(x, y) {
   if (!active) return;
   const view = { width: canvas.clientWidth, height: canvas.clientHeight };
   const st = store.getState();
-  const cam = { az: st.aim.az, alt: st.aim.alt, fov: st.fov, ...view };
+  const cam = { az: st.aim.az, alt: st.aim.alt, fov: st.fov, roll: st.roll, ...view };
   const projector = createProjector(cam);
   // Any visible star is clickable; the toggled edge is added to the ACTIVE figure regardless of
   // which constellation the star is catalogued under (so shared/neighbouring stars can be added).
@@ -216,7 +217,7 @@ function onIdentifyTap(x, y) {
   const st = store.getState();
   const observer = makeObserver(st.location.lat, st.location.lng);
   const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
-  const cam = { az: st.aim.az, alt: st.aim.alt, fov: st.fov, width: canvas.clientWidth, height: canvas.clientHeight };
+  const cam = { az: st.aim.az, alt: st.aim.alt, fov: st.fov, roll: st.roll, width: canvas.clientWidth, height: canvas.clientHeight };
   const projector = createProjector(cam);
   const candidates = [
     ...skyObjects.map((s) => ({ kind: 'star', id: s.id, name: s.name, mag: s.mag, bv: s.bv, con: s.con, dist: s.dist, altaz: s.altaz })),
@@ -414,6 +415,37 @@ function makeToggle(label, flag, className = '') {
   return btn;
 }
 
+// The gyroscope/AR toggle: shown only on devices with orientation sensors. Activating it requests
+// permission (must run inside this click handler for iOS) and, if granted, streams device orientation
+// into store.setOrientation; deactivating detaches and lets setFlag('gyro', false) level the roll.
+function makeGyroToggle() {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'view-toggle';
+  btn.textContent = '📱 AR';
+  let detach = null;
+  btn.addEventListener('click', async () => {
+    if (store.getState().flags.gyro) {            // turn OFF
+      if (detach) { detach(); detach = null; }
+      store.setFlag('gyro', false);
+      return;
+    }
+    const perm = await requestGyroPermission();   // turn ON — request inside the gesture (iOS)
+    if (perm !== 'granted') { console.warn(`[volvella] gyroscope unavailable: ${perm}`); return; }
+    store.setFlag('gyro', true);                  // set the flag BEFORE attaching, so the first
+    detach = attachGyro(store);                   // setOrientation events are honored (not no-op'd)
+    if (store.getState().fov < 30) store.setFov(50); // don't wave the phone in a telescope view
+  });
+  const sync = () => {
+    const on = store.getState().flags.gyro;
+    btn.classList.toggle('on', on);
+    btn.setAttribute('aria-pressed', String(on));
+  };
+  store.subscribe(sync);
+  sync();
+  return btn;
+}
+
 function onTap(x, y) {
   if (store.getState().flags.edit) onEditTap(x, y);
   else onIdentifyTap(x, y);
@@ -539,6 +571,7 @@ async function boot() {
       makeToggle('Full sphere', 'sphere'),
       makeToggle('🌙 Night', 'night', 'night-toggle'),
     );
+    if (isGyroSupported()) controls.append(makeGyroToggle());
   }
   // Night mode also tints the whole document (the toggle button's own state is handled by makeToggle).
   const applyNight = () => document.body.classList.toggle('night', store.getState().flags.night);
