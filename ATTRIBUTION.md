@@ -15,4 +15,7 @@
 - **Milky Way panorama:** "Stars and Milky Way" equirectangular sky texture from Solar System Scope
   (https://www.solarsystemscope.com/textures/), **CC-BY 4.0**. Downscaled to a 4096×2048 WebP in
   `data/milkyway-4k.webp` and used as the all-sky background behind the catalogue stars.
+- **Moon map:** "Moon" equirectangular albedo texture from Solar System Scope
+  (https://www.solarsystemscope.com/textures/), **CC-BY 4.0**. Downscaled to a 2048x1024 WebP in
+  `data/moon-2k.webp` and used as the lunar surface in the phase render.
 - **Application code:** MIT (see `LICENSE`).
