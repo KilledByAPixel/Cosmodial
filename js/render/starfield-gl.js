@@ -403,7 +403,7 @@ export function createStarfield(glCanvas) {
   function setMilkyWay(url) { if (skyBg) skyBg.setMilkyWay(url); }
 
   function setBodies(list) { bodyList = list; }                 // per-frame draw list (Moon + sphere-planets)
-  function setBodyTexture(name, url) { if (bodySphere) bodySphere.setTexture(name, url); }
+  function setBodyTexture(name, url, opts) { if (bodySphere) bodySphere.setTexture(name, url, opts); }
 
   // Draw the sky background (opaque) then all stars. cam: { az, alt, fov, width, height } (CSS px).
   function draw(cam, { showBelow = false, edit = false } = {}) {

@@ -17,17 +17,18 @@ uniform float uFocal;
 uniform vec2 uViewport;
 uniform vec3 uBodyDir;
 uniform float uRadiusPx;
-out vec2 vCorner;
+uniform float uQuadScale;
+out vec2 vCorner;  // globe-radius units: |v| = 1 at the sphere edge, up to uQuadScale at the quad edge
 void main() {
   float z = dot(uBodyDir, uFwd);
   vec2 corner = vec2((gl_VertexID == 1 || gl_VertexID == 3) ? 1.0 : -1.0,
                      (gl_VertexID == 2 || gl_VertexID == 3) ? 1.0 : -1.0);
-  vCorner = corner;
+  vCorner = corner * uQuadScale;
   if (z <= 0.000001) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
   float sx = uFocal * dot(uBodyDir, uRight) / z;
   float sy = uFocal * dot(uBodyDir, uUp) / z;
   vec2 centerNdc = vec2(sx / (uViewport.x * 0.5), sy / (uViewport.y * 0.5));
-  vec2 cornerNdc = (corner * uRadiusPx) / (uViewport * 0.5);
+  vec2 cornerNdc = (corner * uRadiusPx * uQuadScale) / (uViewport * 0.5);
   gl_Position = vec4(centerNdc + cornerNdc, 0.0, 1.0);
 }`;
 }
@@ -40,13 +41,40 @@ uniform sampler2D uTex;
 uniform float uPhaseAngle;   // radians: 0 = full, PI = new
 uniform float uLimbAngle;    // radians: bright-limb screen angle (CW from screen-up)
 uniform float uNorthAngle;   // radians: north-pole screen angle (CW from screen-up)
+uniform float uRingTilt;     // sin(B): ring opening; 0 = edge-on (also: pole z toward the viewer)
+uniform vec2 uRingRadii;     // ring inner/outer radii in globe radii; (0,0) = no rings
+uniform sampler2D uRingTex;  // radial strip: u = (r - inner) / (outer - inner), with alpha
 out vec4 fragColor;
 const float PI = 3.14159265358979;
 vec2 dirFromUp(float a) { return vec2(sin(a), cos(a)); }
 void main() {
-  vec2 d = vCorner;
+  vec2 d = vCorner;                 // globe-radius units: |d| = 1 at the sphere edge
   float r2 = dot(d, d);
-  if (r2 > 1.0) discard;
+
+  // Ring-plane sample (valid both off and over the globe — rings cross in front of the disc).
+  // Plane normal = the pole in the disc frame: in-plane part along the north screen angle (length
+  // cos B), z toward the viewer = sin B. Orthographic ray (d.xy, t); radial distance indexes the strip.
+  float ringA = 0.0; vec3 ringC = vec3(0.0); float ringZ = -1.0e9;
+  if (uRingRadii.y > 0.0) {
+    float ct = sqrt(max(0.0, 1.0 - uRingTilt * uRingTilt));
+    vec3 p = vec3(dirFromUp(uNorthAngle) * ct, uRingTilt);
+    if (abs(p.z) > 1.0e-4) {
+      float t = -(d.x * p.x + d.y * p.y) / p.z;
+      float rr = length(vec3(d, t));
+      float u = (rr - uRingRadii.x) / (uRingRadii.y - uRingRadii.x);
+      if (u >= 0.0 && u <= 1.0) {
+        vec4 rt = texture(uRingTex, vec2(u, 0.5));
+        ringC = rt.rgb; ringA = rt.a; ringZ = t;
+      }
+    }
+  }
+
+  if (r2 > 1.0) {                   // off the globe: ring only
+    if (ringA <= 0.003) discard;
+    fragColor = vec4(ringC, ringA);
+    return;
+  }
+
   float zc = sqrt(1.0 - r2);
   vec3 N = vec3(d.x, d.y, zc);
   vec2 limb = dirFromUp(uLimbAngle);
@@ -59,7 +87,9 @@ void main() {
   vec2 uv = vec2(0.5 + lon / (2.0 * PI), 0.5 - lat / PI);
   vec3 surf = texture(uTex, uv).rgb;
   float alpha = 1.0 - smoothstep(1.0 - ${EDGE_AA.toFixed(3)}, 1.0, sqrt(r2));
-  fragColor = vec4(surf * lit, alpha);
+  vec3 col = surf * lit;
+  if (ringA > 0.0 && ringZ > zc) col = mix(col, ringC, ringA); // ring segment crossing IN FRONT of the globe
+  fragColor = vec4(col, alpha);
 }`;
 }
 
@@ -76,8 +106,17 @@ function compile(gl, type, src) {
 
 export function createBodySphere(gl) {
   let program, vao, loc;
-  const maps = new Map();   // name -> { tex, img|null, ready }   real surface maps (async)
+  const maps = new Map();   // name -> { tex, img|null, ready, clampS }   real surface maps (async)
   const tints = new Map();  // 'r,g,b' (0..255) -> tex            1x1 flat-tint textures
+  let noRingTex = null; // 1x1 transparent RGBA bound on unit 1 for ringless bodies
+  function dummyRingTex() {
+    if (!noRingTex) {
+      noRingTex = newTex();
+      gl.bindTexture(gl.TEXTURE_2D, noRingTex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 0]));
+    }
+    return noRingTex;
+  }
 
   function newTex() {
     const t = gl.createTexture();
@@ -100,13 +139,14 @@ export function createBodySphere(gl) {
     return t;
   }
   function uploadImage(name, image) {
-    const e = maps.get(name) || { tex: newTex(), img: null, ready: false };
+    const e = maps.get(name) || { tex: newTex(), img: null, ready: false, clampS: false };
     e.img = image;
     gl.bindTexture(gl.TEXTURE_2D, e.tex);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
     gl.generateMipmap(gl.TEXTURE_2D);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    if (e.clampS) gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); // radial strip: no wrap
     e.ready = true;
     maps.set(name, e);
   }
@@ -122,22 +162,25 @@ export function createBodySphere(gl) {
       console.error('[volvella] body-sphere link failed:', gl.getProgramInfoLog(program)); return false;
     }
     vao = gl.createVertexArray();
-    const names = ['uRight','uUp','uFwd','uFocal','uViewport','uBodyDir','uRadiusPx','uTex','uPhaseAngle','uLimbAngle','uNorthAngle'];
+    const names = ['uRight','uUp','uFwd','uFocal','uViewport','uBodyDir','uRadiusPx','uTex','uPhaseAngle','uLimbAngle','uNorthAngle','uQuadScale','uRingTilt','uRingRadii','uRingTex'];
     loc = Object.fromEntries(names.map((n) => [n, gl.getUniformLocation(program, n)]));
     return true;
   }
   if (!setupGL()) return null;
 
   // Start loading a named surface map (async). The body shows its tint until the map arrives.
-  function setTexture(name, url) {
-    if (!maps.has(name)) maps.set(name, { tex: newTex(), img: null, ready: false });
+  function setTexture(name, url, opts = {}) {
+    if (!maps.has(name)) maps.set(name, { tex: newTex(), img: null, ready: false, clampS: !!opts.clampS });
+    else maps.get(name).clampS = !!opts.clampS;
     const im = new Image(); im.decoding = 'async';
     im.onload = () => { try { uploadImage(name, im); } catch (e) { console.warn('[volvella] body tex upload failed', name, e); } };
     im.onerror = () => console.warn('[volvella] body texture failed to load:', url);
     im.src = url;
   }
 
-  // bodies: [{ texKey, tint:[r,g,b] 0..255, dir:[x,y,z], radiusPx, phaseAngleDeg, brightLimbAngle, northAngle }]
+  // bodies: [{ texKey, tint:[r,g,b] 0..255, dir:[x,y,z], radiusPx, phaseAngleDeg, brightLimbAngle, northAngle,
+  //            quadScale (optional, default 1), ringTilt (optional), ringRadii (optional [inner,outer]),
+  //            ringTexKey (optional) }]
   // Camera uniforms are set once; per-body uniforms + texture bind per draw. Alpha-blended (opaque disc),
   // restores additive afterward for the marker pass.
   function draw(cam, bodies) {
@@ -154,16 +197,24 @@ export function createBodySphere(gl) {
     gl.uniform2f(loc.uViewport, cam.width, cam.height);
     gl.activeTexture(gl.TEXTURE0);
     gl.uniform1i(loc.uTex, 0);
+    gl.uniform1i(loc.uRingTex, 1);
     gl.bindVertexArray(vao);
     for (const b of bodies) {
       if (!b || !b.dir) continue;
       const map = b.texKey ? maps.get(b.texKey) : null;
+      const ringMap = b.ringTexKey ? maps.get(b.ringTexKey) : null;
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, (ringMap && ringMap.ready) ? ringMap.tex : dummyRingTex());
+      gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, (map && map.ready) ? map.tex : tintTex(b.tint || [128, 128, 128]));
       gl.uniform3f(loc.uBodyDir, b.dir[0], b.dir[1], b.dir[2]);
       gl.uniform1f(loc.uRadiusPx, b.radiusPx);
       gl.uniform1f(loc.uPhaseAngle, b.phaseAngleDeg * D2R);
       gl.uniform1f(loc.uLimbAngle, SCREEN_ANGLE_SIGN * b.brightLimbAngle * D2R);
       gl.uniform1f(loc.uNorthAngle, SCREEN_ANGLE_SIGN * b.northAngle * D2R);
+      gl.uniform1f(loc.uQuadScale, b.quadScale || 1);
+      gl.uniform1f(loc.uRingTilt, b.ringTilt || 0);
+      gl.uniform2f(loc.uRingRadii, b.ringRadii ? b.ringRadii[0] : 0, b.ringRadii ? b.ringRadii[1] : 0);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
     gl.bindVertexArray(null);
@@ -173,6 +224,7 @@ export function createBodySphere(gl) {
   function onContextRestored() {
     if (!setupGL()) return;
     tints.clear(); // 1x1 tints regenerate lazily in draw()
+    noRingTex = null; // regenerates lazily in draw()
     for (const [name, e] of maps) {
       e.ready = false; e.tex = newTex();
       if (e.img) { try { uploadImage(name, e.img); } catch { /* stays tint until next setTexture */ } }
@@ -182,6 +234,7 @@ export function createBodySphere(gl) {
     gl.deleteProgram(program); gl.deleteVertexArray(vao);
     for (const e of maps.values()) gl.deleteTexture(e.tex);
     for (const t of tints.values()) gl.deleteTexture(t);
+    if (noRingTex) gl.deleteTexture(noRingTex);
   }
   return { draw, setTexture, onContextRestored, dispose };
 }

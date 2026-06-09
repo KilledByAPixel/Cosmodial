@@ -6,6 +6,7 @@ import { bodyScreenOrientation } from './core/moon.js';
 import { buildLocationControl } from './ui/location.js';
 import { buildTimeControls } from './ui/time-controls.js';
 import { PLANETS, planetRadius } from './render/planets.js';
+import { SATURN_RING, ringOpening } from './render/ring-math.js';
 import { drawScene, drawStarLabels, markerRadius, resizeCanvas } from './render/sky.js';
 import { createStarfield, hexToRgb01 } from './render/starfield-gl.js';
 import { drawHud, azToCompass } from './render/hud.js';
@@ -41,6 +42,7 @@ if (useGL) {
   starfield.setBodyTexture('jupiter', './data/jupiter-2k.webp');
   starfield.setBodyTexture('mars', './data/mars-2k.webp');
   starfield.setBodyTexture('saturn', './data/saturn-2k.webp');
+  starfield.setBodyTexture('saturn-rings', './data/saturn-rings.webp', { clampS: true });
 }
 const store = createState();
 
@@ -128,13 +130,13 @@ function computeSky(full) {
     const sunM = markers.find((m) => m.label === 'Sun');
     const sunDir = sunM ? vec(sunM.altaz.az, sunM.altaz.alt) : [0, 0, 1];
     const rgb255 = (hex) => hexToRgb01(hex).map((v) => Math.round(v * 255));
-    const addBody = (label, body, texKey, tint) => {
+    const addBody = (label, body, texKey, tint, ring = null) => {
       const m = markers.find((x) => x.label === label);
       if (!m) return;
       const pole = northPoleJ2000(body, time);
       const poleAA = altAzOfStar(pole.raDeg, pole.decDeg, observer, time);
       bodyInputs.push({
-        label, texKey, tint,
+        label, texKey, tint, ring,
         bodyDir: vec(m.altaz.az, m.altaz.alt),
         sunDir, poleDir: vec(poleAA.az, poleAA.alt),
         phaseAngleDeg: bodyPhaseAngleDeg(body, time),
@@ -143,7 +145,7 @@ function computeSky(full) {
     };
     bodyInputs = [];
     addBody('Moon', Body.Moon, 'moon', [232, 232, 232]);
-    for (const p of PLANETS) addBody(p.name, p.body, p.tex || null, rgb255(p.color));
+    for (const p of PLANETS) addBody(p.name, p.body, p.tex || null, rgb255(p.color), p.rings ? SATURN_RING : null);
   } else {
     bodyInputs = [];
   }
@@ -223,12 +225,17 @@ function render() {
       const dotR = markerRadius(m, cam);                       // current glow-dot radius (px)
       const scale = bi.label === 'Moon' ? 1 : PLANET_SCALE;    // Moon already sized by angular radius
       const rPx = bi.angularRadiusDeg * (Math.PI / 180) * focal * scale;
-      if (bi.label !== 'Moon' && rPx <= dotR) continue;        // too small -> leave it as a glow dot
+      const span = bi.ring ? bi.ring.OUTER : 1;                // rings widen the on-screen footprint
+      if (bi.label !== 'Moon' && rPx * span <= dotR) continue; // too small -> leave it as a glow dot
       const o = bodyScreenOrientation(cam, bi.bodyDir, bi.sunDir, bi.poleDir);
       const radiusPx = bi.label === 'Moon' ? dotR : rPx;       // Moon keeps its existing markerRadius size
       bodyList.push({
         texKey: bi.texKey, tint: bi.tint, dir: bi.bodyDir, radiusPx,
         phaseAngleDeg: bi.phaseAngleDeg, brightLimbAngle: o.brightLimbAngle, northAngle: o.northAngle,
+        quadScale: span,
+        ringTilt: bi.ring ? ringOpening(bi.bodyDir, bi.poleDir) : 0,
+        ringRadii: bi.ring ? [bi.ring.INNER, bi.ring.OUTER] : null,
+        ringTexKey: bi.ring ? bi.ring.TEX : null,
       });
       sphereLabels.add(bi.label);
     }

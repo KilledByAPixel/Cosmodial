@@ -10,7 +10,7 @@ export const PLANETS = [
   { body: Body.Venus,   name: 'Venus',   color: '#fff4d6' },
   { body: Body.Mars,    name: 'Mars',    color: '#ff6a4d', tex: 'mars' },
   { body: Body.Jupiter, name: 'Jupiter', color: '#e3c8a0', tex: 'jupiter' },
-  { body: Body.Saturn,  name: 'Saturn',  color: '#e8d9a0', tex: 'saturn' },
+  { body: Body.Saturn,  name: 'Saturn',  color: '#e8d9a0', tex: 'saturn', rings: true },
   { body: Body.Uranus,  name: 'Uranus',  color: '#bfe3e8' },
   { body: Body.Neptune, name: 'Neptune', color: '#7c9fe0' },
 ];
