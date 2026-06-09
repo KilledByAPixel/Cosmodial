@@ -13,6 +13,14 @@ test('nudgedToward returns a unit vector leaning toward the target', () => {
   assert.ok(d3(n, to) > d3(from, to), 'leans toward the target');
 });
 
+test('nudgedToward: same/antipodal direction returns a unit vector (degenerate, no crash)', () => {
+  const v = vec(180, 30);
+  const same = nudgedToward(v, v);                 // no preferred tangent
+  const anti = nudgedToward(v, [-v[0], -v[1], -v[2]]);
+  assert.ok(near(Math.hypot(...same), 1), 'same: unit length');
+  assert.ok(near(Math.hypot(...anti), 1), 'antipodal: unit length');
+});
+
 test('screenAngleCWFromUp: up=0, right=+90, down=180 (y grows down)', () => {
   const o = { x: 100, y: 100 };
   assert.ok(near(screenAngleCWFromUp(o, { x: 100, y: 90 }), 0), 'up');       // smaller y = up

@@ -10,7 +10,9 @@ import { cameraBasis, dot, norm } from './projection.js';
 // from `from` toward `to`). Lets us read which way the Sun / the Moon's pole lies *from the Moon*.
 export function nudgedToward(fromVec, towardVec, eps = 0.02) {
   const d = dot(fromVec, towardVec);
-  const t = norm([towardVec[0] - d * fromVec[0], towardVec[1] - d * fromVec[1], towardVec[2] - d * fromVec[2]]);
+  const raw = [towardVec[0] - d * fromVec[0], towardVec[1] - d * fromVec[1], towardVec[2] - d * fromVec[2]];
+  if (raw[0] === 0 && raw[1] === 0 && raw[2] === 0) return fromVec.slice(); // same/antipodal: no preferred tangent
+  const t = norm(raw);
   return norm([fromVec[0] + eps * t[0], fromVec[1] + eps * t[1], fromVec[2] + eps * t[2]]);
 }
 

@@ -152,7 +152,7 @@ export function createMoon(gl) {
     gl.blendFunc(gl.ONE, gl.ONE); // restore additive for any later passes
   }
 
-  function onContextRestored() { if (setupGL() && img) { try { uploadImage(img); } catch { /* re-kick via setTexture */ } } }
+  function onContextRestored() { if (setupGL() && img) { try { uploadImage(img); } catch { /* texture stays grey until the next setMoon() */ } } }
   function dispose() { gl.deleteProgram(program); gl.deleteVertexArray(vao); gl.deleteTexture(tex); }
   return { draw, setTexture, onContextRestored, dispose };
 }

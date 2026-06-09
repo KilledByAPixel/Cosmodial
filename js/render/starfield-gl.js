@@ -426,15 +426,16 @@ export function createStarfield(glCanvas) {
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.ONE, gl.ONE);
     }
-    if (!count) return;
-    gl.useProgram(program);
-    setCameraUniforms(loc, cam, showBelow || edit);
-    gl.uniform1f(loc.uZoom, zoomScale(cam.fov));
-    gl.uniform1f(loc.uStarDayFade, skyParamsStash ? skyParamsStash.starDayFade : 1);
-    gl.bindVertexArray(vao);
-    gl.drawArrays(gl.POINTS, 0, count);
-    gl.bindVertexArray(null);
-    if (moon && moonParamsStash) moon.draw(cam, moonParamsStash);
+    if (count) {
+      gl.useProgram(program);
+      setCameraUniforms(loc, cam, showBelow || edit);
+      gl.uniform1f(loc.uZoom, zoomScale(cam.fov));
+      gl.uniform1f(loc.uStarDayFade, skyParamsStash ? skyParamsStash.starDayFade : 1);
+      gl.bindVertexArray(vao);
+      gl.drawArrays(gl.POINTS, 0, count);
+      gl.bindVertexArray(null);
+    }
+    if (moon && moonParamsStash) moon.draw(cam, moonParamsStash); // after the stars (opaque, occludes them); independent of star count
   }
 
   // Draw the Sun/Moon/planet markers as glowing discs. Call AFTER draw() (which does the clear) so the
