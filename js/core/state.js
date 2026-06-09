@@ -18,7 +18,7 @@ const DEFAULT_AIM = { az: 180, alt: 45 };
 
 // Lowest altitude the camera may aim at. Normally the horizon (0°), so you can't tilt down into the
 // empty black below it; full-sphere mode unlocks the lower hemisphere down to near the nadir.
-const minAltFor = (flags) => (flags.sphere ? -MAX_ALT : 0);
+const minAltFor = (flags) => (flags.sphere || flags.gyro ? -MAX_ALT : 0);
 
 function loadSavedLocation() {
   if (typeof localStorage === 'undefined') return null;
@@ -57,13 +57,14 @@ function loadSavedFlags() {
 
 export function createState() {
   const savedView = loadSavedView();
-  const flags = { lines: false, labels: true, grid: false, sphere: false, deepsky: false, night: false, edit: false, ...loadSavedFlags() };
+  const flags = { lines: false, labels: true, grid: false, sphere: false, deepsky: false, night: false, edit: false, gyro: false, ...loadSavedFlags() };
   const aim = savedView ? savedView.aim : { ...DEFAULT_AIM };
   let state = {
     location: loadSavedLocation() || { ...DEFAULT_LOCATION },
     time: { instant: null, live: true }, // instant set by setTime; null means "use Date.now() at read"
     aim: { az: aim.az, alt: clamp(aim.alt, minAltFor(flags), MAX_ALT) }, // honor the horizon lock on restore
     fov: savedView ? savedView.fov : DEFAULT_FOV,
+    roll: 0, // camera roll about the viewing axis; nonzero only while gyro/AR aim is active
     flags,
   };
 
@@ -102,6 +103,16 @@ export function createState() {
       saveView();
       emit();
     },
+    // Gyro/AR aim: set azimuth, altitude, and roll in one update. Honors the gyro horizon unlock
+    // (minAltFor) and does NOT persist — the live orientation isn't a resting view to restore.
+    setOrientation(az, alt, roll) {
+      state = {
+        ...state,
+        aim: { az: wrap360(az), alt: clamp(alt, minAltFor(state.flags), MAX_ALT) },
+        roll: Number.isFinite(roll) ? roll : 0,
+      };
+      emit();
+    },
     setLocation(lat, lng, label) {
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return; // ignore invalid coordinates
       state = { ...state, location: { lat, lng, label } };
@@ -118,10 +129,12 @@ export function createState() {
     setFlag(name, value) {
       if (!(name in state.flags)) throw new Error(`Unknown flag: ${name}`);
       const flags = { ...state.flags, [name]: value };
-      // Turning full-sphere off while aimed below the horizon snaps the pitch back up to 0°.
+      // Turning full-sphere (or gyro) off while aimed below the horizon snaps the pitch back up to 0°.
       const alt = clamp(state.aim.alt, minAltFor(flags), MAX_ALT);
       const aimChanged = alt !== state.aim.alt;
-      state = { ...state, flags, aim: aimChanged ? { ...state.aim, alt } : state.aim };
+      // Exiting gyro/AR levels the view (roll back to 0); other flag changes leave roll untouched.
+      const roll = (name === 'gyro' && value === false) ? 0 : state.roll;
+      state = { ...state, flags, aim: aimChanged ? { ...state.aim, alt } : state.aim, roll };
       if (PERSISTED_FLAGS.includes(name)) saveFlags();
       if (aimChanged) saveView();
       emit();

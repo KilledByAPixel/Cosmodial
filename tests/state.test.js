@@ -94,3 +94,33 @@ test('altitude is clamped just below vertical to avoid the zenith singularity', 
   s.setAim(0, 89.9);
   assert.ok(s.getState().aim.alt <= 89, 'cannot aim into the gimbal-lock zone');
 });
+
+test('setOrientation sets aim azimuth/altitude and roll together', () => {
+  const s = createState();
+  s.setFlag('gyro', true);
+  s.setOrientation(123, 30, 45);
+  assert.equal(s.getState().aim.az, 123);
+  assert.equal(s.getState().aim.alt, 30);
+  assert.equal(s.getState().roll, 45);
+});
+
+test('gyro mode unlocks aiming below the horizon (like full-sphere)', () => {
+  const s = createState();
+  s.setFlag('gyro', true);
+  s.setOrientation(0, -40, 0);
+  assert.equal(s.getState().aim.alt, -40, 'can aim below the horizon while gyro is on');
+});
+
+test('leaving gyro mode levels the roll and re-clamps a below-horizon aim', () => {
+  const s = createState();
+  s.setFlag('gyro', true);
+  s.setOrientation(0, -40, 90);
+  assert.equal(s.getState().roll, 90);
+  s.setFlag('gyro', false);
+  assert.equal(s.getState().roll, 0, 'roll levels on exit');
+  assert.equal(s.getState().aim.alt, 0, 'below-horizon aim snaps back above the horizon');
+});
+
+test('roll defaults to 0 on a fresh state', () => {
+  assert.equal(createState().getState().roll, 0);
+});
