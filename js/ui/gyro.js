@@ -30,12 +30,14 @@ function lerpAngle(a, b, t) { return a + (((b - a + 540) % 360) - 180) * t; }
 //   - Android's `deviceorientationabsolute` gives a north-referenced `alpha`, so the matrix azimuth
 //     is already a true bearing — use it.
 //   - iOS has no absolute alpha; it provides `compass` (webkitCompassHeading), a tilt-compensated
-//     true-north heading of where the device points. Use it DIRECTLY as the aim azimuth. Feeding
-//     `360 - compass` into the Euler `alpha` is wrong off-portrait — the heading is tilt-compensated
-//     but the Euler alpha is not — which flipped the view ~180° when aiming up in landscape.
+//     true-north heading. Use it as the aim azimuth — but it's reported in the device's NATIVE
+//     (portrait) frame, so in landscape it trails the true aim by the screen-orientation angle; add
+//     `screen` back. (Feeding `360 - compass` into the Euler `alpha` instead was wrong off-portrait —
+//     the heading is tilt-compensated, the Euler alpha is not — which flipped the view in landscape.)
 export function sampleToCamera({ alpha, beta, gamma, compass, screen }) {
-  const s = deviceToCamera({ alpha: Number.isFinite(alpha) ? alpha : 0, beta: beta || 0, gamma: gamma || 0, screen: screen || 0 });
-  const az = Number.isFinite(compass) ? wrap360(compass) : s.az;
+  const sc = screen || 0;
+  const s = deviceToCamera({ alpha: Number.isFinite(alpha) ? alpha : 0, beta: beta || 0, gamma: gamma || 0, screen: sc });
+  const az = Number.isFinite(compass) ? wrap360(compass + sc) : s.az;
   return { az, alt: s.alt, roll: s.roll };
 }
 
