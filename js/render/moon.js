@@ -6,7 +6,7 @@
 import { cameraBasis } from '../core/projection.js';
 
 const SCREEN_ANGLE_SIGN = 1.0;  // flip to -1.0 if the eyeball check shows the tilt/limb mirrored
-const TERMINATOR_SOFT = 0.06;   // soft terminator band (fraction of the lit dot product)
+const TERMINATOR_SOFT = 0.2;    // terminator fade width (fraction of the lit dot product); higher = softer/wider
 const EDGE_AA = 0.02;           // rim antialiasing width (fraction of radius)
 
 function vertexShaderSource() {
