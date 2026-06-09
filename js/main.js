@@ -51,11 +51,14 @@ let guide = null;
 let eclipseCtx = { inProgress: null, next: null }; // recomputed each computeSky from the set time
 let tonightShower = null;   // the meteor shower peaking tonight (+ radiant alt/az), or null
 let conjunctions = [];      // close Moon/planet pairs tonight, closest-first
-let skyDirty = true; // next render recomputes the sky first (coalesces scrub/tick/edit recomputes)
+let skyDirty = true;  // next render runs the FREQUENT recompute (markers/spheres/lines/labels/DSOs)
+let fullDirty = true; // next recompute also runs the FULL pass (62k pick array, eclipse, guide)
 let selected = null;        // first star picked in edit mode (a skyObjects entry)
 let highlighted = null;     // object whose card is currently open (gets a ring on canvas)
 let followTarget = null;    // object kept centred as time changes (set by Find/search; cleared on drag/tap)
 let bodyInputs = [];   // per-recompute lit-sphere inputs (Moon + planets); see computeSky()
+let namedStars = []; // skyObjects with names — label positions refresh on the frequent cadence
+let skyStamp = null; // { lat, lng, ms } of the last FULL recompute (pick-staleness guard)
 let gpuStars = true; // TEMP scaffold: 'x' flips to the legacy CPU star path for A/B verification (strip after sign-off)
 let editIndex = 0;          // index into figures[] of the currently active constellation
 let prevEdit = false;       // tracks previous edit-mode state to detect enter/exit transitions
@@ -80,16 +83,24 @@ function loadSavedFigures(currentFile) {
 // when skyDirty is set (via requestRecompute), so location/time/scrub/edit changes and the live
 // tick all coalesce into one recompute per frame. The EQJ->EQD precession is computed once here
 // (makeStarAltAz) rather than per star.
-function computeSky() {
+function computeSky(full) {
   const st = store.getState();
   const observer = makeObserver(st.location.lat, st.location.lng);
   const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
   const toAltAz = makeStarAltAz(observer, time);
-  skyObjects = stars.map((s) => ({
-    altaz: toAltAz(s.ra, s.dec),
-    mag: s.mag, bv: s.bv, name: s.name,
-    id: s.id, ra: s.ra, dec: s.dec, con: s.con, dist: s.dist,
-  }));
+  if (full) {
+    skyObjects = stars.map((s) => ({
+      altaz: toAltAz(s.ra, s.dec),
+      mag: s.mag, bv: s.bv, name: s.name,
+      id: s.id, ra: s.ra, dec: s.dec, con: s.con, dist: s.dist,
+    }));
+    namedStars = skyObjects.filter((s) => s.name);
+    skyStamp = { lat: st.location.lat, lng: st.location.lng, ms: (st.time.instant ? new Date(st.time.instant) : new Date()).getTime() };
+  } else {
+    // Frequent pass: refresh only the stars anything on screen reads — label positions (named stars).
+    // GL star rendering doesn't use these at all (GPU transform); unnamed stars refresh on the full pass.
+    for (const s of namedStars) Object.assign(s.altaz, toAltAz(s.ra, s.dec));
+  }
   const planetMarkers = PLANETS.map((p) => {
     const mag = bodyMagnitude(p.body, time);
     return { altaz: altAzOfBody(p.body, observer, time), label: p.name, color: p.color, radius: planetRadius(mag), body: p.body, mag, alpha: markerAlpha(mag) };
@@ -131,12 +142,6 @@ function computeSky() {
     bodyInputs = [];
   }
   const eclipseAt = st.time.instant ? new Date(st.time.instant) : new Date();
-  eclipseCtx = findEclipseContext({
-    at: eclipseAt,
-    getFirst: (d) => searchLunarEclipse(d),
-    getNextAfter: (peak) => nextLunarEclipse(peak),
-    moonAltAt: (d) => altAzOfBody(Body.Moon, observer, makeTime(d)).alt,
-  });
   constellations = figures.map((f) => {
     const [lra, ldec] = labelOf(f);
     return {
@@ -150,11 +155,19 @@ function computeSky() {
   tonightShower = sh ? { ...sh, radiant: toAltAz(sh.radiantRa, sh.radiantDec) } : null;
   const bright = markers.filter((m) => m.label !== 'Sun' && m.altaz.alt >= 0);
   conjunctions = findConjunctions(bright, 5);
-  if (guide) {
-    const sun = markers.find((m) => m.label === 'Sun');
-    const isDay = !!sun && sun.altaz.alt > -0.833;
-    guide.setPicks(buildPicks(), { isDay });
-    guide.setEvent(buildTonightEvent());
+  if (full) {
+    eclipseCtx = findEclipseContext({
+      at: eclipseAt,
+      getFirst: (d) => searchLunarEclipse(d),
+      getNextAfter: (peak) => nextLunarEclipse(peak),
+      moonAltAt: (d) => altAzOfBody(Body.Moon, observer, makeTime(d)).alt,
+    });
+    if (guide) {
+      const sun = markers.find((m) => m.label === 'Sun');
+      const isDay = !!sun && sun.altaz.alt > -0.833;
+      guide.setPicks(buildPicks(), { isDay });
+      guide.setEvent(buildTonightEvent());
+    }
   }
   syncSelection();
 }
@@ -170,7 +183,8 @@ function markerAlpha(mag) {
 
 function render() {
   if (skyDirty) {
-    computeSky();
+    computeSky(fullDirty || !useGL); // the 2D fallback has no GPU stars — it always needs the full remap
+    fullDirty = false;
     if (useGL && !gpuStars) starfield.uploadStars(skyObjects); // CPU A/B path re-uploads on the recompute cadence; the GPU path uploads once at boot
     // Locked onto an object: re-aim to keep it centred as time/location change (skipped under gyro aim,
     // which owns the aim). setAim below is read by getState() further down, so this frame uses it.
@@ -253,6 +267,7 @@ function render() {
 const requestRender = createRenderScheduler(render, (cb) => requestAnimationFrame(cb));
 
 function requestRecompute() { skyDirty = true; requestRender(); }
+function requestFullRecompute() { fullDirty = true; skyDirty = true; requestRender(); }
 
 function saveFigures() {
   if (typeof localStorage === 'undefined') return;
@@ -260,6 +275,7 @@ function saveFigures() {
 }
 
 function onEditTap(x, y) {
+  ensureFreshPickData();
   const active = figures[editIndex];
   if (!active) return;
   const view = { width: canvas.clientWidth, height: canvas.clientHeight };
@@ -285,8 +301,21 @@ function cardCtx(observer, time, eclipse = null) {
   return { observer, time, eclipse, onClose: () => { highlighted = null; requestRender(); } };
 }
 
+// Picking reads the CPU skyObjects array, which can lag the live GPU stars. If the sidereal drift since
+// the last full recompute could exceed half the pick radius at the CURRENT zoom, refresh it first
+// (~100 ms, one-off). 0.00418 deg/s is the worst-case (equatorial) sidereal rate.
+function ensureFreshPickData() {
+  const st = store.getState();
+  const ms = (st.time.instant ? new Date(st.time.instant) : new Date()).getTime();
+  const locChanged = !skyStamp || skyStamp.lat !== st.location.lat || skyStamp.lng !== st.location.lng;
+  const driftDeg = skyStamp ? (Math.abs(ms - skyStamp.ms) / 1000) * 0.00418 : Infinity;
+  const pickRadiusDeg = 18 * (st.fov / canvas.clientWidth);
+  if (locChanged || driftDeg > pickRadiusDeg * 0.5) computeSky(true);
+}
+
 // Outside edit mode, a tap identifies the nearest visible object and opens its card.
 function onIdentifyTap(x, y) {
+  ensureFreshPickData();
   followTarget = null; // tapping/selecting exits lock-on mode
   const st = store.getState();
   const observer = makeObserver(st.location.lat, st.location.lng);
@@ -652,13 +681,22 @@ async function boot() {
   figures = saved || splitSegments(loaded);
   originalFigures = splitSegments(loaded);
   store.subscribe(requestRender);
-  let prevLocTime = '';
+  let prevLoc = '', prevTime = '';
+  let settleTimer = 0;
   store.subscribe(() => {
     const s = store.getState();
-    const key = `${s.location.lat},${s.location.lng}|${s.time.live ? 'live' : s.time.instant}`;
-    if (key !== prevLocTime) { prevLocTime = key; requestRecompute(); }
+    const lk = `${s.location.lat},${s.location.lng}`;
+    const tk = s.time.live ? 'live' : String(s.time.instant);
+    if (lk !== prevLoc) { prevLoc = lk; prevTime = tk; requestFullRecompute(); return; }
+    if (tk !== prevTime) {
+      prevTime = tk;
+      requestRecompute(); // frequent only -> scrubbing stays smooth (~2 ms per tick)
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(requestFullRecompute, 350); // events/guide/pick array once the scrub settles
+    }
   });
-  setInterval(() => { if (store.getState().time.live) requestRecompute(); }, 30000); // keep live sky current
+  setInterval(() => { if (store.getState().time.live) requestFullRecompute(); }, 30000); // events/guide/pick array
+  setInterval(() => { if (useGL && store.getState().time.live) requestRecompute(); }, 1000); // overlays track the GPU stars
   store.subscribe(onEditToggle);
   window.addEventListener('resize', requestRender);
   attachInput(canvas, store, { onTap, onAction: onEditAction, onViewDrag: () => { followTarget = null; } });
