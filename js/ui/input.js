@@ -28,6 +28,7 @@ export function toggleKeyAction(key) {
   if (key === 'g' || key === 'G') return 'grid';   // 'g' = alt-az grid
   if (key === 's' || key === 'S') return 'sphere'; // 's' = show the whole sphere (below horizon too)
   if (key === 'e' || key === 'E') return 'edit';   // 'e' = edit mode
+  if (key === 'm' || key === 'M') return 'mwdebug'; // 'm' = Milky Way alignment debug (band only, full bright)
   return null;
 }
 

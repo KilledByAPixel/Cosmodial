@@ -13,6 +13,8 @@
 
 import { cameraBasis, vec } from '../core/projection.js';
 import { bvToRGB, colorBrightness, zoomScale, STAR_CONSTS } from './starstyle.js';
+import { EXT_K, milkyWayZoomFade } from './atmosphere.js';
+import { createSkyBackground } from './sky-background.js';
 
 // --- Star glow tunables (tweak to taste) ---
 const GLOW_SCALE = 9.0;    // sprite diameter as a multiple of the 2D core radius — room for the halo
@@ -108,6 +110,7 @@ uniform float uDpr;       // device pixels per CSS px (gl_PointSize is in device
 uniform float uZoom;      // zoomScale(fov)
 uniform float uMaxPointSize;
 uniform float uShowBelow; // 1 = also draw stars below the horizon
+uniform float uStarDayFade; // 1 at night, 0 in daylight — fades stars out when the sky is bright
 
 out vec3 vColor;
 out float vAlpha;
@@ -138,8 +141,17 @@ void main() {
     magAlpha = clamp(pow(radius / ${glslFloat(C.STAR_MIN_R)}, ${glslFloat(C.STAR_DIM_EXP)}), 0.0, 1.0);
     radius = ${glslFloat(C.STAR_MIN_R)};
   }
-  vAlpha = magAlpha * aAlphaScale;          // == starSize().alpha * colorBrightness(color)
-  vColor = aColor;
+  vAlpha = magAlpha * aAlphaScale * uStarDayFade; // size/colour fade * daylight wash-out
+
+  // Atmospheric extinction: dim + redden toward the horizon. Air mass (Kasten-Young) comes from the
+  // star's altitude (aDir.z == sin(alt)); this mirrors airmass()/extinction() in atmosphere.js, with
+  // the EXT_K coefficients embedded as literals (a test guards against drift). Below-horizon stars
+  // (full-sphere/edit) clamp at the horizon air mass rather than blowing up.
+  float altDeg = degrees(asin(clamp(aDir.z, -1.0, 1.0)));
+  float hh = max(altDeg, 0.0);
+  float airmass = 1.0 / (sin(radians(hh)) + 0.50572 * pow(hh + 6.07995, -1.6364));
+  vec3 extK = vec3(${glslFloat(EXT_K.r)}, ${glslFloat(EXT_K.g)}, ${glslFloat(EXT_K.b)});
+  vColor = aColor * pow(vec3(10.0), -0.4 * extK * (airmass - 1.0));
 
   // Sprite is larger than the 2D core radius to leave room for the glow halo (device px, hardware-capped).
   gl_PointSize = min(radius * 2.0 * ${glslFloat(GLOW_SCALE)} * uDpr, uMaxPointSize);
@@ -277,6 +289,8 @@ export function createStarfield(glCanvas) {
   let lastSky = null;  // retained so we can re-upload after context restore
   let lost = false;
   let dpr = 1;
+  let skyBg = null;          // sky-background pass (atmosphere + Milky Way); null if it failed to build
+  let skyParamsStash = null; // latest sky params from computeSky; bg is skipped until the first one
 
   const cameraUniforms = (program) => ({
     uRight: gl.getUniformLocation(program, 'uRight'),
@@ -305,7 +319,11 @@ export function createStarfield(glCanvas) {
     program = buildProgram(gl, vertexShaderSource(), fragmentShaderSource());
     markerProgram = buildProgram(gl, markerVertexShaderSource(), markerFragmentShaderSource());
     if (!program || !markerProgram) return false;
-    loc = { ...cameraUniforms(program), uZoom: gl.getUniformLocation(program, 'uZoom') };
+    loc = {
+      ...cameraUniforms(program),
+      uZoom: gl.getUniformLocation(program, 'uZoom'),
+      uStarDayFade: gl.getUniformLocation(program, 'uStarDayFade'),
+    };
     markerLoc = cameraUniforms(markerProgram);
     vao = gl.createVertexArray();
     vbo = gl.createBuffer();
@@ -326,11 +344,15 @@ export function createStarfield(glCanvas) {
   if (maxPointSize < 64) {
     console.warn(`[volvella] WebGL max point size is ${maxPointSize}px — very large stars may be clamped.`);
   }
+  skyBg = createSkyBackground(gl); // null-safe: draw() falls back to the black clear if this is null
 
   glCanvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); lost = true; });
   glCanvas.addEventListener('webglcontextrestored', () => {
     lost = false;
-    if (setupGL() && lastSky) uploadStars(lastSky);
+    if (setupGL()) {
+      if (skyBg) skyBg.onContextRestored();
+      if (lastSky) uploadStars(lastSky);
+    }
   });
 
   // Rebuild + upload the per-star buffer. Call ONLY when the sky changed (skyDirty), mirroring computeSky().
@@ -373,14 +395,32 @@ export function createStarfield(glCanvas) {
     gl.uniform1f(L.uShowBelow, showBelow ? 1 : 0);
   }
 
-  // Clear the canvas and draw all stars in one call. cam: { az, alt, fov, width, height } (CSS px).
-  function draw(cam, { showBelow = false, edit = false } = {}) {
+  // Stash the latest sky-background params (sun-driven colours + ENU->EQJ matrix). Called from
+  // computeSky() on the same cadence as uploadStars(). Until the first call, the bg pass is skipped.
+  function setSkyParams(params) { skyParamsStash = params; }
+
+  // Start loading the all-sky Milky Way texture (relative URL). Atmosphere renders fine until it lands.
+  function setMilkyWay(url) { if (skyBg) skyBg.setMilkyWay(url); }
+
+  // Draw the sky background (opaque) then all stars. cam: { az, alt, fov, width, height } (CSS px).
+  // debugMw isolates the Milky Way (background paints the band full-bright on black) and keeps stars
+  // lit regardless of daytime, so the band's alignment against the catalogue is easy to eyeball.
+  function draw(cam, { showBelow = false, edit = false, debugMw = false } = {}) {
     if (lost) return;
     gl.clear(gl.COLOR_BUFFER_BIT);
+    // Sky background first: an OPAQUE base under the additive star pass. Blend is disabled so the
+    // fragment's alpha=1 fully replaces the pixel; restore additive (ONE,ONE) before the stars.
+    if (skyBg && skyParamsStash) {
+      gl.disable(gl.BLEND);
+      skyBg.draw(cam, { ...skyParamsStash, dpr, showBelow: showBelow || edit, mwZoomFade: milkyWayZoomFade(cam.fov), debugMw });
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE);
+    }
     if (!count) return;
     gl.useProgram(program);
     setCameraUniforms(loc, cam, showBelow || edit);
     gl.uniform1f(loc.uZoom, zoomScale(cam.fov));
+    gl.uniform1f(loc.uStarDayFade, debugMw ? 1 : (skyParamsStash ? skyParamsStash.starDayFade : 1));
     gl.bindVertexArray(vao);
     gl.drawArrays(gl.POINTS, 0, count);
     gl.bindVertexArray(null);
@@ -408,7 +448,8 @@ export function createStarfield(glCanvas) {
     gl.deleteBuffer(markerVbo);
     gl.deleteVertexArray(markerVao);
     gl.deleteProgram(markerProgram);
+    if (skyBg) skyBg.dispose();
   }
 
-  return { uploadStars, draw, drawMarkers, resize, dispose };
+  return { uploadStars, draw, drawMarkers, resize, dispose, setSkyParams, setMilkyWay };
 }

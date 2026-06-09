@@ -12,4 +12,7 @@
   (https://github.com/ofrohn/d3-celestial). Converted to RA/Dec polylines in `data/constellations.json`.
 - **Deep-sky objects:** OpenNGC (mattiaverga/OpenNGC, https://github.com/mattiaverga/OpenNGC),
   **CC-BY-SA 4.0**. Volvella ships a small curated subset in `data/dso.json`; that subset is likewise CC-BY-SA 4.0.
+- **Milky Way panorama:** "Stars and Milky Way" equirectangular sky texture from Solar System Scope
+  (https://www.solarsystemscope.com/textures/), **CC-BY 4.0**. Downscaled to a 4096×2048 WebP in
+  `data/milkyway-4k.webp` and used as the all-sky background behind the catalogue stars.
 - **Application code:** MIT (see `LICENSE`).

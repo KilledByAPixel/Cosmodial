@@ -1,6 +1,6 @@
 import { createState } from './core/state.js';
 import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, moonPhaseInfo } from './core/astro.js';
-import { makeStarAltAz } from './core/astro.js';
+import { makeStarAltAz, horToEqjRotation, eqjToGalRotation } from './core/astro.js';
 import { buildLocationControl } from './ui/location.js';
 import { buildTimeControls } from './ui/time-controls.js';
 import { PLANETS, planetRadius } from './render/planets.js';
@@ -10,7 +10,8 @@ import { drawHud, azToCompass } from './render/hud.js';
 import { createRenderScheduler } from './core/scheduler.js';
 import { attachInput } from './ui/input.js';
 import { splitSegments, toggleEdge, pickNearest, circularCentroid, exportFigures } from './edit/figures.js';
-import { createProjector } from './core/projection.js';
+import { createProjector, vec } from './core/projection.js';
+import { skyParams, enuToGalMatrix } from './render/atmosphere.js';
 import { openCard, closeCard, colorWord, constellationName, isCardOpen } from './ui/card.js';
 import { rankCandidates, altazToWhere } from './guide/ranking.js';
 import { buildGuide } from './ui/guide.js';
@@ -29,6 +30,7 @@ const glCanvas = document.getElementById('sky-gl');
 const starfield = glCanvas ? createStarfield(glCanvas) : null;
 const useGL = !!starfield;
 if (!useGL) console.warn('[volvella] WebGL2 unavailable — using the 2D star fallback');
+if (useGL) starfield.setMilkyWay('./data/milkyway-4k.webp'); // all-sky background; renders atmosphere-only until it loads
 const store = createState();
 
 let stars = [];        // raw catalogue from stars.json
@@ -89,6 +91,16 @@ function computeSky() {
     { altaz: altAzOfBody(Body.Sun, observer, time), label: 'Sun', color: '#ffd27f', angularRadiusDeg: bodyAngularRadiusDeg(Body.Sun, observer, time), body: Body.Sun, alpha: 1 },
     ...planetMarkers,
   ];
+  if (useGL) {
+    // Sky background: atmosphere colour + star wash-out are driven by the Sun's altitude; the warm
+    // glow lobe needs its direction. (Phase 3 adds the ENU->EQJ matrix here for the Milky Way.)
+    const sun = markers.find((m) => m.label === 'Sun');
+    const sunAlt = sun ? sun.altaz.alt : -90;
+    const p = skyParams(sunAlt);
+    p.sunDir = vec(sun ? sun.altaz.az : 0, sunAlt);
+    p.enuToGal = enuToGalMatrix(horToEqjRotation(observer, time), eqjToGalRotation()); // sample the galactic-frame Milky Way
+    starfield.setSkyParams(p);
+  }
   const eclipseAt = st.time.instant ? new Date(st.time.instant) : new Date();
   eclipseCtx = findEclipseContext({
     at: eclipseAt,
@@ -145,7 +157,7 @@ function render() {
     : (st.flags.lines ? constellations : []);
   if (useGL) {
     starfield.resize(view.width, view.height, window.devicePixelRatio || 1);
-    starfield.draw(cam, { showBelow: st.flags.sphere, edit: st.flags.edit });
+    starfield.draw(cam, { showBelow: st.flags.sphere, edit: st.flags.edit, debugMw: st.flags.mwdebug });
     // Sun/Moon/planets as glowing discs: size from markerRadius (angular for Sun/Moon, disk for
     // planets), tint from the body's colour, brightness from magnitude. Hidden in edit mode.
     const glMarkers = st.flags.edit ? [] : markers.map((m) => ({

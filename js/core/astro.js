@@ -24,6 +24,20 @@ export function precessToDate(raDegJ2000, decDegJ2000, time) {
   return { ra: eqd.ra * 15, dec: eqd.dec };
 }
 
+// Raw 3x3 rotation matrix (the vendor's row-major `.rot`) taking a horizontal vector (x=North,
+// y=West, z=Zenith) to J2000 equatorial (EQJ). Used to build the per-frame ENU->EQJ matrix that the
+// sky-background shader uses to sample the all-sky Milky Way in the correct direction.
+export function horToEqjRotation(observer, time) {
+  return Astronomy.Rotation_HOR_EQJ(time, observer).rot;
+}
+
+// Raw 3x3 rotation matrix (the vendor's `.rot`) from J2000 equatorial (EQJ) to galactic (GAL, IAU
+// 1958). A fixed rotation (no time/observer dependence). Composed with horToEqjRotation to sample the
+// galactic-frame Milky Way texture in the right direction.
+export function eqjToGalRotation() {
+  return Astronomy.Rotation_EQJ_GAL().rot;
+}
+
 // Alt/az (degrees) for a fixed star given its J2000 RA/Dec (degrees).
 export function altAzOfStar(raDegJ2000, decDegJ2000, observer, time) {
   const ofDate = precessToDate(raDegJ2000, decDegJ2000, time);

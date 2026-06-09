@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { buildStarAttributes, buildMarkerAttributes, hexToRgb01, vertexShaderSource } from '../js/render/starfield-gl.js';
 import { cameraBasis, project, vec, dot } from '../js/core/projection.js';
 import { bvToRGB, colorBrightness, STAR_CONSTS } from '../js/render/starstyle.js';
+import { EXT_K } from '../js/render/atmosphere.js';
 import { degToRad } from '../js/core/angles.js';
 
 test('buildStarAttributes encodes dir/color/mag/alphaScale per star', () => {
@@ -108,5 +109,13 @@ test('vertex shader embeds the starstyle size constants (drift guard)', () => {
     const v = STAR_CONSTS[key];
     const lit = Number.isInteger(v) ? v.toFixed(1) : String(v);
     assert.ok(src.includes(lit), `shader should embed ${key} = ${lit}`);
+  }
+});
+
+test('vertex shader embeds the extinction coefficients (drift guard)', () => {
+  const src = vertexShaderSource();
+  for (const key of ['r', 'g', 'b']) {
+    const lit = String(EXT_K[key]);
+    assert.ok(src.includes(lit), `shader should embed EXT_K.${key} = ${lit}`);
   }
 });

@@ -57,7 +57,7 @@ function loadSavedFlags() {
 
 export function createState() {
   const savedView = loadSavedView();
-  const flags = { lines: false, labels: true, grid: false, sphere: false, deepsky: false, night: false, edit: false, gyro: false, ...loadSavedFlags() };
+  const flags = { lines: false, labels: true, grid: false, sphere: false, deepsky: false, night: false, edit: false, gyro: false, mwdebug: false, ...loadSavedFlags() };
   const aim = savedView ? savedView.aim : { ...DEFAULT_AIM };
   let state = {
     location: loadSavedLocation() || { ...DEFAULT_LOCATION },
