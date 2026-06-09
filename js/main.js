@@ -51,6 +51,7 @@ let conjunctions = [];      // close Moon/planet pairs tonight, closest-first
 let skyDirty = true; // next render recomputes the sky first (coalesces scrub/tick/edit recomputes)
 let selected = null;        // first star picked in edit mode (a skyObjects entry)
 let highlighted = null;     // object whose card is currently open (gets a ring on canvas)
+let followTarget = null;    // object kept centred as time changes (set by Find/search; cleared on drag/tap)
 let editIndex = 0;          // index into figures[] of the currently active constellation
 let prevEdit = false;       // tracks previous edit-mode state to detect enter/exit transitions
 const FIGURES_KEY = 'volvella.figures.v2';
@@ -164,6 +165,12 @@ function render() {
   if (skyDirty) {
     computeSky();
     if (useGL) starfield.uploadStars(skyObjects); // re-upload on the same cadence as the CPU recompute
+    // Locked onto an object: re-aim to keep it centred as time/location change (skipped under gyro aim,
+    // which owns the aim). setAim below is read by getState() further down, so this frame uses it.
+    if (followTarget && !store.getState().flags.gyro) {
+      const aa = resolveFollowAltAz();
+      if (aa) store.setAim(aa.az, aa.alt);
+    }
     skyDirty = false;
   }
   const view = resizeCanvas(canvas);
@@ -251,6 +258,7 @@ function cardCtx(observer, time, eclipse = null) {
 
 // Outside edit mode, a tap identifies the nearest visible object and opens its card.
 function onIdentifyTap(x, y) {
+  followTarget = null; // tapping/selecting exits lock-on mode
   const st = store.getState();
   const observer = makeObserver(st.location.lat, st.location.lng);
   const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
@@ -399,12 +407,33 @@ function onFindConjunction(pair) {
   animateSlew(store, { az: mid.az, alt: mid.alt, fov: targetFov });
 }
 
+// A re-resolvable identity for "lock onto this object and keep it centred as time changes". Returns
+// null for picks without a stable single-object identity (e.g. a shower radiant or conjunction midpoint).
+function followIdentity(pick) {
+  if (!pick || !pick.kind) return null;
+  if (pick.kind === 'star') return { kind: 'star', id: pick.id };
+  if (pick.kind === 'dso') return { kind: 'dso', id: pick.id };
+  if (pick.kind === 'moon' || pick.kind === 'sun' || pick.kind === 'planet') return { kind: 'body', label: pick.label };
+  return null;
+}
+
+// Current alt/az of the followed object, re-found in the freshly recomputed arrays, or null.
+function resolveFollowAltAz() {
+  if (!followTarget) return null;
+  if (followTarget.kind === 'star') { const s = skyObjects.find((o) => o.id === followTarget.id); return s ? s.altaz : null; }
+  if (followTarget.kind === 'body') { const m = markers.find((o) => o.label === followTarget.label); return m ? m.altaz : null; }
+  if (followTarget.kind === 'dso') { const d = dsoObjects.find((o) => o.id === followTarget.id); return d ? d.altaz : null; }
+  if (followTarget.kind === 'constellation') { const c = constellations.find((o) => o.name === followTarget.name); return c ? c.label : null; }
+  return null;
+}
+
 // Find: open the card immediately, then slew to center the pick.
 function onFindObject(pick) {
   const st = store.getState();
   const observer = makeObserver(st.location.lat, st.location.lng);
   const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
   highlighted = pick;
+  followTarget = followIdentity(pick); // lock on: keep it centred as the clock changes
   openCard(pick, cardCtx(observer, time, eclipseForMoon(pick.kind)));
   const targetFov = Math.max(12, Math.min(st.fov, 20)); // ease in a notch
   animateSlew(store, { az: pick.altaz.az, alt: pick.altaz.alt, fov: targetFov });
@@ -429,6 +458,7 @@ function onSearchSelect(entry) {
     const c = constellations.find((o) => o.name === entry.ref);
     if (c && c.label) {
       highlighted = { altaz: c.label };
+      followTarget = { kind: 'constellation', name: c.name }; // lock on its label point
       const st = store.getState();
       animateSlew(store, { az: c.label.az, alt: c.label.alt, fov: Math.max(12, Math.min(st.fov, 20)) });
     }
@@ -601,7 +631,7 @@ async function boot() {
   setInterval(() => { if (store.getState().time.live) requestRecompute(); }, 30000); // keep live sky current
   store.subscribe(onEditToggle);
   window.addEventListener('resize', requestRender);
-  attachInput(canvas, store, { onTap, onAction: onEditAction });
+  attachInput(canvas, store, { onTap, onAction: onEditAction, onViewDrag: () => { followTarget = null; } });
   const controls = document.getElementById('controls');
   const bodyLabels = ['Moon', 'Sun', ...PLANETS.map((p) => p.name)];
   const search = buildSearch(buildSearchIndex(stars, figures, bodyLabels, dsos), { onSelect: onSearchSelect });

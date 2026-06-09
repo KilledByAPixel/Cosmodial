@@ -71,6 +71,7 @@ export function attachInput(canvas, store, opts = {}) {
     const { fov, aim } = store.getState();
     const { dAz, dAlt } = dragToAimDelta(dx, dy, fov, canvas.clientWidth);
     store.setAim(aim.az + dAz, aim.alt + dAlt);
+    if (opts.onViewDrag) opts.onViewDrag(); // user moved the view -> exit any lock-on follow
   };
 
   const onEnd = (e) => {
