@@ -37,7 +37,7 @@ test('moons move and occasionally hide behind the disc across a week of samples'
   }
   assert.ok(moved > 20, `Io moved between samples (${moved}/27)`);
   assert.ok(visibleAlways > 80, 'most moon-samples are visible');
-  // Io occults roughly every 1.8 days; a week of 6-hour samples usually catches >= 1 hidden sample,
-  // but geometry varies — only assert the flag is EXERCISABLE, not a specific count.
-  assert.ok(behindSeen >= 0);
+  // Io occults roughly every 1.8 days, but exact counts depend on geometry/sampling — assert only a
+  // sane bound (occultations are RARE: most of the 112 moon-samples must be visible).
+  assert.ok(behindSeen < 15, `behind flagged ${behindSeen}/112 samples — should be rare`);
 });

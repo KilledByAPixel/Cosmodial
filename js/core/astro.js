@@ -102,6 +102,8 @@ export function jupiterMoonsAltAz(observer, time) {
   const los = [jup.x / jlen, jup.y / jlen, jup.z / jlen]; // unit line of sight to Jupiter
   return ['Io', 'Europa', 'Ganymede', 'Callisto'].map((name) => {
     const sv = jm[name.toLowerCase()];
+    // Mixing frames slightly: jup is at observation time, sv at emission time — the error is
+    // ~0.02 arcsec (Jupiter drifts ~5 arcsec/day geocentrically), far below rendering scale.
     const g = new Astronomy.Vector(jup.x + sv.x, jup.y + sv.y, jup.z + sv.z, time);
     const eq = Astronomy.EquatorFromVector(g); // ra HOURS, dec deg (J2000)
     const along = sv.x * los[0] + sv.y * los[1] + sv.z * los[2]; // AU beyond (+) / before (-) Jupiter
