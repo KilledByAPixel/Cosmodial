@@ -8,9 +8,9 @@ import { clamp } from '../core/angles.js';
 export const PLANETS = [
   { body: Body.Mercury, name: 'Mercury', color: '#b0a48f' },
   { body: Body.Venus,   name: 'Venus',   color: '#fff4d6' },
-  { body: Body.Mars,    name: 'Mars',    color: '#ff6a4d' },
-  { body: Body.Jupiter, name: 'Jupiter', color: '#e3c8a0' },
-  { body: Body.Saturn,  name: 'Saturn',  color: '#e8d9a0' },
+  { body: Body.Mars,    name: 'Mars',    color: '#ff6a4d', tex: 'mars' },
+  { body: Body.Jupiter, name: 'Jupiter', color: '#e3c8a0', tex: 'jupiter' },
+  { body: Body.Saturn,  name: 'Saturn',  color: '#e8d9a0', tex: 'saturn' },
   { body: Body.Uranus,  name: 'Uranus',  color: '#bfe3e8' },
   { body: Body.Neptune, name: 'Neptune', color: '#7c9fe0' },
 ];

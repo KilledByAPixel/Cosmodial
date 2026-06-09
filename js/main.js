@@ -6,7 +6,7 @@ import { buildLocationControl } from './ui/location.js';
 import { buildTimeControls } from './ui/time-controls.js';
 import { PLANETS, planetRadius } from './render/planets.js';
 import { drawScene, drawStarLabels, markerRadius, resizeCanvas } from './render/sky.js';
-import { createStarfield } from './render/starfield-gl.js';
+import { createStarfield, hexToRgb01 } from './render/starfield-gl.js';
 import { drawHud, azToCompass } from './render/hud.js';
 import { createRenderScheduler } from './core/scheduler.js';
 import { attachInput } from './ui/input.js';
@@ -22,6 +22,8 @@ import { findEclipseContext } from './guide/eclipses.js';
 import { activeShower } from './guide/showers.js';
 import { findConjunctions, midpointAltAz } from './guide/conjunctions.js';
 import { isGyroSupported, requestGyroPermission, attachGyro } from './ui/gyro.js';
+
+const PLANET_SCALE = 8; // visibility exaggeration for planet discs (like the Sun/Moon's ~2x); tune by eye
 
 const canvas = document.getElementById('sky');
 const ctx = canvas.getContext('2d');
@@ -52,7 +54,7 @@ let skyDirty = true; // next render recomputes the sky first (coalesces scrub/ti
 let selected = null;        // first star picked in edit mode (a skyObjects entry)
 let highlighted = null;     // object whose card is currently open (gets a ring on canvas)
 let followTarget = null;    // object kept centred as time changes (set by Find/search; cleared on drag/tap)
-let moonOrient = null;      // { moonDir, sunDir, poleDir } unit ENU vecs for the Moon phase render
+let bodyInputs = [];   // per-recompute lit-sphere inputs (Moon + planets); see computeSky()
 let editIndex = 0;          // index into figures[] of the currently active constellation
 let prevEdit = false;       // tracks previous edit-mode state to detect enter/exit transitions
 const FIGURES_KEY = 'volvella.figures.v2';
@@ -104,21 +106,27 @@ function computeSky() {
     p.sunDir = vec(sun ? sun.altaz.az : 0, sunAlt);
     p.enuToGal = enuToGalMatrix(horToEqjRotation(observer, time), eqjToGalRotation()); // sample the galactic-frame Milky Way
     starfield.setSkyParams(p);
-    const moonM = markers.find((m) => m.label === 'Moon');
     const sunM = markers.find((m) => m.label === 'Sun');
-    if (moonM && sunM) {
-      const pole = northPoleJ2000(Body.Moon, time);                       // J2000 RA/Dec of the lunar pole
-      const poleAA = altAzOfStar(pole.raDeg, pole.decDeg, observer, time); // -> alt/az direction
-      // Camera-independent inputs; the on-screen orientation angles are derived per-frame in render().
-      moonOrient = {
-        moonDir: vec(moonM.altaz.az, moonM.altaz.alt),
-        sunDir: vec(sunM.altaz.az, sunM.altaz.alt),
-        poleDir: vec(poleAA.az, poleAA.alt),
-        phaseAngleDeg: bodyPhaseAngleDeg(Body.Moon, time),
-      };
-    } else {
-      moonOrient = null;
-    }
+    const sunDir = sunM ? vec(sunM.altaz.az, sunM.altaz.alt) : [0, 0, 1];
+    const rgb255 = (hex) => hexToRgb01(hex).map((v) => Math.round(v * 255));
+    const addBody = (label, body, texKey, tint) => {
+      const m = markers.find((x) => x.label === label);
+      if (!m) return;
+      const pole = northPoleJ2000(body, time);
+      const poleAA = altAzOfStar(pole.raDeg, pole.decDeg, observer, time);
+      bodyInputs.push({
+        label, texKey, tint,
+        bodyDir: vec(m.altaz.az, m.altaz.alt),
+        sunDir, poleDir: vec(poleAA.az, poleAA.alt),
+        phaseAngleDeg: bodyPhaseAngleDeg(body, time),
+        angularRadiusDeg: bodyAngularRadiusDeg(body, observer, time),
+      });
+    };
+    bodyInputs = [];
+    addBody('Moon', Body.Moon, 'moon', [232, 232, 232]);
+    for (const p of PLANETS) addBody(p.name, p.body, p.tex || null, rgb255(p.color));
+  } else {
+    bodyInputs = [];
   }
   const eclipseAt = st.time.instant ? new Date(st.time.instant) : new Date();
   eclipseCtx = findEclipseContext({
@@ -182,22 +190,30 @@ function render() {
     : (st.flags.lines ? constellations : []);
   if (useGL) {
     starfield.resize(view.width, view.height, window.devicePixelRatio || 1);
-    const moonM = markers.find((m) => m.label === 'Moon');
+    const focal = (view.width / 2) / Math.tan((st.fov * Math.PI) / 360); // px per radian at screen centre
+    const sphereLabels = new Set();
     const bodyList = [];
-    if (moonM && moonOrient) {
-      const o = bodyScreenOrientation(cam, moonOrient.moonDir, moonOrient.sunDir, moonOrient.poleDir);
+    for (const bi of bodyInputs) {
+      const m = markers.find((x) => x.label === bi.label);
+      if (!m) continue;
+      const dotR = markerRadius(m, cam);                       // current glow-dot radius (px)
+      const scale = bi.label === 'Moon' ? 1 : PLANET_SCALE;    // Moon already sized by angular radius
+      const rPx = bi.angularRadiusDeg * (Math.PI / 180) * focal * scale;
+      if (bi.label !== 'Moon' && rPx <= dotR) continue;        // too small -> leave it as a glow dot
+      const o = bodyScreenOrientation(cam, bi.bodyDir, bi.sunDir, bi.poleDir);
+      const radiusPx = bi.label === 'Moon' ? dotR : rPx;       // Moon keeps its existing markerRadius size
       bodyList.push({
-        texKey: 'moon', tint: [232, 232, 232], dir: moonOrient.moonDir,
-        radiusPx: markerRadius(moonM, cam), phaseAngleDeg: moonOrient.phaseAngleDeg,
-        brightLimbAngle: o.brightLimbAngle, northAngle: o.northAngle,
+        texKey: bi.texKey, tint: bi.tint, dir: bi.bodyDir, radiusPx,
+        phaseAngleDeg: bi.phaseAngleDeg, brightLimbAngle: o.brightLimbAngle, northAngle: o.northAngle,
       });
+      sphereLabels.add(bi.label);
     }
     starfield.setBodies(bodyList);
     starfield.draw(cam, { showBelow: st.flags.sphere, edit: st.flags.edit });
     // Sun/Moon/planets as glowing discs: size from markerRadius (angular for Sun/Moon, disk for
     // planets), tint from the body's colour, brightness from magnitude. Hidden in edit mode.
     const glMarkers = st.flags.edit ? [] : markers
-      .filter((m) => m.label !== 'Moon')   // the Moon is drawn by its own phased pass, not as a disc
+      .filter((m) => !sphereLabels.has(m.label))   // spheres (Moon + zoomed-in planets) draw via the body pass
       .map((m) => ({
         az: m.altaz.az, alt: m.altaz.alt, color: m.color,
         radiusPx: markerRadius(m, cam), alpha: m.alpha,
