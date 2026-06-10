@@ -13,7 +13,7 @@ test('cameraBasis is orthonormal with the expected focal length', () => {
   assert.ok(Math.abs(dot(right, up)) < 1e-9);
   assert.ok(Math.abs(dot(right, fwd)) < 1e-9);
   assert.ok(Math.abs(dot(up, fwd)) < 1e-9);
-  assert.ok(Math.abs(focal - 400 / Math.tan(degToRad(30))) < 1e-6, 'focal = (w/2)/tan(fov/2)');
+  assert.ok(Math.abs(focal - 400 / (2 * Math.tan(degToRad(15)))) < 1e-6, 'focal = (w/2)/(2*tan(fov/4))');
 });
 
 test('hexToRgb01 parses #rrggbb and #rgb, and is safe on bad input', () => {

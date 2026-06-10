@@ -17,6 +17,14 @@ export function norm(v) {
   return [v[0] / m, v[1] / m, v[2] / m];
 }
 
+// Visibility cull threshold: cos(150°). Stereographic projects the whole sphere except the antipode
+// (no gnomonic-style mirror ghosts), so points behind the camera are legitimately on screen at wide
+// FOV (MAX_FOV 235° -> 117.5° off-axis). Points out to 150° project finite but off-screen — keeping
+// them lets line segments that straddle the screen edge draw correctly; beyond 150° the coordinates
+// blow up toward the antipode singularity, so they are culled. Embedded as a GLSL literal in the
+// star/marker/body-sphere shaders — tests guard against drift.
+export const MIN_VIS_Z = Math.cos(degToRad(150));
+
 // Camera basis (right/up/forward unit vectors) + focal length + screen center for a fixed camera.
 // Shared by the CPU projector (createProjector below) and the WebGL starfield, so both project
 // stars identically — guaranteeing taps land on the star the user sees. cam: { az, alt, fov, width, height }.
@@ -34,26 +42,30 @@ export function cameraBasis(cam) {
     const rUp = [up[0] * cr - right[0] * sr, up[1] * cr - right[1] * sr, up[2] * cr - right[2] * sr];
     right = rRight; up = rUp;
   }
-  const focal = (cam.width / 2) / Math.tan(degToRad(cam.fov) / 2);
+  // Stereographic screen scale: r_px = 2·focal·tan(θ/2), normalized so `fov` spans the screen width
+  // (a point fov/2 off-axis lands at the screen edge). The px-per-radian at the view CENTER is still
+  // exactly `focal`, so small-angle radius helpers (sun/moon/DSO discs) keep using focal directly.
+  const focal = (cam.width / 2) / (2 * Math.tan(degToRad(cam.fov) / 4));
   return { right, up, fwd, focal, cx: cam.width / 2, cy: cam.height / 2 };
 }
 
-// Build a reusable gnomonic projector for a fixed camera, precomputing the camera basis and
+// Build a reusable stereographic projector for a fixed camera, precomputing the camera basis and
 // focal length ONCE. Returns (az, alt) -> { x, y, visible }. Amortizes setup across many points
 // (e.g. thousands of stars per frame). cam: { az, alt, fov, width, height }.
-// NOTE: visible:true means the point is in the front hemisphere (in front of the camera),
-// NOT necessarily within the canvas bounds — callers must still bounds-check x/y. Culled points
-// return { x: NaN, y: NaN } deliberately, so a forgotten visible-check renders a no-op rather
-// than a spurious dot at a sentinel coordinate.
+// NOTE: visible:true means the point is within 150° of the view axis (projectable — possibly far
+// off-screen), NOT necessarily within the canvas bounds — callers must still bounds-check x/y.
+// Culled points return { x: NaN, y: NaN } deliberately, so a forgotten visible-check renders a
+// no-op rather than a spurious dot at a sentinel coordinate.
 export function createProjector(cam) {
   const { right, up, fwd, focal, cx, cy } = cameraBasis(cam);
   return function projectPoint(az, alt) {
     const P = vec(az, alt);
     const z = dot(P, fwd);
-    if (z <= 1e-6) return { x: NaN, y: NaN, visible: false };
+    if (z <= MIN_VIS_Z) return { x: NaN, y: NaN, visible: false };
+    const k = (2 * focal) / (1 + z); // stereographic: r = 2f·tan(θ/2) = 2f·sinθ/(1+cosθ)
     return {
-      x: cx + focal * (dot(P, right) / z),
-      y: cy - focal * (dot(P, up) / z), // screen y grows downward
+      x: cx + k * dot(P, right),
+      y: cy - k * dot(P, up), // screen y grows downward
       visible: true,
     };
   };

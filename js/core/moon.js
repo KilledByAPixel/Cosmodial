@@ -4,7 +4,7 @@
 // distortion, and it rotates as the camera moves (the old analytic celestial-frame angles could not).
 // Consumed each frame by the GL Moon pass. Unit-tested in tests/moon.test.js.
 import { radToDeg } from './angles.js';
-import { cameraBasis, dot, norm } from './projection.js';
+import { cameraBasis, dot, norm, MIN_VIS_Z } from './projection.js';
 
 // A unit ENU direction nudged a small step from `fromVec` toward `towardVec` (the on-sphere direction
 // from `from` toward `to`). Lets us read which way the Sun / the Moon's pole lies *from the Moon*.
@@ -16,12 +16,13 @@ export function nudgedToward(fromVec, towardVec, eps = 0.02) {
   return norm([fromVec[0] + eps * t[0], fromVec[1] + eps * t[1], fromVec[2] + eps * t[2]]);
 }
 
-// Project an ENU unit vector to screen pixels {x,y} (y grows DOWN) for camera basis B, or null if behind
-// the camera. Mirrors createProjector()/the star shader.
+// Project an ENU unit vector to screen pixels {x,y} (y grows DOWN) for camera basis B, or null if
+// culled near the antipode. Mirrors createProjector()/the star shader (stereographic).
 function projectVec(B, p) {
   const z = dot(p, B.fwd);
-  if (z <= 1e-6) return null;
-  return { x: B.cx + B.focal * (dot(p, B.right) / z), y: B.cy - B.focal * (dot(p, B.up) / z) };
+  if (z <= MIN_VIS_Z) return null;
+  const k = (2 * B.focal) / (1 + z);
+  return { x: B.cx + k * dot(p, B.right), y: B.cy - k * dot(p, B.up) };
 }
 
 // Screen angle (degrees, clockwise from screen-up) of the direction from screen point `a` to `b`

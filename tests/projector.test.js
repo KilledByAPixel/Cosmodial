@@ -20,7 +20,7 @@ test('the returned projector is reusable across many points', () => {
   const p = createProjector(cam);
   const center = p(180, 45);
   assert.ok(Math.abs(center.x - 400) < 1e-6 && Math.abs(center.y - 300) < 1e-6);
-  const behind = p(0, 45); // opposite azimuth
+  const behind = p(0, -45); // the exact antipode of the aim
   assert.equal(behind.visible, false);
   assert.ok(Number.isNaN(behind.x) && Number.isNaN(behind.y), 'culled points return NaN coords');
 });

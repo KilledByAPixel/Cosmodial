@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { project } from '../js/core/projection.js';
+import { project, cameraBasis, vec } from '../js/core/projection.js';
 
 const VIEW = { width: 800, height: 600 };
 const cx = 400, cy = 300;
@@ -20,9 +20,14 @@ test('facing north, an object slightly east is on the right; higher is up', () =
   assert.ok(high.visible && high.y < cy, 'higher altitude -> higher on screen (smaller y)');
 });
 
-test('objects more than 90 deg from the aim are culled', () => {
+test('points up to 150 deg from the aim still project; near-antipode is culled', () => {
   const cam = { az: 0, alt: 0, fov: 60, ...VIEW };
-  const behind = project(180, 0, cam); // due south while facing north
+  const wide = project(100, 0, cam);  // 100 deg east of the aim: behind the camera but projectable
+  assert.ok(wide.visible, '100 deg off-axis is visible (projectable)');
+  assert.ok(Number.isFinite(wide.x) && wide.x > cx, 'east of aim -> right of center, finite');
+  const far = project(160, 0, cam);   // 160 deg off-axis: inside the antipode cull zone
+  assert.equal(far.visible, false);
+  const behind = project(180, 0, cam); // exact antipode
   assert.equal(behind.visible, false);
 });
 
@@ -54,4 +59,41 @@ test('roll=90 rotates the view: an object above center moves to the right edge-w
   assert.ok(up.y < cy && Math.abs(up.x - cx) < 1e-6, 'no roll: straight up');
   const rolled = project(0, 5, { ...cam, roll: 90 });
   assert.ok(rolled.x > cx && Math.abs(rolled.y - cy) < 1e-6, 'roll 90: that object is now to the right');
+});
+
+test('a point fov/2 off-axis lands exactly at the screen edge (fov spans the width)', () => {
+  const p = project(30, 0, { az: 0, alt: 0, fov: 60, ...VIEW });
+  assert.ok(p.visible && Math.abs(p.x - 800) < 1e-6 && Math.abs(p.y - cy) < 1e-6);
+});
+
+test('near the view center, stereographic matches the old gnomonic within 2%', () => {
+  // Gnomonic reference computed inline: dx = f_g * tan(theta), f_g = (w/2)/tan(fov/2).
+  // Use a narrow FOV (30°) so the two focal lengths are close — making this a valid invariant.
+  // At fov=60° the focal lengths diverge ~7.5%; at fov=30° they diverge ~1.6% (within the 2% band).
+  const fov = 30, theta = 5;
+  const d2r = Math.PI / 180;
+  const fg = 400 / Math.tan((fov / 2) * d2r);
+  const gnomonicDx = fg * Math.tan(theta * d2r);
+  const p = project(theta, 0, { az: 0, alt: 0, fov, ...VIEW });
+  assert.ok(Math.abs((p.x - cx) - gnomonicDx) / gnomonicDx < 0.02);
+});
+
+test('project/inverse round-trip recovers the sky direction (mirrors the sky-background GLSL inverse)', () => {
+  const cam = { az: 180, alt: 45, fov: 120, ...VIEW };
+  const { right, up, fwd, focal, cx: bx, cy: by } = cameraBasis(cam);
+  for (const [az, alt] of [[180, 45], [140, 10], [250, 70], [180, -20], [60, 30]]) {
+    const p = project(az, alt, cam);
+    assert.ok(p.visible, `${az},${alt} should be visible`);
+    const dx = p.x - bx, dy = -(p.y - by); // flip to +y-up (GLSL convention)
+    const r = Math.hypot(dx, dy);
+    const theta = 2 * Math.atan(r / (2 * focal));
+    const s = r > 1e-12 ? Math.sin(theta) / r : 0;
+    const ray = [
+      fwd[0] * Math.cos(theta) + (right[0] * dx + up[0] * dy) * s,
+      fwd[1] * Math.cos(theta) + (right[1] * dx + up[1] * dy) * s,
+      fwd[2] * Math.cos(theta) + (right[2] * dx + up[2] * dy) * s,
+    ];
+    const want = vec(az, alt);
+    for (let k = 0; k < 3; k++) assert.ok(Math.abs(ray[k] - want[k]) < 1e-9, `ray[${k}] at ${az},${alt}`);
+  }
 });
