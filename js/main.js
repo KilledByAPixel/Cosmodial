@@ -3,8 +3,8 @@ import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, 
 import { makeStarAltAz, horToEqjRotation, eqjToGalRotation } from './core/astro.js';
 import { eqjToEnuMatrix } from './render/star-transform.js';
 import { bodyScreenOrientation } from './core/moon.js';
-import { buildLocationControl } from './ui/location.js';
 import { buildTimeControls } from './ui/time-controls.js';
+import { buildMenu } from './ui/menu.js';
 import { PLANETS, planetRadius } from './render/planets.js';
 import { SATURN_RING, ringOpening } from './render/ring-math.js';
 import { drawScene, drawStarLabels, markerRadius, resizeCanvas } from './render/sky.js';
@@ -23,7 +23,6 @@ import { animateSlew } from './ui/slew.js';
 import { findEclipseContext } from './guide/eclipses.js';
 import { activeShower } from './guide/showers.js';
 import { findConjunctions, midpointAltAz } from './guide/conjunctions.js';
-import { isGyroSupported, requestGyroPermission, attachGyro } from './ui/gyro.js';
 
 // Planet disc size vs true angular size. 1 = true scale (Stellarium-like): zoomed out, planets are the
 // oversized glow DOTS (visibility); the textured sphere appears exactly when its TRUE disc outgrows the
@@ -564,61 +563,6 @@ function onSearchSelect(entry) {
   }
 }
 
-// A control-bar button that toggles a boolean state flag and reflects it via the `.on` class.
-function makeToggle(label, flag, className = '') {
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = `view-toggle ${className}`.trim();
-  btn.textContent = label;
-  btn.addEventListener('click', () => store.setFlag(flag, !store.getState().flags[flag]));
-  const sync = () => {
-    const on = store.getState().flags[flag];
-    btn.classList.toggle('on', on);
-    btn.setAttribute('aria-pressed', String(on));
-  };
-  store.subscribe(sync);
-  sync();
-  return btn;
-}
-
-// The gyroscope/AR toggle: shown only on devices with orientation sensors. Activating it requests
-// permission (must run inside this click handler for iOS) and, if granted, streams device orientation
-// into store.setOrientation; deactivating detaches and lets setFlag('gyro', false) level the roll.
-function makeGyroToggle() {
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'view-toggle';
-  btn.textContent = '📱 AR';
-  let detach = null;
-  let activating = false; // guards against a second tap while the (async) permission prompt is open
-  btn.addEventListener('click', async () => {
-    if (store.getState().flags.gyro) {            // turn OFF
-      if (detach) { detach(); detach = null; }
-      store.setFlag('gyro', false);
-      return;
-    }
-    if (activating) return;                       // a permission request is already in flight
-    activating = true;
-    try {
-      const perm = await requestGyroPermission(); // turn ON — request inside the gesture (iOS)
-      if (perm !== 'granted') { console.warn(`[volvella] gyroscope unavailable: ${perm}`); return; }
-      store.setFlag('gyro', true);                // set the flag BEFORE attaching, so the first
-      detach = attachGyro(store);                 // setOrientation events are honored (not no-op'd)
-      if (store.getState().fov < 30) store.setFov(50); // don't wave the phone in a telescope view
-    } finally {
-      activating = false;
-    }
-  });
-  const sync = () => {
-    const on = store.getState().flags.gyro;
-    btn.classList.toggle('on', on);
-    btn.setAttribute('aria-pressed', String(on));
-  };
-  store.subscribe(sync);
-  sync();
-  return btn;
-}
-
 function onTap(x, y) {
   if (store.getState().flags.edit) onEditTap(x, y);
   else onIdentifyTap(x, y);
@@ -743,17 +687,7 @@ async function boot() {
   const controls = document.getElementById('controls');
   const bodyLabels = ['Moon', 'Sun', ...PLANETS.map((p) => p.name)];
   const search = buildSearch(buildSearchIndex(stars, figures, bodyLabels, dsos), { onSelect: onSearchSelect });
-  if (controls) {
-    controls.append(buildLocationControl(store), search.el, buildTimeControls(store));
-    controls.append(
-      makeToggle('Constellations', 'lines'),
-      makeToggle('Labels', 'labels'),
-      makeToggle('Grid', 'grid'),
-      makeToggle('Deep sky', 'deepsky'),
-      makeToggle('🌙 Night', 'night', 'night-toggle'),
-    );
-    if (isGyroSupported()) controls.append(makeGyroToggle());
-  }
+  if (controls) controls.append(buildMenu(store).el, search.el, buildTimeControls(store));
   // Night mode also tints the whole document (the toggle button's own state is handled by makeToggle).
   const applyNight = () => document.body.classList.toggle('night', store.getState().flags.night);
   store.subscribe(applyNight);

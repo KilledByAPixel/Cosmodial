@@ -14,14 +14,15 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 
 #controls {
   position: fixed; left: 0; right: 0; bottom: 0;
-  display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center;
-  padding: 8px 12px; font: 13px system-ui, sans-serif; color: #cdd6e6;
-  /* Match the compass ribbon's shade (rgba(5,7,13,0.55), drawn on the canvas just above this bar) so
-     the dark backdrop is continuous from the ribbon down behind the buttons to the screen bottom. */
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+  font: 13px system-ui, sans-serif; color: #cdd6e6;
+  /* Match the compass pill's shade so the dark backdrop reads as one piece. */
   background: rgba(5, 7, 13, 0.55);
   user-select: none;
 }
-#controls .ctrl { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+#controls .ctrl { display: flex; align-items: center; gap: 6px; }
+#controls .menu, #controls .ctrl-time { position: relative; } /* popover anchors */
 #controls button, #controls input {
   font: inherit; color: #cdd6e6; background: #121826; border: 1px solid #2a3550;
   border-radius: 6px; padding: 4px 8px;
@@ -31,16 +32,18 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 #controls input[type="range"] { width: 180px; padding: 0; }
 #controls input.bad { border-color: #c5524a; }
 #controls .ctrl-label { opacity: 0.8; }
-#controls .now-badge { min-width: 130px; opacity: 0.7; }
+#controls .now-badge { opacity: 0.7; }
 #controls .now-badge.live { color: #8fdcb0; opacity: 1; }
-@media (max-width: 640px) { #controls { font-size: 12px; gap: 6px 10px; } #controls input[type="range"] { width: 120px; } #controls .search input[type="search"] { width: 110px; } }
+#controls .search { flex: 1; min-width: 0; }
+#controls .search input[type="search"] { width: 100%; }
+.menu-button { font-size: 15px; line-height: 1; padding: 5px 10px; }
+@media (max-width: 640px) { #controls { font-size: 12px; gap: 6px; } }
 
 /* View toggles (Constellations / Labels / Grid / Night): lit when active. */
 #controls .view-toggle.on { color: #9fd0ff; border-color: #2d5b8a; background: #16263c; }
 
 /* Object search: input in the bar, results list opens upward over the sky. */
 #controls .search { position: relative; }
-#controls .search input[type="search"] { width: 150px; }
 .search-results { display: none; list-style: none; margin: 0; padding: 4px;
   position: absolute; left: 0; bottom: calc(100% + 6px); width: 240px; max-height: 280px; overflow-y: auto;
   background: rgba(12,16,26,0.97); border: 1px solid #2a3550; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,0.5); z-index: 7; }
@@ -108,8 +111,15 @@ body.night #night-overlay { display: block; }
 .guide-event .event-action:hover { background: #243152; }
 
 /* Popovers (menu / time): small panels that open above their bar button. One open at a time;
-   outside-tap or Escape closes (see ui/popover.js). Anchored to a position:relative .ctrl parent. */
+   outside-tap or Escape closes (see ui/popover.js). Anchored to a position:relative parent (.menu / .ctrl-time set it). */
 .popover { position: absolute; bottom: calc(100% + 8px); z-index: 7;
   background: rgba(12, 16, 26, 0.97); border: 1px solid #2a3550; border-radius: 10px;
   padding: 10px 12px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5); }
 .popover[hidden] { display: none; }
+
+/* The ☰ menu popover: labelled sections of small toggle buttons. */
+.menu-panel { left: 0; width: min(300px, calc(100vw - 20px)); }
+.menu-section + .menu-section { margin-top: 10px; }
+.menu-label { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: #7e90b5; margin-bottom: 4px; }
+.menu-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
