@@ -2,7 +2,7 @@
 
 **The real sky, right now, in your browser — and the few things actually worth looking at tonight.**
 
-Tell Volvella where you are and it draws the live sky as if you were looking through a telescope — the Milky Way arcing overhead, the horizon glowing at dusk. Drag to aim, scroll to zoom from a wide naked-eye view down to a 1° eyepiece, and let the **Up now** guide point you at the good stuff. Free, no account, no ads, no backend.
+Tell Volvella where you are and it draws the live sky as if you were looking through a telescope — the Milky Way arcing overhead, the horizon glowing at dusk. Drag to aim, scroll to zoom from a wide naked-eye view down to a high-power eyepiece field a fiftieth of a degree across, and let the **Up now** guide point you at the good stuff. Free, no account, no ads, no backend.
 
 > **Live demo:** _deploy to GitHub Pages — see [Deployment](#deployment)._
 
@@ -12,7 +12,7 @@ Tell Volvella where you are and it draws the live sky as if you were looking thr
 
 - **It has taste.** Instead of dumping a catalog on you, the **Up now** guide names the handful of sights worth your time tonight — easiest first, each with a *why it's cool* and a one-tap **Find**.
 - **It feels like a telescope.** Zoom from the whole sky down to an eyepiece-tight field and watch a faint dot resolve into a planet — Venus a crescent, Saturn ringed, every planet trailed by its moons, down to Phobos hugging Mars. **Find** smoothly *swings* the view to your target so you learn where it actually is.
-- **The sky is alive.** The Milky Way's band arcs across the dark, daylight glows blue, dusk burns at the horizon, low stars dim and redden through the air, and the Moon shows its real lit phase — not a flat black field.
+- **The sky is alive.** The whole field moves smoothly in real time — stars transformed on the GPU every frame. The Milky Way's band arcs across the dark, daylight glows blue, dusk burns at the horizon, low stars dim and redden through the air, and the Moon shows its real lit phase and even its slow monthly wobble (libration) — not a flat black field.
 - **It's honest.** Every object tells you what you'll *really* see through your own eyes — not the long-exposure fantasy photo.
 - **It just works.** One web page, same on phone or laptop. No install, no sign-up, no network calls once it's loaded.
 
@@ -25,7 +25,7 @@ Tell Volvella where you are and it draws the live sky as if you were looking thr
 | ⭐ **61,816 stars** | colored by their true tint, sized by brightness |
 | 🏷️ **417 named stars** | from Sirius on down |
 | ✏️ **22 constellations** | line figures + labels, and an editor to redraw them |
-| 🪐 **Sun + Moon + 7 planets** | computed live — the Moon in its true lit phase and face, Saturn with its rings, and 16 planetary moons (NASA-ephemeris-checked), everything at true 1:1 scale |
+| 🪐 **Sun, Moon, 7 planets + Pluto** | computed live — every planet textured, Saturn with its rings, the Moon in its true lit phase and face, and 16 planetary moons (NASA-ephemeris-checked), everything at true 1:1 scale |
 | 🌌 **30 deep-sky objects** | galaxies, nebulae, and star clusters — drawn faint, the honest way |
 | 🎯 **~1 arcminute** | positional accuracy |
 | 🌙 **0 backends** | the sky is just math + a local star file |
@@ -39,8 +39,8 @@ Tell Volvella where you are and it draws the live sky as if you were looking thr
 - **Catch what's up tonight.** A banner calls out a lunar eclipse, an active meteor shower, or a close Moon–planet pairing whenever one's happening.
 - **Point your phone at the sky.** On mobile, switch on AR aim and the view tracks wherever you point the device — the sky lines up with the real thing.
 - **Tap anything** for a plain-language card: what it is, where & when, how to spot it, and for stars, *the light you're seeing left it in [year]*.
-- **Search** for any star, planet, or constellation by name.
-- **Travel through time.** Jump to Sunset, Midnight, Sunrise, scrub through the night, or hit play and watch the sky wheel overhead.
+- **Search** for any star, planet, constellation, or deep-sky object by name — yes, even Pluto.
+- **Travel through time.** Jump to Sunset, Midnight, Sunrise, scrub through the night, or hit play and watch the sky wheel overhead — and anything you've **Found** stays locked centre-frame while the clock flies (great for watching moons orbit or Saturn's rings tilt across the years).
 - **Set your spot** with one-tap location, a city search, or manual lat/long — it's remembered next time.
 - **Go dark.** A red-light night mode keeps your eyes adjusted out in the field.
 - **Toggle** constellations, labels, an alt-az grid, deep-sky objects, or the full sphere (even below your horizon).
@@ -71,6 +71,6 @@ Every path is relative, so it runs from a server root *or* a subpath unchanged. 
 
 ## Credits
 
-Built with the MIT-licensed [Astronomy Engine](https://github.com/cosinekitty/astronomy). Stars from the [HYG Database](https://github.com/astronexus/HYG-Database) (CC-BY-SA 4.0); constellation lines from [d3-celestial](https://github.com/ofrohn/d3-celestial) (BSD-3-Clause); Milky Way panorama from [Solar System Scope](https://www.solarsystemscope.com/textures/) (CC-BY 4.0). Full details in [ATTRIBUTION.md](ATTRIBUTION.md).
+Built with the MIT-licensed [Astronomy Engine](https://github.com/cosinekitty/astronomy). Stars from the [HYG Database](https://github.com/astronexus/HYG-Database) (CC-BY-SA 4.0); constellation lines from [d3-celestial](https://github.com/ofrohn/d3-celestial) (BSD-3-Clause); Milky Way panorama and Moon/planet/ring textures from [Solar System Scope](https://www.solarsystemscope.com/textures/) (CC-BY 4.0). Planetary-moon orbits verified against [JPL Horizons](https://ssd.jpl.nasa.gov/horizons/). Full details in [ATTRIBUTION.md](ATTRIBUTION.md).
 
 App code is **MIT** — see [LICENSE](LICENSE).
