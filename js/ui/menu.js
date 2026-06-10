@@ -1,6 +1,7 @@
 // The ☰ menu: a compact popover above its bar button holding everything that isn't needed
-// on-screen all the time — location, the view toggles, and the sky switches (atmosphere /
-// night / AR). Plain DOM, anchored by the shared popover primitive.
+// on-screen all the time — location and the view toggles. The sky switches (atmosphere / night /
+// AR) live on the bar itself as emoji buttons (buildSkyToggles). Plain DOM, anchored by the
+// shared popover primitive.
 
 import { buildLocationControl } from './location.js';
 import { isGyroSupported, requestGyroPermission, attachGyro } from './gyro.js';
@@ -29,8 +30,9 @@ export function makeToggle(store, label, flag, className = '') {
 function makeGyroToggle(store) {
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = 'view-toggle';
-  btn.textContent = '📱 AR';
+  btn.className = 'view-toggle icon-toggle';
+  btn.textContent = '📱';
+  btn.title = 'AR — aim by moving your phone';
   let detach = null;
   let activating = false; // guards against a second tap while the (async) permission prompt is open
   btn.addEventListener('click', async () => {
@@ -86,8 +88,6 @@ export function buildMenu(store) {
   const panel = document.createElement('div');
   panel.className = 'popover menu-panel';
   panel.hidden = true;
-  const sky = [makeToggle(store, '🌅 Atmosphere', 'atmo'), makeToggle(store, '🌙 Night', 'night', 'night-toggle')];
-  if (isGyroSupported()) sky.push(makeGyroToggle(store));
   panel.append(
     section('Location', buildLocationControl(store)),
     section('View',
@@ -95,9 +95,20 @@ export function buildMenu(store) {
       makeToggle(store, 'Labels', 'labels'),
       makeToggle(store, 'Grid', 'grid'),
       makeToggle(store, 'Deep sky', 'deepsky')),
-    section('Sky', ...sky),
   );
   el.append(btn, panel);
   attachPopover(btn, panel);
   return { el };
+}
+
+// The sky switches as emoji-only bar buttons (the name lives in the hover tooltip): atmosphere,
+// night mode, and — only on devices with orientation sensors — the AR aim toggle.
+export function buildSkyToggles(store) {
+  const atmo = makeToggle(store, '🌅', 'atmo', 'icon-toggle');
+  atmo.title = 'Atmosphere';
+  const night = makeToggle(store, '🌙', 'night', 'icon-toggle night-toggle');
+  night.title = 'Night mode';
+  const out = [atmo, night];
+  if (isGyroSupported()) out.push(makeGyroToggle(store));
+  return out;
 }

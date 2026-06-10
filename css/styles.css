@@ -37,6 +37,10 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 #controls .search { flex: 1; min-width: 0; }
 #controls .search input[type="search"] { width: 100%; }
 .menu-button { font-size: 15px; line-height: 1; padding: 5px 10px; }
+/* Emoji-only sky toggles on the bar (🌅 / 🌙 / 📱): sized to match the menu button; the
+   name is the hover tooltip. Dim when off so the lit (.on) state reads at a glance. */
+#controls .icon-toggle { font-size: 15px; line-height: 1; padding: 5px 8px; }
+#controls .icon-toggle:not(.on) { opacity: 0.65; }
 @media (max-width: 640px) { #controls { font-size: 12px; gap: 6px; } }
 
 /* View toggles (Constellations / Labels / Grid / Night): lit when active. */
