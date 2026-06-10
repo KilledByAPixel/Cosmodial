@@ -189,6 +189,32 @@ function paintTitle(ctx, w, h) {
   ctx.fillStyle = '#c9b88e';
   ctx.fillText('SKY ATLAS', cx + 0.3 * tagSize, cy + 0.02 * m + 1.9 * tagSize);
   ctx.letterSpacing = '0px';
+  ctx.shadowColor = 'transparent';
+}
+
+function buildControls() {
+  const preset = document.getElementById('preset');
+  PRESETS.forEach((p, i) => preset.add(new Option(p.label, i)));
+  const center = document.getElementById('center');
+  for (const [key, c] of Object.entries(SKY_CENTERS)) center.add(new Option(c.label, key));
+  // 'change' (not 'input') events: a full render takes a beat, no point re-rendering mid-drag
+  preset.onchange = () => { state.preset = +preset.value; render(); };
+  center.onchange = () => { state.center = center.value; render(); };
+  document.getElementById('mw').onchange = (e) => { state.mw = +e.target.value; render(); };
+  document.getElementById('lines').onchange = (e) => { state.lines = e.target.checked; render(); };
+  document.getElementById('ringScale').onchange = (e) => { state.ringScale = +e.target.value; render(); };
+  document.getElementById('save').onclick = download;
+}
+
+function download() {
+  const { w, h } = PRESETS[state.preset];
+  document.getElementById('out').toBlob((blob) => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `cosmodial-splash-${w}x${h}.png`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }, 'image/png');
 }
 
 function render() {
@@ -211,6 +237,7 @@ async function init() {
     setStatus('Serve this page over http (the same way you run the app) — data/ can\'t be fetched from file://.');
     return;
   }
+  buildControls();
   try {
     setStatus('Loading sky data…');
     data = await loadData();
