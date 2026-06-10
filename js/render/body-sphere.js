@@ -37,7 +37,8 @@ void main() {
 }`;
 }
 
-function fragmentShaderSource() {
+// Exported for the below-horizon fade drift-guard test (mirrors the vertex export above).
+export function fragmentShaderSource() {
   return `#version 300 es
 precision highp float;
 in vec2 vCorner;
@@ -50,6 +51,7 @@ uniform float uSubLon;       // radians: sub-observer longitude (Moon libration;
 uniform float uRingTilt;     // sin(B): ring opening; 0 = edge-on (also: pole z toward the viewer)
 uniform vec2 uRingRadii;     // ring inner/outer radii in globe radii; (0,0) = no rings
 uniform sampler2D uRingTex;  // radial strip: u = (r - inner) / (outer - inner), with alpha
+uniform float uFade;         // 0..1 global fade (below-horizon bodies ride belowFade like the markers)
 out vec4 fragColor;
 const float PI = 3.14159265358979;
 vec2 dirFromUp(float a) { return vec2(sin(a), cos(a)); }
@@ -80,7 +82,7 @@ void main() {
   // into the RING behind it, not punch a transparent seam through to the sky.
   if (r2 > 1.0) {                   // off the globe: ring only
     if (ringA <= 0.003) discard;
-    fragColor = vec4(ringC * ringA, ringA);
+    fragColor = vec4(ringC * ringA, ringA) * uFade; // premultiplied: scaling the whole vec4 fades "over"
     return;
   }
 
@@ -104,9 +106,9 @@ void main() {
   vec3 sph = surf * lit * sphA;     // premultiplied sphere layer
   vec3 ring = ringC * ringA;        // premultiplied ring layer
   if (ringA > 0.0 && ringZ > zc) {  // ring crosses IN FRONT of the globe: ring over sphere
-    fragColor = vec4(ring + sph * (1.0 - ringA), ringA + sphA * (1.0 - ringA));
+    fragColor = vec4(ring + sph * (1.0 - ringA), ringA + sphA * (1.0 - ringA)) * uFade;
   } else {                          // ring behind (or none): sphere over ring — the limb fades into the ring
-    fragColor = vec4(sph + ring * (1.0 - sphA), sphA + ringA * (1.0 - sphA));
+    fragColor = vec4(sph + ring * (1.0 - sphA), sphA + ringA * (1.0 - sphA)) * uFade;
   }
 }`;
 }
@@ -180,7 +182,7 @@ export function createBodySphere(gl) {
       console.error('[cosmodial] body-sphere link failed:', gl.getProgramInfoLog(program)); return false;
     }
     vao = gl.createVertexArray();
-    const names = ['uRight','uUp','uFwd','uFocal','uViewport','uBodyDir','uRadiusPx','uTex','uPhaseAngle','uLimbAngle','uNorthAngle','uSubLat','uSubLon','uQuadScale','uRingTilt','uRingRadii','uRingTex'];
+    const names = ['uRight','uUp','uFwd','uFocal','uViewport','uBodyDir','uRadiusPx','uTex','uPhaseAngle','uLimbAngle','uNorthAngle','uSubLat','uSubLon','uQuadScale','uRingTilt','uRingRadii','uRingTex','uFade'];
     loc = Object.fromEntries(names.map((n) => [n, gl.getUniformLocation(program, n)]));
     return true;
   }
@@ -232,6 +234,7 @@ export function createBodySphere(gl) {
       gl.uniform1f(loc.uNorthAngle, SCREEN_ANGLE_SIGN * b.northAngle * D2R);
       gl.uniform1f(loc.uSubLat, (b.subLatDeg || 0) * D2R);
       gl.uniform1f(loc.uSubLon, (b.subLonDeg || 0) * D2R);
+      gl.uniform1f(loc.uFade, b.fade == null ? 1 : b.fade);
       gl.uniform1f(loc.uQuadScale, b.quadScale || 1);
       gl.uniform1f(loc.uRingTilt, b.ringTilt || 0);
       gl.uniform2f(loc.uRingRadii, b.ringRadii ? b.ringRadii[0] : 0, b.ringRadii ? b.ringRadii[1] : 0);

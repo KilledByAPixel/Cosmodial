@@ -238,6 +238,10 @@ function render() {
       const rPx = bi.angularRadiusDeg * (Math.PI / 180) * focal * scale;
       const span = bi.ring ? bi.ring.OUTER : 1;                // rings widen the on-screen footprint
       if (bi.label !== 'Moon' && rPx * span <= dotR) continue; // too small -> leave it as a glow dot
+      // Below-horizon bodies ride the same fade as the star/marker shaders — without this the
+      // Moon's sphere pass drew at full brightness under a hidden horizon.
+      const bodyFade = m.altaz.alt < 0 ? belowFade : 1;
+      if (bodyFade <= 0) continue;
       const o = bodyScreenOrientation(cam, bi.bodyDir, bi.sunDir, bi.poleDir);
       const radiusPx = rPx;                                    // true projected size for every sphere
       // Sub-observer point: the Moon's true libration (vendor), or the planet's geometric axial tip
@@ -245,7 +249,7 @@ function render() {
       const subLatDeg = bi.libration ? bi.libration.latDeg
         : (Math.asin(Math.max(-1, Math.min(1, ringOpening(bi.bodyDir, bi.poleDir)))) * 180) / Math.PI;
       bodyList.push({
-        texKey: bi.texKey, tint: bi.tint, dir: bi.bodyDir, radiusPx,
+        texKey: bi.texKey, tint: bi.tint, dir: bi.bodyDir, radiusPx, fade: bodyFade,
         phaseAngleDeg: bi.phaseAngleDeg, brightLimbAngle: o.brightLimbAngle, northAngle: o.northAngle,
         subLatDeg, subLonDeg: bi.libration ? bi.libration.lonDeg : 0,
         quadScale: span,
