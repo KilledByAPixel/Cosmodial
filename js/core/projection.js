@@ -91,3 +91,21 @@ export function createProjector(cam) {
 export function project(az, alt, cam) {
   return createProjector(cam)(az, alt);
 }
+
+// Inverse of the stereographic projection: screen pixel (x, y) -> ENU unit direction for `cam`.
+// Mirrors the per-pixel ray reconstruction in the sky-background fragment shader (the round-trip
+// test pins them to each other through project()). Defined for every pixel — far-off-canvas
+// coordinates legitimately map to directions behind the camera.
+export function unproject(x, y, cam) {
+  const { right, up, fwd, focal, cx, cy } = cameraBasis(cam);
+  const dx = x - cx, dy = -(y - cy); // screen y grows downward; +dy = toward screen-up
+  const r = Math.hypot(dx, dy);
+  const theta = 2 * Math.atan(r / (2 * focal));
+  const s = r > 1e-12 ? Math.sin(theta) / r : 0;
+  const ct = Math.cos(theta);
+  return [
+    fwd[0] * ct + (right[0] * dx + up[0] * dy) * s,
+    fwd[1] * ct + (right[1] * dx + up[1] * dy) * s,
+    fwd[2] * ct + (right[2] * dx + up[2] * dy) * s,
+  ];
+}

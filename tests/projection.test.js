@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { project, cameraBasis, vec, focalPx } from '../js/core/projection.js';
+import { project, cameraBasis, vec, focalPx, unproject } from '../js/core/projection.js';
 
 const VIEW = { width: 800, height: 600 };
 const cx = 400, cy = 300;
@@ -84,19 +84,10 @@ test('near the view center, stereographic matches the old gnomonic within 2%', (
 
 test('project/inverse round-trip recovers the sky direction (mirrors the sky-background GLSL inverse)', () => {
   const cam = { az: 180, alt: 45, fov: 120, ...VIEW };
-  const { right, up, fwd, focal, cx: bx, cy: by } = cameraBasis(cam);
   for (const [az, alt] of [[180, 45], [140, 10], [250, 70], [180, -20], [60, 30]]) {
     const p = project(az, alt, cam);
     assert.ok(p.visible, `${az},${alt} should be visible`);
-    const dx = p.x - bx, dy = -(p.y - by); // flip to +y-up (GLSL convention)
-    const r = Math.hypot(dx, dy);
-    const theta = 2 * Math.atan(r / (2 * focal));
-    const s = r > 1e-12 ? Math.sin(theta) / r : 0;
-    const ray = [
-      fwd[0] * Math.cos(theta) + (right[0] * dx + up[0] * dy) * s,
-      fwd[1] * Math.cos(theta) + (right[1] * dx + up[1] * dy) * s,
-      fwd[2] * Math.cos(theta) + (right[2] * dx + up[2] * dy) * s,
-    ];
+    const ray = unproject(p.x, p.y, cam);
     const want = vec(az, alt);
     for (let k = 0; k < 3; k++) assert.ok(Math.abs(ray[k] - want[k]) < 1e-9, `ray[${k}] at ${az},${alt}`);
   }
