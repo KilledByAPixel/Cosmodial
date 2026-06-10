@@ -43,7 +43,7 @@ Tell Volvella where you are and it draws the live sky as if you were looking thr
 - **Travel through time.** Jump to Sunset, Midnight, Sunrise, scrub through the night, or hit play and watch the sky wheel overhead — and anything you've **Found** stays locked centre-frame while the clock flies (great for watching moons orbit or Saturn's rings tilt across the years).
 - **Set your spot** with one-tap location, a city search, or manual lat/long — it's remembered next time.
 - **Go dark.** A red-light night mode keeps your eyes adjusted out in the field.
-- **Toggle** constellations, labels, an alt-az grid, deep-sky objects, or the full sphere (even below your horizon).
+- **Toggle** constellations, labels, an alt-az grid, deep-sky objects, or the atmosphere itself — switch it off for a space-station view where daylight and horizon haze wash nothing out. Aim below the horizon and the other half of the sky simply fades in.
 
 ---
 
