@@ -207,6 +207,7 @@ function buildControls() {
 }
 
 function download() {
+  if (!data) return;
   const { w, h } = PRESETS[state.preset];
   document.getElementById('out').toBlob((blob) => {
     const a = document.createElement('a');
@@ -218,6 +219,7 @@ function download() {
 }
 
 function render() {
+  if (!data) return; // controls fire before the data load finishes
   const { w, h } = PRESETS[state.preset];
   const canvas = document.getElementById('out');
   canvas.width = w; canvas.height = h; // exact pixel dimensions; CSS scales the preview
