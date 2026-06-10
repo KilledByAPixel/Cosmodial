@@ -1,24 +1,14 @@
 # Cosmodial Sky Atlas
 
-**The real sky, right now, in your browser — and the few things actually worth looking at tonight.**
+**View the whole cosmos in your web browser.**
 
-Tell Cosmodial where you are and it draws the live sky as if you were looking through a telescope — the Milky Way arcing overhead, the horizon glowing at dusk. Drag to aim, scroll to zoom from a wide naked-eye view down to a high-power eyepiece field a fiftieth of a degree across, and let the **Up now** guide point you at the good stuff. Free, no account, no ads, no backend.
+Tell Cosmodial where you are and it draws the live sky as if you were looking through a telescope — the Milky Way arcing overhead, the horizon glowing at dusk. Drag to aim, scroll to zoom from a wide naked-eye view down to a high-power eyepiece field a fiftieth of a degree across, and let the **Up now** guide point you at the good stuff.
 
-> **Live demo:** _deploy to GitHub Pages — see [Deployment](#deployment)._
+## Features
 
----
+todo: list features here
 
-## What makes it different
-
-- **It has taste.** Instead of dumping a catalog on you, the **Up now** guide names the handful of sights worth your time tonight — easiest first, each with a *why it's cool* and a one-tap **Find**.
-- **It feels like a telescope.** Zoom from the whole sky down to an eyepiece-tight field and watch a faint dot resolve into a planet — Venus a crescent, Saturn ringed, every planet trailed by its moons, down to Phobos hugging Mars. **Find** smoothly *swings* the view to your target so you learn where it actually is.
-- **The sky is alive.** The whole field moves smoothly in real time — stars transformed on the GPU every frame. The Milky Way's band arcs across the dark, daylight glows blue, dusk burns at the horizon, low stars dim and redden through the air, and the Moon shows its real lit phase and even its slow monthly wobble (libration) — not a flat black field.
-- **It's honest.** Every object tells you what you'll *really* see through your own eyes — not the long-exposure fantasy photo.
-- **It just works.** One web page, same on phone or laptop. No install, no sign-up, no network calls once it's loaded.
-
----
-
-## By the numbers
+## Stats
 
 | | |
 |---|---|
@@ -30,47 +20,12 @@ Tell Cosmodial where you are and it draws the live sky as if you were looking th
 | 🎯 **~1 arcminute** | positional accuracy |
 | 🌙 **0 backends** | the sky is just math + a local star file |
 
----
-
-## Things you can do
-
-- **Look around.** Drag to aim, scroll or pinch to zoom. A reticle shows where you're pointed.
-- **Find tonight's best.** The **Up now** guide ranks what's actually visible — bright, high, and worth it — and flies you to any of it.
-- **Catch what's up tonight.** A banner calls out a lunar eclipse, an active meteor shower, or a close Moon–planet pairing whenever one's happening.
-- **Point your phone at the sky.** On mobile, switch on AR aim and the view tracks wherever you point the device — the sky lines up with the real thing.
-- **Tap anything** for a plain-language card: what it is, where & when, how to spot it, and for stars, *the light you're seeing left it in [year]*.
-- **Search** for any star, planet, constellation, or deep-sky object by name — yes, even Pluto.
-- **Travel through time.** Jump to Sunset, Midnight, Sunrise, scrub through the night, or hit play and watch the sky wheel overhead — and anything you've **Found** stays locked centre-frame while the clock flies (great for watching moons orbit or Saturn's rings tilt across the years).
-- **Set your spot** with one-tap location, a city search, or manual lat/long — it's remembered next time.
-- **Go dark.** A red-light night mode keeps your eyes adjusted out in the field.
-- **Toggle** constellations, labels, an alt-az grid, deep-sky objects, or the atmosphere itself — switch it off for a space-station view where daylight and horizon haze wash nothing out. Aim below the horizon and the other half of the sky simply fades in.
-
----
-
-## How it works
-
-The whole app is one idea: **`sky = f(location, time)`**. Every star has a fixed position; the Sun, Moon, and planets are computed each frame. Feed a position plus your location and the clock into the math and you get back *where to point* — altitude and azimuth. Change the time and the entire sky re-derives. Nothing to fetch, accurate for centuries.
-
----
-
-## Run it
-
-No build step — just serve the folder over http (ES modules don't work from `file://`):
-
-```sh
-npx serve .
-```
-
-Or open `index.html` with the VS Code **Live Server** extension. Run the tests with `node --test`.
-
-### Deployment
-
-Every path is relative, so it runs from a server root *or* a subpath unchanged. Push to GitHub and enable **Pages** on the default branch — done.
-
----
-
 ## Credits
 
-Built with the MIT-licensed [Astronomy Engine](https://github.com/cosinekitty/astronomy). Stars from the [HYG Database](https://github.com/astronexus/HYG-Database) (CC-BY-SA 4.0); constellation lines from [d3-celestial](https://github.com/ofrohn/d3-celestial) (BSD-3-Clause); Milky Way panorama and Moon/planet/ring textures from [Solar System Scope](https://www.solarsystemscope.com/textures/) (CC-BY 4.0). Planetary-moon orbits verified against [JPL Horizons](https://ssd.jpl.nasa.gov/horizons/). Programming assisted by [Claude](https://claude.com/claude-code). Full details in [ATTRIBUTION.md](ATTRIBUTION.md).
-
-App code is **MIT** — see [LICENSE](LICENSE).
+- Built with the MIT-licensed [Astronomy Engine](https://github.com/cosinekitty/astronomy). 
+- Stars from the [HYG Database](https://github.com/astronexus/HYG-Database) (CC-BY-SA 4.0).
+- Cconstellation lines from [d3-celestial](https://github.com/ofrohn/d3-celestial) (BSD-3-Clause).
+- Milky Way panorama and Moon/planet/ring textures from [Solar System Scope](https://www.solarsystemscope.com/textures/) (CC-BY 4.0).
+- Planetary-moon orbits verified against [JPL Horizons](https://ssd.jpl.nasa.gov/horizons/). 
+- Programming assisted by [Claude](https://claude.com/claude-code). Full details in [ATTRIBUTION.md](ATTRIBUTION.md).
+- App code is **MIT** — see [LICENSE](LICENSE).
