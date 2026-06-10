@@ -12,6 +12,8 @@ function stubCtx() {
     set strokeStyle(_) {}, get strokeStyle() { return ''; },
     set globalAlpha(v) { calls.alphas.push(v); }, get globalAlpha() { return 1; },
     set lineWidth(_) {}, get lineWidth() { return 1; },
+    set lineJoin(_) {}, get lineJoin() { return 'miter'; },
+    set lineCap(_) {}, get lineCap() { return 'butt'; },
     set font(_) {}, get font() { return ''; },
     fillRect() { calls.fillRect++; },
     clearRect() { calls.clearRect++; },

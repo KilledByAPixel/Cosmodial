@@ -11,6 +11,8 @@ export function drawConstellations(ctx, projector, constellations, cam, edit, la
   const fade = edit ? 1 : belowFade;
   ctx.strokeStyle = LINE_STYLES.constellation.color;
   ctx.lineWidth = LINE_STYLES.constellation.width;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round'; // per-segment subpaths: round ends meet cleanly at shared vertices
   // Two stroke batches: segments wholly above the horizon (full alpha), then segments touching a
   // below-horizon vertex (fade alpha) — globalAlpha applies per stroke, not per vertex.
   for (const batch of [{ below: false, alpha: 1 }, { below: true, alpha: fade }]) {
