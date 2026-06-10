@@ -50,8 +50,24 @@ const MOON = {
   gamma: 0.85,   // <1 softens the terminator a touch
 };
 
+// Google Fonts loaded by splash.html (plus Georgia, the local default). Webfonts need a beat
+// to arrive before canvas text uses them; the font handler re-renders once they're in.
+const FONTS = [
+  'Georgia',            // local default, no download
+  'Cinzel',             // Trajan-style roman capitals
+  'Marcellus',          // calm classical caps
+  'Cormorant Garamond', // refined renaissance serif
+  'Playfair Display',   // high-contrast display serif
+  'EB Garamond',        // old-style book serif
+  'Forum',              // antique roman
+  'Cardo',              // scholarly classical
+  'Spectral',           // literary serif
+  'Julius Sans One',    // thin geometric caps
+  'IM Fell English',    // 17th-century printing press
+];
+
 const state = {
-  preset: 0, center: 'core', mw: 1, nameScale: 0.13,
+  preset: 0, center: 'core', mw: 1, nameScale: 0.13, font: 'Georgia',
   backdrop: 'moon', ringScale: 0.42, phase: 0.65, rotate: 0,
 };
 let data = null; // { stars, mwTex, moonTex: ImageData }
@@ -69,6 +85,7 @@ function loadSettings() {
   if (!PRESETS[state.preset]) state.preset = 0;
   if (!SKY_CENTERS[state.center]) state.center = 'core';
   if (state.backdrop !== 'dial') state.backdrop = 'moon';
+  if (!FONTS.includes(state.font)) state.font = 'Georgia';
 }
 
 function saveSettings() {
@@ -252,7 +269,8 @@ function paintTitle(ctx, w, h) {
 
   const nameSize = state.nameScale * m;
   const nameY = cy + TITLE.baselineY * m;
-  ctx.font = `${nameSize}px ${TITLE.font}`;
+  const fontStack = `"${state.font}", ${TITLE.font}`;
+  ctx.font = `${nameSize}px ${fontStack}`;
   ctx.letterSpacing = `${TITLE.nameSpacing * nameSize}px`;
   ctx.fillStyle = TITLE.nameColor;
   ctx.shadowColor = `rgba(${BRASS}, 0.35)`;
@@ -261,7 +279,7 @@ function paintTitle(ctx, w, h) {
   ctx.shadowBlur = 0;
 
   const tagSize = TITLE.tagScale * nameSize;
-  ctx.font = `${tagSize}px ${TITLE.font}`;
+  ctx.font = `${tagSize}px ${fontStack}`;
   ctx.letterSpacing = `${TITLE.tagSpacing * tagSize}px`;
   ctx.fillStyle = TITLE.tagColor;
   ctx.fillText(TITLE.tag, cx + (TITLE.tagSpacing * tagSize) / 2, nameY + TITLE.tagGap * tagSize);
@@ -276,8 +294,11 @@ function buildControls() {
   for (const [key, c] of Object.entries(SKY_CENTERS)) center.add(new Option(c.label, key));
   // reflect the (possibly restored) state in the controls
   const el = (id) => document.getElementById(id);
+  const font = el('font');
+  for (const f of FONTS) font.add(new Option(f, f));
   preset.value = state.preset;
   center.value = state.center;
+  font.value = state.font;
   el('mw').value = state.mw;
   el('backdrop').value = state.backdrop;
   el('ringScale').value = state.ringScale;
@@ -294,6 +315,12 @@ function buildControls() {
   el('phase').onchange = (e) => update({ phase: +e.target.value });
   el('rotate').onchange = (e) => update({ rotate: +e.target.value });
   el('nameScale').onchange = (e) => update({ nameScale: +e.target.value });
+  el('font').onchange = (e) => {
+    state.font = e.target.value;
+    saveSettings();
+    // wait for the webfont so the canvas doesn't draw the fallback serif
+    document.fonts.load(`16px "${state.font}"`).then(render, render);
+  };
   el('save').onclick = download;
 }
 
@@ -344,6 +371,7 @@ async function init() {
     setStatus(`Could not load data (${e.message}). Serve the repo root over http and open /tools/splash.html.`);
     return;
   }
+  await document.fonts.load(`16px "${state.font}"`).catch(() => {}); // offline -> fallback serif
   render();
 }
 

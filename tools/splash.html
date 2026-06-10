@@ -4,6 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Cosmodial splash generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel&family=Marcellus&family=Cormorant+Garamond:wght@500&family=Playfair+Display&family=EB+Garamond&family=Forum&family=Cardo&family=Spectral:wght@500&family=Julius+Sans+One&family=IM+Fell+English&display=swap" />
   <style>
     body { margin: 0; padding: 16px; background: #0b0f17; color: #cfd6e4; font: 14px/1.5 system-ui, sans-serif; }
     #controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin-bottom: 12px; }
@@ -24,6 +27,7 @@
     <label>Phase <input id="phase" type="range" min="0" max="1" step="0.01" value="0.65" /></label>
     <label>Rotate <input id="rotate" type="range" min="0" max="360" step="1" value="0" /></label>
     <label>Title <input id="nameScale" type="range" min="0.09" max="0.18" step="0.005" value="0.13" /></label>
+    <label>Font <select id="font"></select></label>
     <button id="save">Download PNG</button>
   </div>
   <div id="status">Loading…</div>
