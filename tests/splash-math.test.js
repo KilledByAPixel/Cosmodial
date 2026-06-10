@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { eqToGalactic, galacticUV, project, invProject } from '../tools/splash-math.js';
+import { eqToGalactic, galacticUV, project, invProject, bvToColor } from '../tools/splash-math.js';
 
 const RAD = 180 / Math.PI;
 
@@ -60,4 +60,24 @@ test('angular distance c from center lands at plane radius 2*tan(c/2)', () => {
   const p = project(CENTER.ra, CENTER.dec + 40, CENTER); // 40 deg straight up in Dec
   const expected = 2 * Math.tan((40 / 2) * Math.PI / 180);
   assert.ok(Math.abs(Math.hypot(p.x, p.y) - expected) < 1e-9);
+});
+
+test('bvToColor: hot stars are blue, cool stars are orange', () => {
+  const hot = bvToColor(-0.3), cool = bvToColor(1.8);
+  assert.ok(hot[2] > hot[0], 'hot star: blue channel > red');
+  assert.ok(cool[0] > cool[2], 'cool star: red channel > blue');
+});
+
+test('bvToColor clamps out-of-range and defaults missing bv to white-ish', () => {
+  assert.deepEqual(bvToColor(99), bvToColor(2.0));
+  assert.deepEqual(bvToColor(-5), bvToColor(-0.4));
+  assert.deepEqual(bvToColor(undefined), bvToColor(0));
+});
+
+test('bvToColor returns integer rgb channels in range', () => {
+  for (const bv of [-0.4, 0, 0.65, 1.5, 2.0]) {
+    for (const ch of bvToColor(bv)) {
+      assert.ok(Number.isInteger(ch) && ch >= 0 && ch <= 255, `bv=${bv} ch=${ch}`);
+    }
+  }
 });

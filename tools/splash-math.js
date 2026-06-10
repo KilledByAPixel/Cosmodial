@@ -63,3 +63,24 @@ export function invProject(x, y, center) {
   if (raDeg >= 360) raDeg = 0; // a sub-ulp negative input rounds to exactly 360
   return { ra: raDeg, dec: dec / DEG };
 }
+
+// Star tint from B-V color index: linear blend through measured star colors
+// (blue-white O/B stars through warm K/M stars).
+const BV_STOPS = [
+  [-0.4, [155, 176, 255]],
+  [ 0.0, [202, 215, 255]],
+  [ 0.4, [248, 247, 255]],
+  [ 0.8, [255, 244, 234]],
+  [ 1.2, [255, 210, 161]],
+  [ 2.0, [255, 204, 111]],
+];
+
+// -> [r, g, b] 0-255. Missing bv renders as a neutral white star.
+export function bvToColor(bv) {
+  const t = Math.max(-0.4, Math.min(2.0, bv ?? 0));
+  let i = 0;
+  while (i < BV_STOPS.length - 2 && t > BV_STOPS[i + 1][0]) i++;
+  const [t0, c0] = BV_STOPS[i], [t1, c1] = BV_STOPS[i + 1];
+  const f = (t - t0) / (t1 - t0);
+  return c0.map((v, j) => Math.round(v + (c1[j] - v) * f));
+}
