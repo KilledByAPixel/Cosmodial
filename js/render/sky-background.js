@@ -117,7 +117,7 @@ function compile(gl, type, src) {
   gl.shaderSource(sh, src);
   gl.compileShader(sh);
   if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
-    console.error('[volvella] sky-background shader compile failed:', gl.getShaderInfoLog(sh));
+    console.error('[cosmodial] sky-background shader compile failed:', gl.getShaderInfoLog(sh));
     gl.deleteShader(sh);
     return null;
   }
@@ -142,7 +142,7 @@ export function createSkyBackground(gl) {
     gl.deleteShader(vs);
     gl.deleteShader(fs);
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      console.error('[volvella] sky-background link failed:', gl.getProgramInfoLog(program));
+      console.error('[cosmodial] sky-background link failed:', gl.getProgramInfoLog(program));
       return false;
     }
     vao = gl.createVertexArray(); // empty: the vertex shader uses gl_VertexID only
@@ -184,8 +184,8 @@ export function createSkyBackground(gl) {
   function setMilkyWay(url) {
     const img = new Image();
     img.decoding = 'async';
-    img.onload = () => { try { uploadImage(img); } catch (e) { console.warn('[volvella] Milky Way upload failed:', e); } };
-    img.onerror = () => console.warn('[volvella] Milky Way texture failed to load:', url);
+    img.onload = () => { try { uploadImage(img); } catch (e) { console.warn('[cosmodial] Milky Way upload failed:', e); } };
+    img.onerror = () => console.warn('[cosmodial] Milky Way texture failed to load:', url);
     img.src = url;
   }
 

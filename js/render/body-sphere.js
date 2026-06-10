@@ -114,7 +114,7 @@ function compile(gl, type, src) {
   gl.shaderSource(sh, src);
   gl.compileShader(sh);
   if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
-    console.error('[volvella] body-sphere shader compile failed:', gl.getShaderInfoLog(sh));
+    console.error('[cosmodial] body-sphere shader compile failed:', gl.getShaderInfoLog(sh));
     gl.deleteShader(sh); return null;
   }
   return sh;
@@ -175,7 +175,7 @@ export function createBodySphere(gl) {
     gl.attachShader(program, vs); gl.attachShader(program, fs); gl.linkProgram(program);
     gl.deleteShader(vs); gl.deleteShader(fs);
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      console.error('[volvella] body-sphere link failed:', gl.getProgramInfoLog(program)); return false;
+      console.error('[cosmodial] body-sphere link failed:', gl.getProgramInfoLog(program)); return false;
     }
     vao = gl.createVertexArray();
     const names = ['uRight','uUp','uFwd','uFocal','uViewport','uBodyDir','uRadiusPx','uTex','uPhaseAngle','uLimbAngle','uNorthAngle','uSubLat','uSubLon','uQuadScale','uRingTilt','uRingRadii','uRingTex'];
@@ -189,8 +189,8 @@ export function createBodySphere(gl) {
     if (!maps.has(name)) maps.set(name, { tex: newTex(), img: null, ready: false, clampS: !!opts.clampS });
     else maps.get(name).clampS = !!opts.clampS;
     const im = new Image(); im.decoding = 'async';
-    im.onload = () => { try { uploadImage(name, im); } catch (e) { console.warn('[volvella] body tex upload failed', name, e); } };
-    im.onerror = () => console.warn('[volvella] body texture failed to load:', url);
+    im.onload = () => { try { uploadImage(name, im); } catch (e) { console.warn('[cosmodial] body tex upload failed', name, e); } };
+    im.onerror = () => console.warn('[cosmodial] body texture failed to load:', url);
     im.src = url;
   }
 

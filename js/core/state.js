@@ -4,9 +4,9 @@ export const MIN_FOV = 0.02;  // deepest zoom (~1.2 arcmin) — lets the true-sc
 export const MAX_FOV = 120;   // widest zoom-out (wide-angle); gnomonic edges start to stretch past ~120°
 export const DEFAULT_FOV = 60; // startup FOV (comfortable naked-eye view); zoom-out can widen to MAX_FOV
 export const MAX_ALT = 89;   // clamp pitch just shy of the zenith/nadir — at the pole the screen-up reference snaps
-const STORE_KEY = 'volvella.location';
-const STORE_KEY_VIEW = 'volvella.view'; // last aim + fov, so a reload resumes where you were looking
-const STORE_KEY_FLAGS = 'volvella.flags'; // remembered view toggles (see PERSISTED_FLAGS)
+const STORE_KEY = 'cosmodial.location';
+const STORE_KEY_VIEW = 'cosmodial.view'; // last aim + fov, so a reload resumes where you were looking
+const STORE_KEY_FLAGS = 'cosmodial.flags'; // remembered view toggles (see PERSISTED_FLAGS)
 
 // View toggles that persist across reloads. Deliberately excludes `lines` (constellations always
 // start hidden) and `edit` (a transient mode, never restored). A previously-saved `sphere` key is

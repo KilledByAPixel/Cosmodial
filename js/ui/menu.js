@@ -43,7 +43,7 @@ function makeGyroToggle(store) {
     activating = true;
     try {
       const perm = await requestGyroPermission(); // turn ON — request inside the gesture (iOS)
-      if (perm !== 'granted') { console.warn(`[volvella] gyroscope unavailable: ${perm}`); return; }
+      if (perm !== 'granted') { console.warn(`[cosmodial] gyroscope unavailable: ${perm}`); return; }
       store.setFlag('gyro', true);                // set the flag BEFORE attaching, so the first
       detach = attachGyro(store);                 // setOrientation events are honored (not no-op'd)
       if (store.getState().fov < 30) store.setFov(50); // don't wave the phone in a telescope view

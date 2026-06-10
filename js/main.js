@@ -37,7 +37,7 @@ const ctx = canvas.getContext('2d');
 const glCanvas = document.getElementById('sky-gl');
 const starfield = glCanvas ? createStarfield(glCanvas) : null;
 const useGL = !!starfield;
-if (!useGL) console.warn('[volvella] WebGL2 unavailable — using the 2D star fallback');
+if (!useGL) console.warn('[cosmodial] WebGL2 unavailable — using the 2D star fallback');
 if (useGL) starfield.setMilkyWay('./data/milkyway-4k.webp'); // all-sky background; renders atmosphere-only until it loads
 if (useGL) starfield.setBodyTexture('moon', './data/moon-2k.webp');
 if (useGL) {
@@ -74,7 +74,7 @@ let namedStars = []; // skyObjects with names — label positions refresh on the
 let skyStamp = null; // { lat, lng, ms } of the last FULL recompute (pick-staleness guard)
 let editIndex = 0;          // index into figures[] of the currently active constellation
 let prevEdit = false;       // tracks previous edit-mode state to detect enter/exit transitions
-const FIGURES_KEY = 'volvella.figures.v2';
+const FIGURES_KEY = 'cosmodial.figures.v2';
 const labelOf = (f) => circularCentroid(f.lines.flat()); // [ra,dec] label position for a figure
 
 // Use saved in-browser edits only if they were based on the SAME committed file. If
@@ -581,7 +581,7 @@ function onEditToggle() {
   if (e) {                         // entered edit mode
     if (editIndex >= figures.length) editIndex = 0;
     centerOnActive();
-    if (figures[editIndex]) console.log(`[volvella] editing: ${figures[editIndex].name}`);
+    if (figures[editIndex]) console.log(`[cosmodial] editing: ${figures[editIndex].name}`);
   }
 }
 
@@ -603,7 +603,7 @@ function onEditAction(action) {
     editIndex = (editIndex + (action === 'next' ? 1 : -1) + figures.length) % figures.length;
     selected = null;
     centerOnActive();
-    console.log(`[volvella] editing: ${figures[editIndex].name}`);
+    console.log(`[cosmodial] editing: ${figures[editIndex].name}`);
     requestRender();
   }
 }
@@ -644,7 +644,7 @@ async function boot() {
     stars = await res.json();
     if (useGL) starfield.uploadStarsJ2000(stars); // J2000 attrs upload ONCE; per-frame motion is the matrix uniform
   } catch (err) {
-    console.error('[volvella] Failed to load star catalogue:', err);
+    console.error('[cosmodial] Failed to load star catalogue:', err);
   }
   let loaded = [];
   try {
@@ -652,14 +652,14 @@ async function boot() {
     if (!cres.ok) throw new Error(`constellations.json: HTTP ${cres.status}`);
     loaded = await cres.json();
   } catch (err) {
-    console.error('[volvella] Failed to load constellations:', err);
+    console.error('[cosmodial] Failed to load constellations:', err);
   }
   try {
     const dres = await fetch('./data/dso.json');
     if (!dres.ok) throw new Error(`dso.json: HTTP ${dres.status}`);
     dsos = await dres.json();
   } catch (err) {
-    console.error('[volvella] Failed to load deep-sky catalogue:', err);
+    console.error('[cosmodial] Failed to load deep-sky catalogue:', err);
   }
   loadedRaw = loaded;
   const saved = loadSavedFigures(loaded);
