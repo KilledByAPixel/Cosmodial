@@ -1,10 +1,40 @@
 import { deviceToCamera } from '../core/orientation.js';
 import { wrap360 } from '../core/angles.js';
 
-// True when the browser exposes device-orientation events (mobile). Desktop -> false, so the AR
-// toggle is simply never shown there.
+// True when the browser exposes device-orientation events AT ALL. NOTE: desktop Chrome/Edge define
+// the constructor too (events just never carry sensor data), so this alone cannot decide whether to
+// show the AR toggle — that's detectGyro()'s job. Kept as the cheap precondition both use.
 export function isGyroSupported() {
   return typeof window !== 'undefined' && 'DeviceOrientationEvent' in window;
+}
+
+// Does this orientation event carry real sensor data? Desktop browsers that define the API fire
+// either nothing or a single all-null event; a sensor device sends finite angles.
+export function isRealOrientationSample(e) {
+  return !!e && (Number.isFinite(e.alpha) || Number.isFinite(e.beta) || Number.isFinite(e.gamma)
+    || Number.isFinite(e.webkitCompassHeading));
+}
+
+// Decide whether the device REALLY has orientation sensors. Calls onResult(true|false) exactly once:
+//   - iOS 13+: the requestPermission gate exists only on sensor devices -> true immediately.
+//   - Android: events stream freely (no permission needed) -> true on the first real sample.
+//   - Desktop: the constructor may exist, but no real sample ever arrives -> false at the timeout.
+export function detectGyro(onResult, { timeoutMs = 2500 } = {}) {
+  if (!isGyroSupported()) { onResult(false); return; }
+  if (typeof window.DeviceOrientationEvent.requestPermission === 'function') { onResult(true); return; }
+  let done = false;
+  const finish = (ok) => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    window.removeEventListener('deviceorientation', onEvent, true);
+    window.removeEventListener('deviceorientationabsolute', onEvent, true);
+    onResult(ok);
+  };
+  const onEvent = (e) => { if (isRealOrientationSample(e)) finish(true); };
+  const timer = setTimeout(() => finish(false), timeoutMs);
+  window.addEventListener('deviceorientation', onEvent, true);   // both names: iOS/Firefox vs
+  window.addEventListener('deviceorientationabsolute', onEvent, true); // Android Chrome
 }
 
 // iOS 13+ gates the sensor behind a permission prompt that MUST be triggered from a user gesture

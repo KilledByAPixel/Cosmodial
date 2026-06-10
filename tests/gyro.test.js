@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sampleToCamera } from '../js/ui/gyro.js';
+import { sampleToCamera, isRealOrientationSample, detectGyro } from '../js/ui/gyro.js';
 import { deviceToCamera } from '../js/core/orientation.js';
 
 const near = (a, b, eps = 1e-4) => Math.abs(a - b) < eps;
@@ -39,6 +39,20 @@ test('Android (no compass): azimuth comes from the north-referenced matrix', () 
   const expected = deviceToCamera({ alpha: 90, beta: 90, gamma: 0, screen: 0 });
   assert.ok(near(r.az, expected.az), `az ${r.az} should match the matrix az ${expected.az}`);
   assert.ok(near(r.alt, expected.alt), 'alt should match the matrix alt');
+});
+
+test('isRealOrientationSample: finite angles = sensor; null/empty events (desktop) are not', () => {
+  assert.equal(isRealOrientationSample({ alpha: 12.5, beta: 0, gamma: 0 }), true);
+  assert.equal(isRealOrientationSample({ alpha: null, beta: null, gamma: null, webkitCompassHeading: 118 }), true, 'iOS compass alone counts');
+  assert.equal(isRealOrientationSample({ alpha: null, beta: null, gamma: null }), false, 'desktop Chrome fires one all-null event');
+  assert.equal(isRealOrientationSample(null), false);
+  assert.equal(isRealOrientationSample({}), false);
+});
+
+test('detectGyro reports false immediately when the orientation API is absent', () => {
+  let result = null;
+  detectGyro((ok) => { result = ok; }); // node has no window -> synchronous false, no timers left hanging
+  assert.equal(result, false);
 });
 
 test('alt and roll do not depend on the azimuth source', () => {

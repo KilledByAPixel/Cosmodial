@@ -4,7 +4,7 @@
 // shared popover primitive.
 
 import { buildLocationControl } from './location.js';
-import { isGyroSupported, requestGyroPermission, attachGyro } from './gyro.js';
+import { detectGyro, requestGyroPermission, attachGyro } from './gyro.js';
 import { attachPopover } from './popover.js';
 
 // A button that toggles a boolean state flag and reflects it via the `.on` class.
@@ -102,13 +102,16 @@ export function buildMenu(store) {
 }
 
 // The sky switches as emoji-only bar buttons (the name lives in the hover tooltip): atmosphere,
-// night mode, and — only on devices with orientation sensors — the AR aim toggle.
+// night mode, and — only on devices with orientation sensors — the AR aim toggle. The AR button is
+// created hidden and revealed only once detectGyro confirms a real sensor (desktop browsers define
+// the orientation API without ever delivering data, so a plain feature check shows it everywhere).
 export function buildSkyToggles(store) {
   const atmo = makeToggle(store, '🌅', 'atmo', 'icon-toggle');
   atmo.title = 'Atmosphere';
   const night = makeToggle(store, '🌙', 'night', 'icon-toggle night-toggle');
   night.title = 'Night mode';
-  const out = [atmo, night];
-  if (isGyroSupported()) out.push(makeGyroToggle(store));
-  return out;
+  const ar = makeGyroToggle(store);
+  ar.hidden = true;
+  detectGyro((ok) => { ar.hidden = !ok; });
+  return [atmo, night, ar];
 }
