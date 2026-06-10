@@ -38,6 +38,15 @@ export const MOON_ELEMENTS = [
     periDot_degPerDay: 0.0421182, nodeDot_degPerDay: -0.0182393,
     epochJd: 2461041.5, poleRa_deg: 316.6, poleDec_deg: 53.5 },
   // Saturn
+  // Mimas: same pipeline as the other Saturn rows, except its rates needed a denser bootstrap chain
+  // (10 -> 30 -> 100 -> 365 -> 1825 -> 3650 d): with e ~ 0.02 and ~1 yr apsidal precession the
+  // osculating ω is noisy enough (~ +/-10°) that the sparse 10 -> 365 d unwrap picks a wrong wrap.
+  // Measured rates cross-check sats/elem (SAT441): ω̇ +2.0011 vs 360°/0.493 yr, Ω̇ -0.9996 vs
+  // -360°/0.986 yr, and thetaDot 382.9906 == 360/0.942422 d - Ω̇.
+  { planet: 'Saturn', name: 'Mimas', mag: 12.9, a_km: 186022.591, e: 0.0204012, i_deg: 1.54748,
+    node_deg: 42.21743, peri_deg: 256.07569, M0_deg: 69.95822, n_degPerDay: 380.9894243,
+    periDot_degPerDay: 2.0011409, nodeDot_degPerDay: -0.9996128,
+    epochJd: 2461041.5, poleRa_deg: 40.6, poleDec_deg: 83.5 },
   { planet: 'Saturn', name: 'Enceladus', mag: 11.7, a_km: 238411.454, e: 0.0050434, i_deg: 0.03318,
     node_deg: 189.50965, peri_deg: 292.95630, M0_deg: 293.06970, n_degPerDay: 264.3760536,
     periDot_degPerDay: -1.6484587, nodeDot_degPerDay: 0.0043107,

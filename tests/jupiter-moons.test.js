@@ -45,7 +45,7 @@ test('moons move and occasionally hide behind the disc across a week of samples'
 test('every moon system sits within its orbital span of its planet', () => {
   const time = makeTime(new Date('2026-06-09T04:00:00Z'));
   const moons = planetMoonsAltAz(observer, time);
-  assert.equal(moons.length, 4 + 11);
+  assert.equal(moons.length, 4 + 12);
   for (const planet of ['Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune']) {
     const ms = moons.filter((m) => m.planet === planet);
     const p = altAzOfBody(Body[planet], observer, time);

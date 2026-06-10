@@ -14,6 +14,10 @@ const FIXTURES = {
     { jdTdb: 2461041.5, xyzKm: [10863.68893177189, 20169.95437505683, 5021.956584935375] },
     { jdTdb: 2461200.5, xyzKm: [16363.37960900821, 16795.95426920092, 534.4219958431876] },
   ],
+  Mimas: [
+    { jdTdb: 2461041.5, xyzKm: [-143810.4364490116, 116038.1746783995, 1193.896731384] },
+    { jdTdb: 2461200.5, xyzKm: [151715.4504491394, 111288.0075777776, -19202.3734010855] },
+  ],
   Enceladus: [
     { jdTdb: 2461041.5, xyzKm: [-235865.8370892585, -22422.07309841649, 21967.88678984268] },
     { jdTdb: 2461200.5, xyzKm: [-223295.4434388758, -80436.25495271562, 25141.69687512393] },
@@ -52,8 +56,8 @@ const FIXTURES = {
   ],
 };
 
-test('element table covers the 11 moons with sane fields', () => {
-  assert.equal(MOON_ELEMENTS.length, 11);
+test('element table covers the 12 moons with sane fields', () => {
+  assert.equal(MOON_ELEMENTS.length, 12);
   for (const r of MOON_ELEMENTS) {
     assert.ok(['Mars', 'Saturn', 'Uranus', 'Neptune'].includes(r.planet), r.name);
     assert.ok(r.a_km > 5000 && r.a_km < 4e6 && r.e >= 0 && r.e < 0.1 && r.n_degPerDay !== 0, r.name);
