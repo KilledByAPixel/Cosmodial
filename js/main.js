@@ -222,11 +222,17 @@ function render() {
     ? (constellations[editIndex] ? [constellations[editIndex]] : [])
     : (st.flags.lines ? constellations : []);
   let drawList = st.flags.edit ? [] : markers; // markers (+ planetary moons when their planet resolves)
+  // One EQJ->ENU rotation per frame, shared by the GPU star transform and the equatorial grid:
+  // stars sweep smoothly in live/play/scrub at zero per-star CPU cost, and the grid stays glued
+  // to them because both use the SAME rotation.
+  const wantEqGrid = st.flags.eqgrid && !st.flags.edit;
+  const eqjToEnu = (useGL || wantEqGrid)
+    ? eqjToEnuMatrix(horToEqjRotation(makeObserver(st.location.lat, st.location.lng),
+        makeTime(st.time.instant ? new Date(st.time.instant) : new Date())))
+    : null;
   if (useGL) {
     starfield.resize(view.width, view.height, window.devicePixelRatio || 1);
-    // One EQJ->ENU rotation per frame: stars sweep smoothly in live/play/scrub at zero per-star CPU cost.
-    const t = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
-    starfield.setStarMatrix(eqjToEnuMatrix(horToEqjRotation(makeObserver(st.location.lat, st.location.lng), t)));
+    starfield.setStarMatrix(eqjToEnu);
     const focal = focalPx(st.fov, view.width, view.height); // px per radian at screen centre
     const sphereLabels = new Set();
     const bodyList = [];
@@ -289,6 +295,7 @@ function render() {
     edit: st.flags.edit,
     labels: st.flags.labels,
     grid: st.flags.grid && !st.flags.edit,   // hide the grid in edit mode to keep the figure clear
+    eqGrid: wantEqGrid ? eqjToEnu : null,    // RA/Dec grid rides the same per-frame rotation as the stars
     belowFade,                               // below-horizon content fades in as the aim dips
     drawStarPoints: !useGL,                  // GL draws the star discs; 2D only as the fallback
     drawMarkerDiscs: !useGL,                 // GL draws the marker discs; 2D keeps only their labels

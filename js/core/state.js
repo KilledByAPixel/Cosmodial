@@ -11,7 +11,7 @@ const STORE_KEY_FLAGS = 'cosmodial.flags'; // remembered view toggles (see PERSI
 // View toggles that persist across reloads. Deliberately excludes `lines` (constellations always
 // start hidden) and `edit` (a transient mode, never restored). A previously-saved `sphere` key is
 // silently ignored (the full-sphere toggle was replaced by the aim-driven below-horizon fade).
-const PERSISTED_FLAGS = ['labels', 'grid', 'deepsky', 'night', 'atmo'];
+const PERSISTED_FLAGS = ['labels', 'grid', 'eqgrid', 'deepsky', 'night', 'atmo'];
 
 // Default location (used until the user sets one): Austin, TX.
 const DEFAULT_LOCATION = { lat: 30.27, lng: -97.74, label: 'Austin, TX' };
@@ -58,7 +58,7 @@ function loadSavedFlags() {
 
 export function createState() {
   const savedView = loadSavedView();
-  const flags = { lines: false, labels: true, grid: false, deepsky: false, night: false, atmo: true, edit: false, gyro: false, ...loadSavedFlags() };
+  const flags = { lines: false, labels: true, grid: false, eqgrid: false, deepsky: false, night: false, atmo: true, edit: false, gyro: false, ...loadSavedFlags() };
   const aim = savedView ? savedView.aim : { ...DEFAULT_AIM };
   let state = {
     location: loadSavedLocation() || { ...DEFAULT_LOCATION },

@@ -94,6 +94,7 @@ export function buildMenu(store) {
       makeToggle(store, 'Constellations', 'lines'),
       makeToggle(store, 'Labels', 'labels'),
       makeToggle(store, 'Grid', 'grid'),
+      makeToggle(store, 'Eq grid', 'eqgrid'),
       makeToggle(store, 'Deep sky', 'deepsky')),
   );
   el.append(btn, panel);

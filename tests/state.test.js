@@ -64,6 +64,8 @@ test('setFlag updates known flags and rejects unknown ones', () => {
   const s = createState();
   s.setFlag('night', true);
   assert.equal(s.getState().flags.night, true);
+  s.setFlag('eqgrid', true);
+  assert.equal(s.getState().flags.eqgrid, true, 'equatorial grid is a known (and persisted) view flag');
   s.setFlag('lines', false);
   assert.equal(s.getState().flags.lines, false);
   assert.throws(() => s.setFlag('nightMode', true), /Unknown flag/);

@@ -19,6 +19,7 @@ export function toggleKeyAction(key) {
   if (key === 'c' || key === 'C') return 'lines';  // 'c' = constellation lines
   if (key === 'l' || key === 'L') return 'labels'; // 'l' = object name labels
   if (key === 'g' || key === 'G') return 'grid';   // 'g' = alt-az grid
+  if (key === 'q' || key === 'Q') return 'eqgrid'; // 'q' = equatorial (RA/Dec) grid
   if (key === 'a' || key === 'A') return 'atmo';   // 'a' = atmosphere on/off (off = space view)
   if (key === 'e' || key === 'E') return 'edit';   // 'e' = edit mode
   return null;

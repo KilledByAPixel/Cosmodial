@@ -5,4 +5,5 @@
 export const LINE_STYLES = {
   constellation: { width: 2.0, color: 'rgba(120, 160, 210, 0.33)' },
   grid: { width: 2.0, color: 'rgba(110, 150, 195, 0.18)' },
+  eqGrid: { width: 2.0, color: 'rgba(200, 155, 105, 0.18)' }, // warm, so it reads apart from the cool alt-az grid
 };

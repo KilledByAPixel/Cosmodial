@@ -2,6 +2,7 @@ import { createProjector, focalPx } from '../core/projection.js';
 import { starSize, bvToRGB, zoomScale, colorBrightness } from './starstyle.js';
 import { drawConstellations } from './constellations.js';
 import { drawGrid } from './grid.js';
+import { drawEqGrid } from './eqgrid.js';
 import { degToRad } from '../core/angles.js';
 import { drawDsoGlow, drawDsoSymbols } from './dso.js';
 
@@ -131,11 +132,12 @@ function drawMarkers(ctx, markers, projector, cam, labels = true, belowFade = 0,
 // drawStarPoints=false (WebGL mode): the GL canvas draws the star discs, so skip them here and clear
 // transparent; star labels are drawn separately via drawStarLabels(). Default true keeps the
 // standalone 2D path (and tests) unchanged.
-export function drawScene(ctx, { stars, markers, constellations = [], cam, edit = false, labels = true, grid = false, belowFade = 0, drawStarPoints = true, drawMarkerDiscs = true, dsos = [], deepsky = false, selectedDsoId = null }) {
+export function drawScene(ctx, { stars, markers, constellations = [], cam, edit = false, labels = true, grid = false, eqGrid = null, belowFade = 0, drawStarPoints = true, drawMarkerDiscs = true, dsos = [], deepsky = false, selectedDsoId = null }) {
   const projector = createProjector(cam);
   const fade = edit ? 1 : belowFade; // edit mode always shows the whole sphere
   clear(ctx, cam.width, cam.height, !drawStarPoints);
   if (grid) drawGrid(ctx, projector, cam, fade);
+  if (eqGrid) drawEqGrid(ctx, projector, cam, eqGrid, fade); // eqGrid = the EQJ->ENU matrix when the toggle is on
   if (!edit) drawDsoGlow(ctx, dsos, projector, cam, fade);   // realistic glow, behind the stars
   drawConstellations(ctx, projector, constellations, cam, edit, labels, fade);
   if (drawStarPoints) drawStars(ctx, stars, projector, cam, edit, labels, fade);
