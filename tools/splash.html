@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cosmodial splash generator</title>
+  <style>
+    body { margin: 0; padding: 16px; background: #0b0f17; color: #cfd6e4; font: 14px/1.5 system-ui, sans-serif; }
+    #controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin-bottom: 12px; }
+    #controls label { display: flex; gap: 6px; align-items: center; }
+    #status { color: #8fa0bd; min-height: 1.5em; margin-bottom: 8px; }
+    #out { max-width: 100%; height: auto; border: 1px solid #232a38; border-radius: 4px; }
+    button { background: #1c2433; color: #cfd6e4; border: 1px solid #34405a; border-radius: 4px; padding: 6px 14px; cursor: pointer; }
+    select, input[type=range] { accent-color: #c9a35f; }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <label>Size <select id="preset"></select></label>
+    <label>Sky <select id="center"></select></label>
+    <label>Milky Way <input id="mw" type="range" min="0" max="1" step="0.05" value="0.55" /></label>
+    <label><input id="lines" type="checkbox" /> Constellation lines</label>
+    <label>Ring <input id="ringScale" type="range" min="0.3" max="0.5" step="0.01" value="0.42" /></label>
+    <button id="save">Download PNG</button>
+  </div>
+  <div id="status">Loading…</div>
+  <canvas id="out"></canvas>
+  <script type="module" src="./splash.js"></script>
+</body>
+</html>
