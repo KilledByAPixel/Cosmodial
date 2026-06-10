@@ -72,7 +72,7 @@ function paintSky(ctx, w, h, center, mwIntensity, mwTex) {
       const i = (py * w + px) * 4;
       let [r, g, b] = bg;
       if (mwIntensity > 0) {
-        const pl = toPlane(px, py);
+        const pl = toPlane(px + 0.5, py + 0.5); // sample pixel centers so the image is symmetric about the sky center
         const sky = invProject(pl.x, pl.y, center);
         const { u, v } = galacticUV(sky.ra, sky.dec);
         const ti = (((v * (th - 1)) | 0) * tw + ((u * (tw - 1)) | 0)) * 4;
@@ -112,4 +112,4 @@ async function init() {
   render();
 }
 
-init();
+init().catch((e) => setStatus(`Render failed: ${e.message}`));
