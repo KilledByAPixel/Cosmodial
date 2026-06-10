@@ -32,14 +32,16 @@ const SYMBOL_COLOR = 'rgba(150, 190, 230, 0.85)';
 const LABEL_COLOR = 'rgba(150, 190, 230, 0.9)';
 
 // Pass 1: realistic soft glow. Drawn BEFORE stars so it reads as background nebulosity.
-// dsos: [{ altaz, mag, sizeArcmin, minorArcmin, angleDeg, type }]. `below` reveals sub-horizon (full sphere).
-export function drawDsoGlow(ctx, dsos, projector, cam, below = false) {
+// dsos: [{ altaz, mag, sizeArcmin, minorArcmin, angleDeg, type }]. `belowFade` (0..1) reveals
+// sub-horizon objects at that alpha.
+export function drawDsoGlow(ctx, dsos, projector, cam, belowFade = 0) {
   for (const d of dsos) {
-    if (!below && d.altaz.alt < 0) continue;
+    const below = d.altaz.alt < 0;
+    if (below && belowFade <= 0) continue;
     const p = projector(d.altaz.az, d.altaz.alt);
     if (!p.visible) continue;
     const r = dsoScreenRadius(d.sizeArcmin, cam);
-    const a = dsoAlpha(d.mag, d.sizeArcmin, d.minorArcmin);
+    const a = dsoAlpha(d.mag, d.sizeArcmin, d.minorArcmin) * (below ? belowFade : 1);
     if (a <= 0.01) continue; // effectively invisible — skip
     const tint = GLOW_TINT[d.type] || '210,215,230';
     ctx.save();
@@ -61,13 +63,15 @@ export function drawDsoGlow(ctx, dsos, projector, cam, below = false) {
 }
 
 // Pass 2: cartographic symbol + label. Drawn AFTER stars. `which`: a Set of ids to draw, or null = all.
-export function drawDsoSymbols(ctx, dsos, projector, cam, { labels = true, below = false, which = null } = {}) {
+export function drawDsoSymbols(ctx, dsos, projector, cam, { labels = true, belowFade = 0, which = null } = {}) {
   ctx.font = '11px system-ui, sans-serif';
   for (const d of dsos) {
     if (which && !which.has(d.id)) continue;
-    if (!below && d.altaz.alt < 0) continue;
+    const below = d.altaz.alt < 0;
+    if (below && belowFade <= 0) continue;
     const p = projector(d.altaz.az, d.altaz.alt);
     if (!p.visible) continue;
+    ctx.globalAlpha = below ? belowFade : 1;
     const r = Math.max(dsoScreenRadius(d.sizeArcmin, cam), 6) + 3; // bracket the glow, min legible size
     ctx.strokeStyle = SYMBOL_COLOR;
     ctx.lineWidth = 1.5;
@@ -77,6 +81,7 @@ export function drawDsoSymbols(ctx, dsos, projector, cam, { labels = true, below
       ctx.fillText(d.name, p.x + r + 3, p.y - r - 3);
     }
   }
+  ctx.globalAlpha = 1;
 }
 
 function drawSymbolShape(ctx, shape, x, y, r) {

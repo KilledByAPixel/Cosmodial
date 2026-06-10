@@ -5,12 +5,12 @@ import { createProjector } from '../js/core/projection.js';
 
 // Minimal Canvas 2D context stub: records draw calls, accepts the properties sky.js sets.
 function stubCtx() {
-  const calls = { arc: 0, fill: 0, fillRect: 0, clearRect: 0, fillText: 0, stroke: 0, moveTo: 0, lineTo: 0, beginPath: 0, texts: [] };
+  const calls = { arc: 0, fill: 0, fillRect: 0, clearRect: 0, fillText: 0, stroke: 0, moveTo: 0, lineTo: 0, beginPath: 0, texts: [], alphas: [] };
   return {
     calls,
     set fillStyle(_) {}, get fillStyle() { return ''; },
     set strokeStyle(_) {}, get strokeStyle() { return ''; },
-    set globalAlpha(_) {}, get globalAlpha() { return 1; },
+    set globalAlpha(v) { calls.alphas.push(v); }, get globalAlpha() { return 1; },
     set lineWidth(_) {}, get lineWidth() { return 1; },
     set font(_) {}, get font() { return ''; },
     fillRect() { calls.fillRect++; },
@@ -54,18 +54,23 @@ test('drawScene with labels:false suppresses all text', () => {
   assert.ok(ctx.calls.arc >= 2, 'but stars/markers are still drawn');
 });
 
-test('sphere:true reveals objects below the horizon; default hides them', () => {
+test('belowFade reveals objects below the horizon; 0 (default) hides them', () => {
   const cam = { az: 180, alt: -20, fov: 60, width: 800, height: 600 }; // aimed below the horizon
   const stars = [{ altaz: { alt: -10, az: 180 }, mag: 1.0, bv: 0.0, name: 'UnderStar' }];
   const markers = [{ altaz: { alt: -10, az: 181 }, label: 'Mars', color: '#d66' }];
 
   const top = stubCtx();
   drawScene(top, { stars, markers, cam });
-  assert.equal(top.calls.arc, 0, 'below-horizon star + planet hidden by default');
+  assert.equal(top.calls.arc, 0, 'below-horizon star + planet hidden at fade 0');
 
   const full = stubCtx();
-  drawScene(full, { stars, markers, cam, sphere: true });
-  assert.ok(full.calls.arc >= 2, 'below-horizon star + planet drawn in full-sphere mode');
+  drawScene(full, { stars, markers, cam, belowFade: 1 });
+  assert.ok(full.calls.arc >= 2, 'below-horizon star + planet drawn at fade 1');
+
+  const half = stubCtx();
+  drawScene(half, { stars, markers, cam, belowFade: 0.5 });
+  assert.ok(half.calls.arc >= 2, 'partially faded-in objects are drawn');
+  assert.ok(half.calls.alphas.some((a) => a > 0 && a <= 0.5), 'below-horizon alpha is scaled by the fade');
 });
 
 test('drawStarPoints:false (WebGL mode) skips star discs + labels, clears transparent', () => {
@@ -99,22 +104,26 @@ test('drawStarLabels labels the brightest named stars only', () => {
     { altaz: { alt: 50, az: 178 }, mag: 3.5, bv: 1.4, name: 'DimStar' },  // too dim -> not labeled
     { altaz: { alt: -10, az: 180 }, mag: 0.5, bv: 0.0, name: 'UnderStar' }, // below horizon -> hidden
   ];
-  drawStarLabels(ctx, stars, createProjector(cam), cam, true, false);
+  drawStarLabels(ctx, stars, createProjector(cam), cam, true, 0);
   assert.equal(ctx.calls.arc, 0, 'labels only, no discs');
   assert.ok(ctx.calls.texts.includes('Sirius'));
   assert.ok(!ctx.calls.texts.includes('DimStar'), 'dimmer than threshold -> not labeled');
-  assert.ok(!ctx.calls.texts.includes('UnderStar'), 'below horizon hidden when below=false');
+  assert.ok(!ctx.calls.texts.includes('UnderStar'), 'below horizon hidden when belowFade=0');
 });
 
-test('drawStarLabels honors below=true and labels:false', () => {
+test('drawStarLabels honors belowFade and labels:false', () => {
   const cam = { az: 180, alt: -20, fov: 60, width: 800, height: 600 };
   const stars = [{ altaz: { alt: -10, az: 180 }, mag: 1.0, bv: 0.0, name: 'UnderStar' }];
 
   const below = stubCtx();
-  drawStarLabels(below, stars, createProjector(cam), cam, true, true);
-  assert.ok(below.calls.texts.includes('UnderStar'), 'below=true reveals below-horizon labels');
+  drawStarLabels(below, stars, createProjector(cam), cam, true, 1);
+  assert.ok(below.calls.texts.includes('UnderStar'), 'belowFade=1 reveals below-horizon labels');
 
   const off = stubCtx();
-  drawStarLabels(off, stars, createProjector(cam), cam, false, true);
+  drawStarLabels(off, stars, createProjector(cam), cam, false, 1);
   assert.equal(off.calls.texts.length, 0, 'labels:false draws nothing');
+
+  const dim = stubCtx();
+  drawStarLabels(dim, stars, createProjector(cam), cam, true, 0.4);
+  assert.ok(dim.calls.alphas.includes(0.4), 'below-horizon labels draw at the fade alpha');
 });
