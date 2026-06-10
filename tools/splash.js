@@ -185,7 +185,8 @@ function paintDial(ctx, w, h, ringScale) {
 
 // Layer 4 (alternative backdrop): the Moon, a per-pixel shaded globe sampled from the
 // equirectangular surface map. Phase swings the sun around the moon (0 new -> 0.5 full ->
-// 1 new again); Rotate rolls the visible face without moving the terminator.
+// 1 new again); Rotate spins the whole disc in the view plane — face and terminator
+// together — so it aims where the crescent points.
 function paintMoon(ctx, w, h, scale, phase, rotDeg, tex) {
   const cx = w / 2, cy = h / 2;
   const Rm = scale * Math.min(w, h);
@@ -200,15 +201,15 @@ function paintMoon(ctx, w, h, scale, phase, rotDeg, tex) {
   const cr = Math.cos(rot), sr = Math.sin(rot);
   for (let py = y0; py < y1; py++) {
     for (let px = x0; px < x1; px++) {
-      const nx = (px + 0.5 - cx) / Rm, ny = -(py + 0.5 - cy) / Rm; // 3D y is up
-      const d2 = nx * nx + ny * ny;
+      const nx0 = (px + 0.5 - cx) / Rm, ny0 = -(py + 0.5 - cy) / Rm; // 3D y is up
+      const d2 = nx0 * nx0 + ny0 * ny0;
       if (d2 >= 1) continue;
+      // spin the view: sampling coords rotate one way so the rendered disc turns the other
+      const nx = nx0 * cr + ny0 * sr, ny = ny0 * cr - nx0 * sr;
       const nz = Math.sqrt(1 - d2);
       const lambert = Math.max(0, nx * Lx + nz * Lz);
       const shade = MOON.ambient + (1 - MOON.ambient) * Math.pow(lambert, MOON.gamma);
-      // roll the face for the texture lookup only, so the terminator stays put
-      const tx = nx * cr - ny * sr, ty = nx * sr + ny * cr;
-      const lon = Math.atan2(tx, nz), lat = Math.asin(Math.max(-1, Math.min(1, ty)));
+      const lon = Math.atan2(nx, nz), lat = Math.asin(Math.max(-1, Math.min(1, ny)));
       const u = 0.5 + lon / (2 * Math.PI), v = 0.5 - lat / Math.PI;
       const ti = (((v * (th - 1)) | 0) * tw + ((u * (tw - 1)) | 0)) * 4;
       const a = Math.min(1, (1 - Math.sqrt(d2)) * Rm * 0.8); // ~1px soft rim
