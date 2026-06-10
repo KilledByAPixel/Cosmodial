@@ -106,3 +106,10 @@ body.night #night-overlay { display: block; }
   background: #1b2336; border: 1px solid #2a3550; border-radius: 6px; padding: 3px 10px;
 }
 .guide-event .event-action:hover { background: #243152; }
+
+/* Popovers (menu / time): small panels that open above their bar button. One open at a time;
+   outside-tap or Escape closes (see ui/popover.js). Anchored to a position:relative .ctrl parent. */
+.popover { position: absolute; bottom: calc(100% + 8px); z-index: 7;
+  background: rgba(12, 16, 26, 0.97); border: 1px solid #2a3550; border-radius: 10px;
+  padding: 10px 12px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5); }
+.popover[hidden] { display: none; }
