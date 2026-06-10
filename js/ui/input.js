@@ -66,7 +66,7 @@ export function attachInput(canvas, store, opts = {}) {
       store.setFov(pinchToFov(pinch.startFov, pinch.startDist, twoPointerDist()));
       return;
     }
-    if (!dragAimEnabled(store.getState().flags)) return; // gyro/AR owns the aim
+    if (!dragAimEnabled(store.getState().flags)) { grabDir = null; return; } // gyro/AR owns the aim — and may move it, so the grab is stale
     if (!grabDir) return;
     // Grab-the-sky: solve for the aim that keeps the grabbed point pinned under the cursor —
     // exact at any pitch (near the zenith the drag naturally becomes rotation about it).
