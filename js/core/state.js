@@ -9,15 +9,16 @@ const STORE_KEY_VIEW = 'volvella.view'; // last aim + fov, so a reload resumes w
 const STORE_KEY_FLAGS = 'volvella.flags'; // remembered view toggles (see PERSISTED_FLAGS)
 
 // View toggles that persist across reloads. Deliberately excludes `lines` (constellations always
-// start hidden) and `edit` (a transient mode, never restored).
-const PERSISTED_FLAGS = ['labels', 'grid', 'deepsky', 'sphere', 'night'];
+// start hidden) and `edit` (a transient mode, never restored). A previously-saved `sphere` key is
+// silently ignored (the full-sphere toggle was replaced by the aim-driven below-horizon fade).
+const PERSISTED_FLAGS = ['labels', 'grid', 'deepsky', 'night', 'atmo'];
 
 // Default location (used until the user sets one): Austin, TX.
 const DEFAULT_LOCATION = { lat: 30.27, lng: -97.74, label: 'Austin, TX' };
 const DEFAULT_AIM = { az: 180, alt: 45 };
 
-// Lowest altitude the camera may aim at: near the nadir. Aiming below the horizon is always allowed —
-// the full-sphere flag only controls whether below-horizon OBJECTS are drawn, not where you can look.
+// Lowest altitude the camera may aim at: near the nadir. Aiming below the horizon is always
+// allowed — the below-horizon sky fades in as the aim dips (see belowHorizonFade in atmosphere.js).
 const minAltFor = () => -MAX_ALT;
 
 function loadSavedLocation() {
@@ -57,7 +58,7 @@ function loadSavedFlags() {
 
 export function createState() {
   const savedView = loadSavedView();
-  const flags = { lines: false, labels: true, grid: false, sphere: false, deepsky: false, night: false, edit: false, gyro: false, ...loadSavedFlags() };
+  const flags = { lines: false, labels: true, grid: false, deepsky: false, night: false, atmo: true, edit: false, gyro: false, ...loadSavedFlags() };
   const aim = savedView ? savedView.aim : { ...DEFAULT_AIM };
   let state = {
     location: loadSavedLocation() || { ...DEFAULT_LOCATION },

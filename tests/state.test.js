@@ -20,16 +20,19 @@ test('setAim wraps azimuth and clamps altitude to ±MAX_ALT (below-horizon aimin
   assert.equal(s.getState().aim.alt, MAX_ALT);
   s.setAim(-10, -200);
   assert.equal(s.getState().aim.az, 350);
-  assert.equal(s.getState().aim.alt, -MAX_ALT, 'can aim below the horizon even with full-sphere off');
+  assert.equal(s.getState().aim.alt, -MAX_ALT, 'can aim below the horizon');
 });
 
-test('toggling full-sphere never moves the aim', () => {
+test('the sphere flag is gone (below-horizon visibility is aim-driven now)', () => {
   const s = createState();
-  s.setAim(0, -45);
-  assert.equal(s.getState().aim.alt, -45);
-  s.setFlag('sphere', true);
-  s.setFlag('sphere', false);
-  assert.equal(s.getState().aim.alt, -45, 'the flag controls drawing, not where you can look');
+  assert.throws(() => s.setFlag('sphere', true), /Unknown flag/);
+});
+
+test('atmo flag defaults ON and toggles', () => {
+  const s = createState();
+  assert.equal(s.getState().flags.atmo, true, 'atmosphere on by default');
+  s.setFlag('atmo', false);
+  assert.equal(s.getState().flags.atmo, false, 'space view');
 });
 
 test('setFov clamps to [MIN_FOV, MAX_FOV]', () => {
@@ -96,7 +99,7 @@ test('setOrientation sets aim azimuth/altitude and roll together', () => {
   assert.equal(s.getState().roll, 45);
 });
 
-test('gyro mode unlocks aiming below the horizon (like full-sphere)', () => {
+test('gyro mode allows aiming below the horizon', () => {
   const s = createState();
   s.setFlag('gyro', true);
   s.setOrientation(0, -40, 0);

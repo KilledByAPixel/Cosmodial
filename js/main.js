@@ -14,7 +14,7 @@ import { createRenderScheduler } from './core/scheduler.js';
 import { attachInput } from './ui/input.js';
 import { splitSegments, toggleEdge, pickNearest, circularCentroid, exportFigures } from './edit/figures.js';
 import { createProjector, vec } from './core/projection.js';
-import { skyParams, enuToGalMatrix } from './render/atmosphere.js';
+import { skyParams, spaceSkyParams, belowHorizonFade, enuToGalMatrix } from './render/atmosphere.js';
 import { openCard, closeCard, colorWord, constellationName, isCardOpen } from './ui/card.js';
 import { rankCandidates, altazToWhere } from './guide/ranking.js';
 import { buildGuide } from './ui/guide.js';
@@ -130,7 +130,7 @@ function computeSky(full) {
     // glow lobe needs its direction, and the Milky Way texture its ENU->galactic sampling matrix.
     const sun = markers.find((m) => m.label === 'Sun');
     const sunAlt = sun ? sun.altaz.alt : -90;
-    const p = skyParams(sunAlt);
+    const p = st.flags.atmo ? skyParams(sunAlt) : spaceSkyParams(); // atmo off = space view
     p.sunDir = vec(sun ? sun.altaz.az : 0, sunAlt);
     p.enuToGal = enuToGalMatrix(horToEqjRotation(observer, time), eqjToGalRotation()); // sample the galactic-frame Milky Way
     starfield.setSkyParams(p);
@@ -212,6 +212,8 @@ function render() {
   }
   const view = resizeCanvas(canvas);
   const st = store.getState();
+  // Aim-driven reveal of the lower hemisphere: 0 above the horizon, 1 by 10° below (smoothstep).
+  const belowFade = st.flags.edit ? 1 : belowHorizonFade(st.aim.alt);
   // Lift the compass ribbon/readout above the on-screen control bar so they aren't hidden behind it.
   const controlsEl = document.getElementById('controls');
   const bottomInset = controlsEl ? controlsEl.offsetHeight : 0;
@@ -265,7 +267,7 @@ function render() {
         mag: m.mag, alpha: markerAlpha(m.mag), radius: planetRadius(m.mag),
       }));
     drawList = st.flags.edit ? [] : markers.concat(moonMarkers);
-    starfield.draw(cam, { showBelow: st.flags.sphere, edit: st.flags.edit });
+    starfield.draw(cam, { belowFade, edit: st.flags.edit });
     // Sun/Moon/planets as glowing discs: size from markerRadius (angular for Sun/Moon, disk for
     // planets), tint from the body's colour, brightness from magnitude. Hidden in edit mode.
     const glMarkers = drawList
@@ -274,7 +276,7 @@ function render() {
         az: m.altaz.az, alt: m.altaz.alt, color: m.color,
         radiusPx: markerRadius(m, cam), alpha: m.alpha,
       }));
-    starfield.drawMarkers(glMarkers, cam, { showBelow: st.flags.sphere });
+    starfield.drawMarkers(glMarkers, cam, { belowFade });
   }
   drawScene(ctx, {
     stars: skyObjects,
@@ -284,7 +286,7 @@ function render() {
     edit: st.flags.edit,
     labels: st.flags.labels,
     grid: st.flags.grid && !st.flags.edit,   // hide the grid in edit mode to keep the figure clear
-    sphere: st.flags.sphere,                 // also draw everything below the horizon
+    belowFade,                               // below-horizon content fades in as the aim dips
     drawStarPoints: !useGL,                  // GL draws the star discs; 2D only as the fallback
     drawMarkerDiscs: !useGL,                 // GL draws the marker discs; 2D keeps only their labels
     dsos: st.flags.edit ? [] : dsoObjects,   // deep-sky glow/symbols (hidden in edit mode)
@@ -293,7 +295,7 @@ function render() {
   });
   // In GL mode the star discs live on the GL canvas, so their labels are drawn here, after the
   // constellation lines (so labels sit on top), matching the old single-canvas order.
-  if (useGL) drawStarLabels(ctx, skyObjects, createProjector(cam), cam, st.flags.labels, st.flags.sphere || st.flags.edit);
+  if (useGL) drawStarLabels(ctx, skyObjects, createProjector(cam), cam, st.flags.labels, belowFade);
   drawHud(ctx, cam);
   if (st.flags.edit) drawEditOverlay(ctx, cam);
   drawHighlight(ctx, cam);
@@ -365,7 +367,7 @@ function onIdentifyTap(x, y) {
     ...skyObjects.map((s) => ({ kind: 'star', id: s.id, name: s.name, mag: s.mag, bv: s.bv, con: s.con, dist: s.dist, altaz: s.altaz })),
     ...markers.map((m) => ({ kind: m.label === 'Moon' ? 'moon' : m.label === 'Sun' ? 'sun' : 'planet', label: m.label, body: m.body, mag: m.mag, altaz: m.altaz })),
     ...dsoObjects,
-  ].filter((o) => st.flags.sphere || o.altaz.alt >= 0); // full-sphere mode draws below-horizon objects, so let them be picked too
+  ].filter((o) => o.altaz.alt >= 0 || belowHorizonFade(st.aim.alt) > 0.05); // faded-in below-horizon objects are pickable too
   const projected = candidates.map((o) => { const p = projector(o.altaz.az, o.altaz.alt); return { x: p.x, y: p.y, visible: p.visible, ref: o }; });
   const hit = pickNearest(projected, x, y, 18);
   if (hit) {
@@ -486,7 +488,7 @@ function onJumpToEclipse(e) {
 }
 
 // Find a meteor shower: clear any card and slew to its radiant at a wide field (meteors streak across
-// the sky). Full-sphere reveals a radiant that's still below the horizon early in the evening.
+// the sky). Aiming below the horizon fades in a radiant that hasn't risen yet.
 function onFindShower(sh) {
   closeCard();
   highlighted = { altaz: sh.radiant };
@@ -748,7 +750,6 @@ async function boot() {
       makeToggle('Labels', 'labels'),
       makeToggle('Grid', 'grid'),
       makeToggle('Deep sky', 'deepsky'),
-      makeToggle('Full sphere', 'sphere'),
       makeToggle('🌙 Night', 'night', 'night-toggle'),
     );
     if (isGyroSupported()) controls.append(makeGyroToggle());
