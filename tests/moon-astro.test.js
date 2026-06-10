@@ -1,9 +1,20 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeObserver, makeTime, Body, bodyPhaseAngleDeg, northPoleJ2000, bodyAngularRadiusDeg } from '../js/core/astro.js';
+import { makeObserver, makeTime, Body, bodyPhaseAngleDeg, northPoleJ2000, bodyAngularRadiusDeg, moonLibrationDeg } from '../js/core/astro.js';
 
 const observer = makeObserver(40.0, -74.0);
 const time = makeTime(new Date('2026-06-09T04:00:00Z'));
+
+test('moonLibrationDeg stays within the physical wobble bounds across a month', () => {
+  let maxLon = 0, maxLat = 0;
+  const t0 = Date.parse('2026-06-01T00:00:00Z');
+  for (let day = 0; day < 28; day++) {
+    const { lonDeg, latDeg } = moonLibrationDeg(makeTime(new Date(t0 + day * 86400e3)));
+    assert.ok(Math.abs(lonDeg) < 10 && Math.abs(latDeg) < 8, `day ${day}: lon ${lonDeg}, lat ${latDeg}`);
+    maxLon = Math.max(maxLon, Math.abs(lonDeg)); maxLat = Math.max(maxLat, Math.abs(latDeg));
+  }
+  assert.ok(maxLon > 1 && maxLat > 1, `the wobble actually wobbles (max lon ${maxLon}, lat ${maxLat})`);
+});
 
 test('bodyPhaseAngleDeg is within 0..180 for the Moon and Venus', () => {
   for (const b of [Body.Moon, Body.Venus]) {

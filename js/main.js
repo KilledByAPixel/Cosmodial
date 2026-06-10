@@ -1,5 +1,5 @@
 import { createState } from './core/state.js';
-import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, planetMoonsAltAz } from './core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, planetMoonsAltAz, moonLibrationDeg } from './core/astro.js';
 import { makeStarAltAz, horToEqjRotation, eqjToGalRotation } from './core/astro.js';
 import { eqjToEnuMatrix } from './render/star-transform.js';
 import { bodyScreenOrientation } from './core/moon.js';
@@ -137,13 +137,13 @@ function computeSky(full) {
     const sunM = markers.find((m) => m.label === 'Sun');
     const sunDir = sunM ? vec(sunM.altaz.az, sunM.altaz.alt) : [0, 0, 1];
     const rgb255 = (hex) => hexToRgb01(hex).map((v) => Math.round(v * 255));
-    const addBody = (label, body, texKey, tint, ring = null) => {
+    const addBody = (label, body, texKey, tint, ring = null, libration = null) => {
       const m = markers.find((x) => x.label === label);
       if (!m) return;
       const pole = northPoleJ2000(body, time);
       const poleAA = altAzOfStar(pole.raDeg, pole.decDeg, observer, time);
       bodyInputs.push({
-        label, texKey, tint, ring,
+        label, texKey, tint, ring, libration,
         bodyDir: vec(m.altaz.az, m.altaz.alt),
         sunDir, poleDir: vec(poleAA.az, poleAA.alt),
         phaseAngleDeg: bodyPhaseAngleDeg(body, time),
@@ -151,7 +151,7 @@ function computeSky(full) {
       });
     };
     bodyInputs = [];
-    addBody('Moon', Body.Moon, 'moon', [232, 232, 232]);
+    addBody('Moon', Body.Moon, 'moon', [232, 232, 232], null, moonLibrationDeg(time));
     for (const p of PLANETS) addBody(p.name, p.body, p.tex || null, rgb255(p.color), p.rings ? SATURN_RING : null);
   } else {
     bodyInputs = [];
@@ -238,9 +238,14 @@ function render() {
       if (bi.label !== 'Moon' && rPx * span <= dotR) continue; // too small -> leave it as a glow dot
       const o = bodyScreenOrientation(cam, bi.bodyDir, bi.sunDir, bi.poleDir);
       const radiusPx = rPx;                                    // true projected size for every sphere
+      // Sub-observer point: the Moon's true libration (vendor), or the planet's geometric axial tip
+      // (sub-observer latitude = asin of the pole's component toward us — Saturn's globe matches its rings).
+      const subLatDeg = bi.libration ? bi.libration.latDeg
+        : (Math.asin(Math.max(-1, Math.min(1, ringOpening(bi.bodyDir, bi.poleDir)))) * 180) / Math.PI;
       bodyList.push({
         texKey: bi.texKey, tint: bi.tint, dir: bi.bodyDir, radiusPx,
         phaseAngleDeg: bi.phaseAngleDeg, brightLimbAngle: o.brightLimbAngle, northAngle: o.northAngle,
+        subLatDeg, subLonDeg: bi.libration ? bi.libration.lonDeg : 0,
         quadScale: span,
         ringTilt: bi.ring ? ringOpening(bi.bodyDir, bi.poleDir) : 0,
         ringRadii: bi.ring ? [bi.ring.INNER, bi.ring.OUTER] : null,

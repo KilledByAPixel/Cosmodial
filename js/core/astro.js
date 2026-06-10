@@ -71,6 +71,14 @@ export function bodyPhaseAngleDeg(body, time) {
   return Astronomy.Illumination(body, time).phase_angle;
 }
 
+// The Moon's libration: the selenographic lon/lat of the sub-Earth point (degrees). Feeding these into
+// the texture mapping makes the visible FACE wobble authentically (~±8° lon, ±7° lat over the month) —
+// limb features like Mare Crisium slide toward/away from the edge, matching photos taken that night.
+export function moonLibrationDeg(time) {
+  const li = Astronomy.Libration(time);
+  return { lonDeg: li.elon, latDeg: li.elat };
+}
+
 // A body's north rotation-axis pole as J2000 RA/Dec (degrees), from the IAU rotation model.
 export function northPoleJ2000(body, time) {
   const ax = Astronomy.RotationAxis(body, time); // ra HOURS, dec deg (J2000)

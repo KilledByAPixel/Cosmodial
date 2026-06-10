@@ -43,6 +43,8 @@ uniform sampler2D uTex;
 uniform float uPhaseAngle;   // radians: 0 = full, PI = new
 uniform float uLimbAngle;    // radians: bright-limb screen angle (CW from screen-up)
 uniform float uNorthAngle;   // radians: north-pole screen angle (CW from screen-up)
+uniform float uSubLat;       // radians: sub-observer latitude (Moon libration / planet axial tip toward viewer)
+uniform float uSubLon;       // radians: sub-observer longitude (Moon libration; 0 for planets — rotation untracked)
 uniform float uRingTilt;     // sin(B): ring opening; 0 = edge-on (also: pole z toward the viewer)
 uniform vec2 uRingRadii;     // ring inner/outer radii in globe radii; (0,0) = no rings
 uniform sampler2D uRingTex;  // radial strip: u = (r - inner) / (outer - inner), with alpha
@@ -87,8 +89,13 @@ void main() {
   float lit = smoothstep(-${TERMINATOR_SOFT.toFixed(3)}, ${TERMINATOR_SOFT.toFixed(3)}, dot(N, L));
   float c = cos(uNorthAngle), s = sin(uNorthAngle);
   vec3 P = vec3(d.x * c - d.y * s, d.x * s + d.y * c, zc);
+  // Sub-observer point: tip the body-north frame toward/away from the viewer by the sub-observer
+  // latitude (Moon libration in latitude; a planet's axial tip — Saturn's globe matches its rings),
+  // then offset longitude (libration in longitude). Disc centre then samples (uSubLon, uSubLat).
+  float ca = cos(uSubLat), sa = sin(uSubLat);
+  P = vec3(P.x, P.y * ca + P.z * sa, P.z * ca - P.y * sa);
   float lat = asin(clamp(P.y, -1.0, 1.0));
-  float lon = atan(P.x, P.z);
+  float lon = atan(P.x, P.z) + uSubLon;
   vec2 uv = vec2(0.5 + lon / (2.0 * PI), 0.5 - lat / PI);
   vec3 surf = texture(uTex, uv).rgb;
   float sphA = 1.0 - smoothstep(1.0 - ${EDGE_AA.toFixed(3)}, 1.0, sqrt(r2)); // rim AA
@@ -171,7 +178,7 @@ export function createBodySphere(gl) {
       console.error('[volvella] body-sphere link failed:', gl.getProgramInfoLog(program)); return false;
     }
     vao = gl.createVertexArray();
-    const names = ['uRight','uUp','uFwd','uFocal','uViewport','uBodyDir','uRadiusPx','uTex','uPhaseAngle','uLimbAngle','uNorthAngle','uQuadScale','uRingTilt','uRingRadii','uRingTex'];
+    const names = ['uRight','uUp','uFwd','uFocal','uViewport','uBodyDir','uRadiusPx','uTex','uPhaseAngle','uLimbAngle','uNorthAngle','uSubLat','uSubLon','uQuadScale','uRingTilt','uRingRadii','uRingTex'];
     loc = Object.fromEntries(names.map((n) => [n, gl.getUniformLocation(program, n)]));
     return true;
   }
@@ -221,6 +228,8 @@ export function createBodySphere(gl) {
       gl.uniform1f(loc.uPhaseAngle, b.phaseAngleDeg * D2R);
       gl.uniform1f(loc.uLimbAngle, SCREEN_ANGLE_SIGN * b.brightLimbAngle * D2R);
       gl.uniform1f(loc.uNorthAngle, SCREEN_ANGLE_SIGN * b.northAngle * D2R);
+      gl.uniform1f(loc.uSubLat, (b.subLatDeg || 0) * D2R);
+      gl.uniform1f(loc.uSubLon, (b.subLonDeg || 0) * D2R);
       gl.uniform1f(loc.uQuadScale, b.quadScale || 1);
       gl.uniform1f(loc.uRingTilt, b.ringTilt || 0);
       gl.uniform2f(loc.uRingRadii, b.ringRadii ? b.ringRadii[0] : 0, b.ringRadii ? b.ringRadii[1] : 0);
