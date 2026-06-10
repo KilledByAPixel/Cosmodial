@@ -2,7 +2,7 @@
 // http (the same way the app is served) — fetch of the data files fails on file://.
 // Deliberately self-contained: reads committed data/ files, never imports app code from js/.
 
-import { galacticUV, invProject } from './splash-math.js';
+import { galacticUV, invProject, project, bvToColor } from './splash-math.js';
 
 const PRESETS = [
   { w: 1280, h: 640,  label: '1280×640 — GitHub social preview' },
@@ -86,6 +86,50 @@ function paintSky(ctx, w, h, center, mwIntensity, mwTex) {
   ctx.putImageData(out, 0, 0);
 }
 
+// Layer 3: real stars. Size and alpha scale with magnitude, tint from B-V, soft halo on the
+// brightest few. `s` keeps proportions identical across presets (designed at 640px short side).
+function paintStars(ctx, w, h, center, stars) {
+  const { toPx } = makeMapping(w, h);
+  const s = Math.min(w, h) / 640;
+  for (const st of stars) {
+    if (st.mag > MAG_LIMIT) continue;
+    const p = project(st.ra, st.dec, center);
+    if (!p) continue;
+    const { x, y } = toPx(p);
+    if (x < -8 || y < -8 || x > w + 8 || y > h + 8) continue;
+    const r = Math.max(0.4, (5.5 - st.mag) * 0.5) * s;
+    const [cr, cg, cb] = bvToColor(st.bv);
+    const a = Math.max(0.25, Math.min(1, 1.1 - st.mag * 0.11));
+    if (st.mag < 1.5) {
+      const halo = ctx.createRadialGradient(x, y, 0, x, y, r * 5);
+      halo.addColorStop(0, `rgba(${cr},${cg},${cb},0.35)`);
+      halo.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = halo;
+      ctx.beginPath(); ctx.arc(x, y, r * 5, 0, 2 * Math.PI); ctx.fill();
+    }
+    ctx.fillStyle = `rgba(${cr},${cg},${cb},${a})`;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill();
+  }
+}
+
+// Layer 4 (optional): constellation figures, same faint blue as the brainstorm mockups.
+function paintConstellations(ctx, w, h, center, constellations) {
+  const { toPx } = makeMapping(w, h);
+  const s = Math.min(w, h) / 640;
+  ctx.strokeStyle = 'rgba(150, 180, 255, 0.30)';
+  ctx.lineWidth = 1.5 * s;
+  for (const con of constellations) {
+    for (const [a, b] of con.lines) {
+      const pa = project(a[0], a[1], center), pb = project(b[0], b[1], center);
+      if (!pa || !pb) continue;
+      const A = toPx(pa), B = toPx(pb);
+      const off = (q) => q.x < 0 || q.x > w || q.y < 0 || q.y > h;
+      if (off(A) && off(B)) continue;
+      ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
+    }
+  }
+}
+
 function render() {
   const { w, h } = PRESETS[state.preset];
   const canvas = document.getElementById('out');
@@ -94,6 +138,8 @@ function render() {
   const center = SKY_CENTERS[state.center];
   const t0 = performance.now();
   paintSky(ctx, w, h, center, state.mw, data.mwTex);
+  if (state.lines) paintConstellations(ctx, w, h, center, data.constellations);
+  paintStars(ctx, w, h, center, data.stars);
   setStatus(`Rendered ${w}×${h} in ${Math.round(performance.now() - t0)} ms`);
 }
 
