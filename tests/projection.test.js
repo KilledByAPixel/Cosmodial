@@ -123,6 +123,7 @@ test('grabAim pins the grabbed sky point under the cursor (feasible cases)', () 
     [{ az: 30, alt: 70, fov: 90, ...VIEW }, [400, 80], [374, 27]],    // high pitch, top of screen
     [{ az: 300, alt: -35, fov: 120, ...VIEW }, [150, 500], [135, 533]],
     [{ az: 0, alt: 0, fov: 20, ...VIEW }, [410, 310], [390, 290]],    // small nudge, narrow fov
+    [{ az: 120, alt: 90, fov: 200, ...VIEW }, [500, 200], [520, 260]], // dragging FROM the zenith resting state
   ];
   for (const [cam, [gx, gy], [tx, ty]] of cases) {
     const d = unproject(gx, gy, cam);
