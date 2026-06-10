@@ -63,9 +63,14 @@ export function drawEqGrid(ctx, cam, eqjToEnu, belowFade = 0) {
 
   const fovV = cam.fov * (cam.height / cam.width);
   const decStep = niceStep(fovV / 4);
-  const raStep = niceStep(cam.fov / 8, RA_STEP_LADDER);
   const half = halfDiagDeg(cam) + 2 * SAMPLE_DEG; // windowing slack covers the sampling step
   const poleAng = radToDeg(Math.acos(Math.max(-1, Math.min(1, dot(fwd, P))))); // aim -> north celestial pole
+  // Spoke spacing on the sphere shrinks ∝ sin(distance from the pole), so near a celestial pole a
+  // FOV-only step floods the view with the entire converging fan (every spoke passes through both
+  // poles). Widen the step by 1/sin like the alt-az grid does at the zenith; the ladder tops out
+  // at 45°, so the wheel never thins below 8 spokes.
+  const poleNear = Math.min(poleAng, 180 - poleAng);
+  const raStep = niceStep(cam.fov / (8 * Math.max(Math.sin(degToRad(poleNear)), 1e-3)), RA_STEP_LADDER);
 
   // One sample pass per line -> flat screen-point cache (x, y, ok, belowHorizon), then cheap
   // strokes (above at full alpha, below at belowFade) and a label at the first on-screen point.
@@ -80,7 +85,12 @@ export function drawEqGrid(ctx, cam, eqjToEnu, belowFade = 0) {
     pts.ok[i] = true;
     pts.below[i] = d[2] < 0;
   };
-  const strokeAndLabel = (label) => {
+  // Stroke the cached line, then label it. Rings label at their first on-screen sample (any RA is
+  // as good as another). Spokes label at the on-screen sample CLOSEST TO THE EQUATOR (decAt maps
+  // sample index -> declination): every spoke passes through both poles, so "first on-screen"
+  // dumped every RA label onto the pole singularity in one overlapping pile — and a label within
+  // ~15° of a pole is meaningless anyway (the pole belongs to every RA), so those are skipped.
+  const strokeAndLabel = (label, decAt = null) => {
     for (const below of [false, true]) {
       if (below && belowFade <= 0) continue;
       ctx.globalAlpha = below ? belowFade : 1;
@@ -92,12 +102,17 @@ export function drawEqGrid(ctx, cam, eqjToEnu, belowFade = 0) {
       }
       ctx.stroke();
     }
+    let best = -1, bestDec = Infinity;
     for (let i = 0; i < pts.n; i++) {
       if (!pts.ok[i] || (pts.below[i] && belowFade <= 0)) continue;
       if (pts.x[i] < 0 || pts.x[i] > cam.width || pts.y[i] < 0 || pts.y[i] > cam.height) continue;
-      ctx.globalAlpha = pts.below[i] ? belowFade : 1;
-      ctx.fillText(label, pts.x[i] + 3, pts.y[i] - 2);
-      break;
+      if (!decAt) { best = i; break; }
+      const d = Math.abs(decAt(i));
+      if (d < bestDec) { bestDec = d; best = i; }
+    }
+    if (best >= 0 && (!decAt || bestDec <= 75)) {
+      ctx.globalAlpha = pts.below[best] ? belowFade : 1;
+      ctx.fillText(label, pts.x[best] + 3, pts.y[best] - 2);
     }
     pts.n = 0;
   };
@@ -134,7 +149,7 @@ export function drawEqGrid(ctx, cam, eqjToEnu, belowFade = 0) {
       const cd = Math.cos(degToRad(dec)), sd = Math.sin(degToRad(dec));
       sample([dirEq[0] * cd + P[0] * sd, dirEq[1] * cd + P[1] * sd, dirEq[2] * cd + P[2] * sd]);
     }
-    strokeAndLabel(raLabel(ra));
+    strokeAndLabel(raLabel(ra), (i) => -90 + i * SAMPLE_DEG);
   }
   ctx.globalAlpha = 1;
 }

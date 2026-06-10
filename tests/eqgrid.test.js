@@ -78,6 +78,50 @@ test('off-screen lines are windowed away when zoomed in (the frame-rate guard)',
   assert.ok(moves > 0, 'but the lines crossing the view are still drawn');
 });
 
+test('zoomed in at the celestial pole, the spoke fan stays bounded (perf + clutter guard)', () => {
+  let strokes = 0;
+  const ctx = {
+    set strokeStyle(_) {}, get strokeStyle() { return ''; },
+    set fillStyle(_) {}, get fillStyle() { return ''; },
+    set lineWidth(_) {}, get lineWidth() { return 1; },
+    set font(_) {}, get font() { return ''; },
+    set globalAlpha(_) {}, get globalAlpha() { return 1; },
+    beginPath() {}, moveTo() {}, lineTo() {},
+    stroke() { strokes++; }, fillText() {},
+  };
+  const ncp = eqToAltAz(M, 0, 90);
+  // Zoomed right into the pole: a FOV-only RA step would put the WHOLE fan (96 spokes at 3.75°)
+  // through this view; the 1/sin(pole distance) widening must hold it to the 45°-rung wheel.
+  const cam = { az: ncp.az, alt: ncp.alt, fov: 10, width: 800, height: 600 };
+  drawEqGrid(ctx, cam, M, 0);
+  assert.ok(strokes > 0, 'the pole region still draws');
+  assert.ok(strokes <= 24, `spoke fan bounded at the pole (${strokes} strokes)`);
+});
+
+test('RA labels never pile onto the pole singularity', () => {
+  const texts = [];
+  const ctx = {
+    set strokeStyle(_) {}, get strokeStyle() { return ''; },
+    set fillStyle(_) {}, get fillStyle() { return ''; },
+    set lineWidth(_) {}, get lineWidth() { return 1; },
+    set font(_) {}, get font() { return ''; },
+    set globalAlpha(_) {}, get globalAlpha() { return 1; },
+    beginPath() {}, moveTo() {}, lineTo() {},
+    stroke() {}, fillText(t, x, y) { texts.push({ t, x, y }); },
+  };
+  // Aim at the SOUTH celestial pole (below the horizon for this northern observer -> belowFade 1).
+  const scp = eqToAltAz(M, 0, -90);
+  const cam = { az: scp.az, alt: scp.alt, fov: 60, width: 800, height: 600 };
+  drawEqGrid(ctx, cam, M, 1);
+  const pole = createProjector(cam)(scp.az, scp.alt);
+  const raLabels = texts.filter((e) => /^\d+h(\d+m)?$/.test(e.t));
+  assert.ok(raLabels.length >= 2, `RA labels still drawn somewhere sensible (got ${raLabels.length})`);
+  for (const e of raLabels) {
+    assert.ok(Math.hypot(e.x - pole.x, e.y - pole.y) > 60,
+      `RA label "${e.t}" keeps clear of the pole (${Math.hypot(e.x - pole.x, e.y - pole.y).toFixed(0)}px)`);
+  }
+});
+
 test('RA spokes run pole to pole, so they converge at the celestial pole', () => {
   // Project the spoke endpoints directly: dec ±90 must be ON the line (the old version stopped at
   // ±80 and left dangling spoke ends with no cap).
