@@ -4,5 +4,8 @@
   "private": true,
   "type": "module",
   "description": "A simple, free, offline-first telescope/stargazing web app.",
+  "scripts": {
+    "test": "node --test"
+  },
   "license": "MIT"
 }

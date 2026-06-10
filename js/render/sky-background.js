@@ -11,6 +11,7 @@
 // equirectangular UV: longitude across, latitude up. Output alpha is always 1.0 (opaque sky).
 
 import { cameraBasis } from '../core/projection.js';
+import { REFRACTION_GLSL } from './star-transform.js';
 
 // Texture orientation (galactic equirectangular). Verified against this texture: galactic centre
 // (l=0) at the horizontal centre, longitude increasing leftward (the LMC sits at u~0.72), and the
@@ -52,16 +53,10 @@ out vec4 fragColor;
 const float PI  = 3.14159265358979;
 const float TAU = 6.28318530717959;
 
-// Atmospheric refraction (degrees) for a TRUE altitude, replicating Astronomy Engine's 'normal' mode
-// (Saemundsson, clamped at -1 deg, with a linear taper to 0 at the nadir). The catalogue stars are
-// plotted at apparent = true + refraction, so matching this lets the textured sky line up with them.
-float refractionDeg(float altDeg) {
-  if (altDeg < -90.0 || altDeg > 90.0) return 0.0;
-  float hd = max(altDeg, -1.0);
-  float r = (1.02 / tan(radians(hd + 10.3 / (hd + 5.11)))) / 60.0;
-  if (altDeg < -1.0) r *= (altDeg + 90.0) / 89.0; // taper below the horizon toward the nadir
-  return r;
-}
+// Shared Saemundsson refraction (star-transform.js). The catalogue stars are plotted at
+// apparent = true + refraction, so sampling with the SAME refractionDeg keeps the textured
+// sky aligned with them — one source for the constants, guarded by the star-transform test.
+${REFRACTION_GLSL}
 
 void main() {
   // Reconstruct the ENU view ray for this pixel — exact inverse of the gnomonic projectPoint().
