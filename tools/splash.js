@@ -21,8 +21,33 @@ const FOV_X = 110;      // degrees of sky across the image width
 const MAG_LIMIT = 6.5;  // faintest star drawn
 const BRASS = '212, 175, 110';
 
-const state = { preset: 0, center: 'core', mw: 0.55, lines: false, ringScale: 0.42 };
-let data = null; // { stars, constellations, mwTex: ImageData }
+// ---- The dial & title design lives here. Dial radii are fractions of the ring radius R,
+// ---- widths/lengths are 640-scale px (scaled by s), text sizes are fractions of the short
+// ---- image side. Tweak and refresh; the ring/title sliders cover overall size.
+const DIAL = {
+  main:  { alpha: 0.65, width: 2.5, glow: 12 }, // the glowing primary circle at R
+  inner: { r: 0.933, alpha: 0.35, width: 1 },   // close inner echo
+  outer: { r: 1.096, alpha: 0.28, width: 1 },   // faint outer circle
+  ticks: { count: 64, majorEvery: 8, majorR: 0.94, minorR: 0.965,
+           majorAlpha: 0.6, minorAlpha: 0.3, majorWidth: 2, minorWidth: 1 },
+  band:  { alpha: 0.18, width: 22, dash: [1, 7] }, // dotted gradation band, top arc of the outer circle
+};
+const TITLE = {
+  name: 'COSMODIAL',
+  tag: 'SKY ATLAS',
+  font: "Georgia, 'Times New Roman', serif",
+  nameColor: '#f0e9d8',
+  tagColor: '#c9b88e',
+  nameSpacing: 0.1,  // name letter spacing, em of the name size
+  tagScale: 0.48,    // tag size as a fraction of the name size
+  tagSpacing: 0.6,   // tag letter spacing, em of the tag size
+  baselineY: 0.02,   // name baseline below image center, fraction of the short side
+  tagGap: 1.9,       // tag baseline below the name baseline, in tag-size units
+  glow: 0.025,       // name glow radius, fraction of the short side
+};
+
+const state = { preset: 0, center: 'core', mw: 1, ringScale: 0.42, nameScale: 0.13 };
+let data = null; // { stars, mwTex: ImageData }
 
 function setStatus(msg) { document.getElementById('status').textContent = msg; }
 
@@ -31,10 +56,7 @@ async function loadData() {
     if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
     return r.json();
   });
-  const [stars, constellations] = await Promise.all([
-    json('../data/stars.json'),
-    json('../data/constellations.json'),
-  ]);
+  const starsPromise = json('../data/stars.json');
   const img = new Image();
   await new Promise((resolve, reject) => {
     img.onload = resolve;
@@ -45,7 +67,7 @@ async function loadData() {
   c.width = img.naturalWidth; c.height = img.naturalHeight;
   const cx = c.getContext('2d', { willReadFrequently: true });
   cx.drawImage(img, 0, 0);
-  return { stars, constellations, mwTex: cx.getImageData(0, 0, c.width, c.height) };
+  return { stars: await starsPromise, mwTex: cx.getImageData(0, 0, c.width, c.height) };
 }
 
 // Plane <-> pixel mapping. The stereographic plane radius covering half the horizontal FOV
@@ -113,25 +135,7 @@ function paintStars(ctx, w, h, center, stars) {
   }
 }
 
-// Layer 4 (optional): constellation figures, same faint blue as the brainstorm mockups.
-function paintConstellations(ctx, w, h, center, constellations) {
-  const { toPx } = makeMapping(w, h);
-  const s = Math.min(w, h) / 640;
-  ctx.strokeStyle = 'rgba(150, 180, 255, 0.30)';
-  ctx.lineWidth = 1.5 * s;
-  for (const con of constellations) {
-    for (const [a, b] of con.lines) {
-      const pa = project(a[0], a[1], center), pb = project(b[0], b[1], center);
-      if (!pa || !pb) continue;
-      const A = toPx(pa), B = toPx(pb);
-      const off = (q) => q.x < 0 || q.x > w || q.y < 0 || q.y > h;
-      if (off(A) && off(B)) continue;
-      ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
-    }
-  }
-}
-
-// Layer 5: the antique-brass astrolabe dial.
+// Layer 4: the antique-brass astrolabe dial (design constants in DIAL up top).
 function paintDial(ctx, w, h, ringScale) {
   const cx = w / 2, cy = h / 2;
   const R = ringScale * Math.min(w, h);
@@ -144,50 +148,52 @@ function paintDial(ctx, w, h, ringScale) {
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI); ctx.stroke();
     ctx.shadowBlur = 0;
   };
-  ring(R, 0.65, 2.5 * s, 12 * s); // main circle, glowing
-  ring(R * 0.933, 0.35, 1 * s);   // close inner echo
-  ring(R * 1.096, 0.28, 1 * s);   // faint outer circle
-  for (let i = 0; i < 64; i++) {  // 8 major ticks on the compass points, fine minors between
-    const major = i % 8 === 0;
-    const ang = (i / 64) * 2 * Math.PI - Math.PI / 2;
-    const r1 = major ? R * 0.94 : R * 0.965;
-    ctx.strokeStyle = `rgba(${BRASS}, ${major ? 0.6 : 0.3})`;
-    ctx.lineWidth = (major ? 2 : 1) * s;
+  ring(R, DIAL.main.alpha, DIAL.main.width * s, DIAL.main.glow * s);
+  ring(R * DIAL.inner.r, DIAL.inner.alpha, DIAL.inner.width * s);
+  ring(R * DIAL.outer.r, DIAL.outer.alpha, DIAL.outer.width * s);
+  const T = DIAL.ticks; // majors on the compass points, fine minors between
+  for (let i = 0; i < T.count; i++) {
+    const major = i % T.majorEvery === 0;
+    const ang = (i / T.count) * 2 * Math.PI - Math.PI / 2;
+    const r1 = R * (major ? T.majorR : T.minorR);
+    ctx.strokeStyle = `rgba(${BRASS}, ${major ? T.majorAlpha : T.minorAlpha})`;
+    ctx.lineWidth = (major ? T.majorWidth : T.minorWidth) * s;
     ctx.beginPath();
     ctx.moveTo(cx + R * Math.cos(ang), cy + R * Math.sin(ang));
     ctx.lineTo(cx + r1 * Math.cos(ang), cy + r1 * Math.sin(ang));
     ctx.stroke();
   }
-  // dotted gradation band along the top half of the outer circle
-  ctx.strokeStyle = `rgba(${BRASS}, 0.18)`;
-  ctx.lineWidth = 22 * s;
-  ctx.setLineDash([1 * s, 7 * s]);
-  ctx.beginPath(); ctx.arc(cx, cy, R * 1.096, Math.PI, 2 * Math.PI); ctx.stroke();
+  ctx.strokeStyle = `rgba(${BRASS}, ${DIAL.band.alpha})`;
+  ctx.lineWidth = DIAL.band.width * s;
+  ctx.setLineDash(DIAL.band.dash.map((d) => d * s));
+  ctx.beginPath(); ctx.arc(cx, cy, R * DIAL.outer.r, Math.PI, 2 * Math.PI); ctx.stroke();
   ctx.setLineDash([]);
 }
 
-// Layer 6: the name. Canvas letterSpacing adds a trailing space after the last glyph, so each
-// line is nudged right by half its spacing to stay optically centered.
+// Layer 5: the name (design constants in TITLE up top, overall size from the Title slider).
+// Canvas letterSpacing adds a trailing space after the last glyph, so each line is nudged
+// right by half its spacing to stay optically centered.
 function paintTitle(ctx, w, h) {
   const m = Math.min(w, h);
   const cx = w / 2, cy = h / 2;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
 
-  const nameSize = 0.13 * m;
-  ctx.font = `${nameSize}px Georgia, 'Times New Roman', serif`;
-  ctx.letterSpacing = `${0.1 * nameSize}px`;
-  ctx.fillStyle = '#f0e9d8';
-  ctx.shadowColor = 'rgba(212, 175, 110, 0.35)';
-  ctx.shadowBlur = 0.025 * m;
-  ctx.fillText('COSMODIAL', cx + 0.05 * nameSize, cy + 0.02 * m);
+  const nameSize = state.nameScale * m;
+  const nameY = cy + TITLE.baselineY * m;
+  ctx.font = `${nameSize}px ${TITLE.font}`;
+  ctx.letterSpacing = `${TITLE.nameSpacing * nameSize}px`;
+  ctx.fillStyle = TITLE.nameColor;
+  ctx.shadowColor = `rgba(${BRASS}, 0.35)`;
+  ctx.shadowBlur = TITLE.glow * m;
+  ctx.fillText(TITLE.name, cx + (TITLE.nameSpacing * nameSize) / 2, nameY);
   ctx.shadowBlur = 0;
 
-  const tagSize = 0.042 * m;
-  ctx.font = `${tagSize}px Georgia, serif`;
-  ctx.letterSpacing = `${0.6 * tagSize}px`;
-  ctx.fillStyle = '#c9b88e';
-  ctx.fillText('SKY ATLAS', cx + 0.3 * tagSize, cy + 0.02 * m + 1.9 * tagSize);
+  const tagSize = TITLE.tagScale * nameSize;
+  ctx.font = `${tagSize}px ${TITLE.font}`;
+  ctx.letterSpacing = `${TITLE.tagSpacing * tagSize}px`;
+  ctx.fillStyle = TITLE.tagColor;
+  ctx.fillText(TITLE.tag, cx + (TITLE.tagSpacing * tagSize) / 2, nameY + TITLE.tagGap * tagSize);
   ctx.letterSpacing = '0px';
   ctx.shadowColor = 'transparent';
 }
@@ -201,8 +207,8 @@ function buildControls() {
   preset.onchange = () => { state.preset = +preset.value; render(); };
   center.onchange = () => { state.center = center.value; render(); };
   document.getElementById('mw').onchange = (e) => { state.mw = +e.target.value; render(); };
-  document.getElementById('lines').onchange = (e) => { state.lines = e.target.checked; render(); };
   document.getElementById('ringScale').onchange = (e) => { state.ringScale = +e.target.value; render(); };
+  document.getElementById('nameScale').onchange = (e) => { state.nameScale = +e.target.value; render(); };
   document.getElementById('save').onclick = download;
 }
 
@@ -229,7 +235,6 @@ function render() {
     const center = SKY_CENTERS[state.center];
     const t0 = performance.now();
     paintSky(ctx, w, h, center, state.mw, data.mwTex);
-    if (state.lines) paintConstellations(ctx, w, h, center, data.constellations);
     paintStars(ctx, w, h, center, data.stars);
     paintDial(ctx, w, h, state.ringScale);
     paintTitle(ctx, w, h);
