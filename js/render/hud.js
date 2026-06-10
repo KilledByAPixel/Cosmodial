@@ -21,8 +21,8 @@ export function azToCompass(az) {
   return POINTS8[i];
 }
 
-// Cardinal marks for the compass ribbon. The ribbon spans STRIP_SPAN_DEG of azimuth across the
-// full canvas width, centered on where the view faces. Returns { label, az, x } for marks in range.
+// Cardinal marks for the mini compass pill. The pill spans STRIP_SPAN_DEG of azimuth across its
+// width, centered on where the view faces. Returns { label, az, x } for marks in range.
 export function compassMarks(centerAz, width, spanDeg = STRIP_SPAN_DEG) {
   const pxPerDeg = width / spanDeg;
   const half = spanDeg / 2;
