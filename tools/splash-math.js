@@ -77,7 +77,7 @@ const BV_STOPS = [
 
 // -> [r, g, b] 0-255. Missing bv renders as a neutral white star.
 export function bvToColor(bv) {
-  const t = Math.max(-0.4, Math.min(2.0, bv ?? 0));
+  const t = Math.max(-0.4, Math.min(2.0, Number.isFinite(bv) ? bv : 0));
   let i = 0;
   while (i < BV_STOPS.length - 2 && t > BV_STOPS[i + 1][0]) i++;
   const [t0, c0] = BV_STOPS[i], [t1, c1] = BV_STOPS[i + 1];

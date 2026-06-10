@@ -72,6 +72,7 @@ test('bvToColor clamps out-of-range and defaults missing bv to white-ish', () =>
   assert.deepEqual(bvToColor(99), bvToColor(2.0));
   assert.deepEqual(bvToColor(-5), bvToColor(-0.4));
   assert.deepEqual(bvToColor(undefined), bvToColor(0));
+  assert.deepEqual(bvToColor(null), bvToColor(0)); // stars.json encodes missing bv as null
 });
 
 test('bvToColor returns integer rgb channels in range', () => {
