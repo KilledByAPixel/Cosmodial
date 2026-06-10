@@ -25,9 +25,11 @@ export function deviceToCamera({ alpha = 0, beta = 0, gamma = 0, screen = 0 } = 
   const aim = [-out[0], -out[1], -out[2]];                 // back-camera direction (device -Z)
   const alt = radToDeg(Math.asin(Math.max(-1, Math.min(1, aim[2]))));
   const az = wrap360(radToDeg(Math.atan2(aim[0], aim[1]))); // atan2(East, North)
-  // No-roll reference basis for this aim — same construction as cameraBasis().
-  const upRef = Math.abs(alt) > 89.5 ? [0, 1, 0] : [0, 0, 1];
-  const right0 = norm(cross(aim, upRef));
+  // No-roll reference basis for this aim — same az-derived construction as cameraBasis()
+  // (the two MUST match or the gyro roll is measured against the wrong frame near the zenith).
+  // +0 neutralises any -0 from aim negation so atan2(0,0)=0 (North) at the exact poles.
+  const aRad = Math.atan2(aim[0] + 0, aim[1] + 0);
+  const right0 = [Math.cos(aRad), -Math.sin(aRad), 0];
   const up0 = norm(cross(right0, aim));
   // The device's screen-up against the no-roll basis is the physical roll; subtract the page's
   // screen-orientation rotation (a pure spin about the viewing axis).

@@ -109,3 +109,18 @@ test('focalPx is the px-per-radian at the view center and matches cameraBasis', 
   assert.ok(Math.abs(cameraBasis({ az: 0, alt: 0, fov: 60, width: 800, height: 600 }).focal - f) < 1e-9);
   assert.ok(focalPx(235, 800, 600) > 0, 'stays positive past 180 deg fov (tan(fov/2) would go negative)');
 });
+
+test('camera basis is continuous through the old 89.5 threshold and exact at the pole', () => {
+  const basisAt = (alt) => cameraBasis({ az: 120, alt, fov: 60, width: 800, height: 600 });
+  const b1 = basisAt(89.4), b2 = basisAt(89.6);
+  for (let k = 0; k < 3; k++) {
+    assert.ok(Math.abs(b1.right[k] - b2.right[k]) < 0.01, `right[${k}] continuous across 89.5`);
+    assert.ok(Math.abs(b1.up[k] - b2.up[k]) < 0.01, `up[${k}] continuous across 89.5`);
+  }
+  const a = 120 * Math.PI / 180;
+  const pole = basisAt(90);
+  assert.ok(Math.abs(pole.right[0] - Math.cos(a)) < 1e-12 && Math.abs(pole.right[1] + Math.sin(a)) < 1e-12 && Math.abs(pole.right[2]) < 1e-12,
+    'right = (cos az, -sin az, 0) at the zenith — heading preserved');
+  assert.ok(Math.abs(pole.up[0] + Math.sin(a)) < 1e-12 && Math.abs(pole.up[1] + Math.cos(a)) < 1e-12 && Math.abs(pole.up[2]) < 1e-12,
+    'up points toward azimuth az+180 at the zenith (the continuous limit)');
+});

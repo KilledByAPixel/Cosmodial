@@ -40,9 +40,13 @@ export function focalPx(fov, width, height) {
 // stars identically — guaranteeing taps land on the star the user sees. cam: { az, alt, fov, width, height }.
 export function cameraBasis(cam) {
   const fwd = vec(cam.az, cam.alt);
-  const upRef = Math.abs(cam.alt) > 89.5 ? [0, 1, 0] : [0, 0, 1];
-  let right = norm(cross(fwd, upRef));          // +x: world East when facing the horizon
-  let up = norm(cross(right, fwd));             // +y: toward the zenith
+  // Level frame derived directly from the heading: identical to norm(cross(fwd, zenith)) for
+  // every |alt| < 90, and still heading-true AT the zenith/nadir where that cross degenerates
+  // (there the frame's screen-up points toward azimuth az+180 — the continuous limit). This is
+  // what lets MAX_ALT reach 90 with no orientation snap.
+  const a = degToRad(cam.az);
+  let right = [Math.cos(a), -Math.sin(a), 0];   // +x: world East when facing North
+  let up = norm(cross(right, fwd));             // +y: toward the zenith (screen-up)
   // Optional camera roll (degrees) about the viewing axis, used by gyro/AR aim so the on-screen
   // image rotates with the phone. roll=0 (the default) leaves the basis level — identical to before.
   if (cam.roll) {

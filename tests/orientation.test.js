@@ -56,3 +56,14 @@ test('tilted to face the zenith aims straight up', () => {
   const { alt } = deviceToCamera({ alpha: 0, beta: 180, gamma: 0, screen: 0 });
   assert.ok(near(alt, 90, 1e-4), `alt ${alt} should be ~90`);
 });
+
+test('roll reference is continuous through the old 89.5-degree altitude threshold', () => {
+  // Two device orientations a hair apart in pitch, straddling alt 89.5 — the returned roll must
+  // not jump (the old north-reference fallback snapped it). W3C beta: the back camera's altitude
+  // is asin(-cos beta), so beta = 179.4 / 179.6 lands alt at ~89.4 / ~89.6.
+  const lo = deviceToCamera({ alpha: 40, beta: 179.4, gamma: 0, screen: 0 });
+  const hi = deviceToCamera({ alpha: 40, beta: 179.6, gamma: 0, screen: 0 });
+  assert.ok(Math.abs(lo.alt - 89.4) < 0.2 && Math.abs(hi.alt - 89.6) < 0.2, 'sanity: alt ≈ 89.4/89.6');
+  const dRoll = ((hi.roll - lo.roll + 540) % 360) - 180;
+  assert.ok(Math.abs(dRoll) < 1, `roll continuous across 89.5 (jumped ${dRoll} deg)`);
+});

@@ -86,6 +86,7 @@ test('setLocation ignores non-finite coordinates', () => {
 });
 
 test('altitude is clamped at the zenith (cameraBasis handles the pole)', () => {
+  assert.equal(MAX_ALT, 90); // pole-safe basis: the camera may aim all the way to the zenith/nadir
   const s = createState();
   s.setAim(0, 91);
   assert.equal(s.getState().aim.alt, MAX_ALT, 'aim reaches but never exceeds straight up');
