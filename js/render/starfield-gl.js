@@ -141,8 +141,7 @@ void main() {
 
   // Atmospheric extinction: dim + redden toward the horizon. Air mass (Kasten-Young) comes from the
   // star's altitude (aDir.z == sin(alt)); this mirrors airmass()/extinction() in atmosphere.js, with
-  // the EXT_K coefficients embedded as literals (a test guards against drift). Below-horizon stars
-  // (full-sphere/edit) clamp at the horizon air mass rather than blowing up.
+  // the EXT_K coefficients embedded as literals (a test guards against drift).
   float altDeg = degrees(asin(clamp(dir.z, -1.0, 1.0)));
   // |alt| mirrors the air mass below the horizon (matching the mirrored sky gradient) so faded-in
   // stars don't clamp at the horizon's ~11 magnitudes of extinction and vanish; above the horizon
