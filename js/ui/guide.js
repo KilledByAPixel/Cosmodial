@@ -10,7 +10,7 @@ export function chipLabel(event) {
   if (!event || !event.text) return '✦ Up now';
   const cps = [...event.text.trim()];
   if (!cps.length) return '✦ Up now';
-  const emoji = cps[1] === '️' ? cps[0] + cps[1] : cps[0];
+  const emoji = cps[1] === '\uFE0F' ? cps[0] + cps[1] : cps[0];
   return `✦ Up now · ${emoji}`;
 }
 
