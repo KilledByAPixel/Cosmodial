@@ -1,8 +1,10 @@
 # Cosmodial Sky Atlas
 
-# [Try Cosmodial Live](https://killedbyapixel.github.io/Cosmodial/)
-
 **View the whole cosmos in your web browser.**
+
+# [Try Cosmodial Live!](https://killedbyapixel.github.io/Cosmodial/)
+
+![LittleJS Screenshot](images/cosmodial-social.png)
 
 Tell Cosmodial where you are and it draws the live sky as if you were looking through a telescope — the Milky Way arcing overhead, the horizon glowing at dusk. Drag to aim, scroll to zoom from a wide naked-eye view down to a high-power eyepiece field a fiftieth of a degree across, and let the **Up now** guide point you at the good stuff.
 
