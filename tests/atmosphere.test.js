@@ -80,13 +80,31 @@ test('skyParams: civil twilight is warm at the horizon with a sun glow', () => {
 test('skyParams: outputs are finite and in range across the day', () => {
   for (let sunAlt = -40; sunAlt <= 40; sunAlt += 2) {
     const p = skyParams(sunAlt);
-    for (const key of ['zenithColor', 'horizonColor', 'sunGlowColor']) {
+    for (const key of ['zenithColor', 'horizonColor', 'sunGlowColor', 'belowZenithColor', 'belowHorizonColor']) {
       for (const c of p[key]) assert.ok(Number.isFinite(c) && c >= 0 && c <= 1, `${key} in [0,1] at sunAlt=${sunAlt}`);
     }
-    for (const key of ['sunGlowStrength', 'mwVisibility', 'horizonAirglow', 'starDayFade']) {
+    for (const key of ['sunGlowStrength', 'mwVisibility', 'horizonAirglow', 'starDayFade', 'belowAirglow']) {
       assert.ok(Number.isFinite(p[key]) && p[key] >= 0 && p[key] <= 1, `${key} in [0,1] at sunAlt=${sunAlt}`);
     }
   }
+});
+
+test('skyParams: the below-horizon look is pinned at full night, whatever the Sun is doing', () => {
+  // The lower hemisphere always renders as astronomical night — the below palette must not vary
+  // with sun altitude, and at actual full night it must equal the live palette (so there is no
+  // visible seam at the horizon once it IS night).
+  const night = skyParams(-30); // astronomically dark
+  for (const sunAlt of [30, 5, -6, -12, -30]) {
+    const p = skyParams(sunAlt);
+    assert.deepEqual(p.belowZenithColor, night.belowZenithColor, `belowZenithColor constant at sunAlt=${sunAlt}`);
+    assert.deepEqual(p.belowHorizonColor, night.belowHorizonColor, `belowHorizonColor constant at sunAlt=${sunAlt}`);
+    assert.equal(p.belowAirglow, night.belowAirglow, `belowAirglow constant at sunAlt=${sunAlt}`);
+  }
+  for (let k = 0; k < 3; k++) {
+    assert.ok(Math.abs(night.zenithColor[k] - night.belowZenithColor[k]) < 1e-9, 'night zenith == below zenith');
+    assert.ok(Math.abs(night.horizonColor[k] - night.belowHorizonColor[k]) < 1e-9, 'night horizon == below horizon');
+  }
+  assert.ok(Math.abs(night.horizonAirglow - night.belowAirglow) < 1e-9, 'night airglow == below airglow');
 });
 
 test('skyParams: Milky Way and stars fade in monotonically as the Sun sets', () => {
@@ -202,6 +220,9 @@ test('spaceSkyParams: black sky, full stars/Milky Way, extinction off', () => {
   assert.equal(p.mwVisibility, 1, 'Milky Way always visible in space view');
   assert.equal(p.starDayFade, 1, 'no daytime star wash-out in space view');
   assert.equal(p.extinction, 0, 'no horizon dimming/reddening in space view');
+  assert.deepEqual(p.belowZenithColor, [0, 0, 0], 'space view is black below the horizon too');
+  assert.deepEqual(p.belowHorizonColor, [0, 0, 0]);
+  assert.equal(p.belowAirglow, 0, 'no airglow anywhere in space view');
 });
 
 test('skyParams always applies extinction (space view is the only exception)', () => {

@@ -63,8 +63,21 @@ export function skyParams(sunAltDeg) {
     horizonAirglow: night * 0.5,                        // faint night lift hugging the horizon
     starDayFade: 1 - smoothstep(-8, 2, sunAltDeg),      // 1 at night, 0 in daylight (multiplies star alpha)
     extinction: 1,                                      // star-shader extinction gain (0 only in space view)
+    // The lower hemisphere always renders as FULL NIGHT, whatever the Sun is doing: looking below
+    // the horizon is looking away from the lit atmosphere, so down there the palette/airglow are
+    // pinned at their astronomical-night values (the shaders blend toward these across
+    // BELOW_NIGHT_BAND just under the horizon; the Milky Way and stars use their full-night
+    // strength below via the same blend).
+    belowZenithColor: ZENITH_NIGHT.slice(),
+    belowHorizonColor: HORIZON_NIGHT.slice(),
+    belowAirglow: 0.5,                                  // == horizonAirglow at full night
   };
 }
+
+// How far below the horizon (in sin-altitude units; 0.1 ~ the first 5.7°) the sky/star shaders
+// blend from the live daytime/twilight look to the pinned full-night look of the lower
+// hemisphere. Embedded as a GLSL literal in sky-background.js and starfield-gl.js.
+export const BELOW_NIGHT_BAND = 0.1;
 
 // How visible the below-horizon sky is for a given aim altitude (deg): 0 at/above the horizon,
 // 1 once aiming FULL_BELOW_DEG below, smoothstep-eased between. This replaces the old full-sphere
@@ -90,6 +103,9 @@ export function spaceSkyParams() {
     horizonAirglow: 0,
     starDayFade: 1,
     extinction: 0,
+    belowZenithColor: [0, 0, 0], // space view is black in every direction — no night palette below
+    belowHorizonColor: [0, 0, 0],
+    belowAirglow: 0,
   };
 }
 

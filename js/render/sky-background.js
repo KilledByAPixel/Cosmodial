@@ -11,6 +11,7 @@
 // equirectangular UV: longitude across, latitude up. Output alpha is always 1.0 (opaque sky).
 
 import { cameraBasis } from '../core/projection.js';
+import { BELOW_NIGHT_BAND } from './atmosphere.js';
 import { REFRACTION_GLSL } from './star-transform.js';
 
 // Texture orientation (galactic equirectangular). Verified against this texture: galactic centre
@@ -44,7 +45,8 @@ uniform float uDpr;         // device px per CSS px
 uniform float uBelowFade;   // 0..1: mirror the gradient below the horizon by this much (1 = no ground)
 
 uniform vec3 uZenithColor, uHorizonColor, uSunGlowColor, uSunDir;
-uniform float uSunGlowStrength, uHorizonAirglow, uMwVisibility, uMwZoomFade, uHasMilkyWay;
+uniform vec3 uBelowZenithColor, uBelowHorizonColor; // the lower hemisphere's pinned full-night palette
+uniform float uSunGlowStrength, uHorizonAirglow, uMwVisibility, uMwZoomFade, uHasMilkyWay, uBelowAirglow;
 uniform mat3 uEnuToGal;
 uniform sampler2D uMilkyWay;
 
@@ -88,23 +90,29 @@ void main() {
   float b = atan(gal.z, length(gal.xy));   // galactic latitude
   vec2 uv = vec2(${lonExpr}, ${latExpr});  // u may exit [0,1]; wrapS=REPEAT handles the longitude seam
 
+  // The lower hemisphere always renders as FULL NIGHT, whatever the Sun is doing — looking below
+  // the horizon is looking away from the lit atmosphere. Blend in over the first few degrees
+  // below (ray.z is sin(altitude); same band as the star shader's day-fade release).
+  float belowNight = smoothstep(0.0, -${BELOW_NIGHT_BAND}, ray.z);
+
   // Altitude gradient. ray.z == sin(altitude). uBelowFade mirrors the gradient below the horizon.
   float s = mix(ray.z, abs(ray.z), uBelowFade);
   float h = clamp(s, 0.0, 1.0);
   float grad = pow(h, 0.55);
-  vec3 sky = mix(uHorizonColor, uZenithColor, grad);
+  vec3 sky = mix(mix(uHorizonColor, uBelowHorizonColor, belowNight),
+                 mix(uZenithColor, uBelowZenithColor, belowNight), grad);
 
-  // Warm glow lobe around the Sun direction (twilight/day only).
-  float glow = pow(max(dot(ray, uSunDir), 0.0), 8.0) * uSunGlowStrength;
+  // Warm glow lobe around the Sun direction (twilight/day only) — never below the horizon.
+  float glow = pow(max(dot(ray, uSunDir), 0.0), 8.0) * uSunGlowStrength * (1.0 - belowNight);
   sky += uSunGlowColor * glow;
 
-  // Faint night airglow hugging the horizon.
-  sky += uHorizonAirglow * vec3(0.03, 0.05, 0.04) * (1.0 - grad);
+  // Faint night airglow hugging the horizon (below it: always the full-night strength).
+  sky += mix(uHorizonAirglow, uBelowAirglow, belowNight) * vec3(0.03, 0.05, 0.04) * (1.0 - grad);
 
-  // Milky Way: gated by darkness (uMwVisibility) and wide-FOV zoom fade (uMwZoomFade).
+  // Milky Way: gated by darkness above the horizon (always "dark" below) and the wide-FOV zoom fade.
   if (uHasMilkyWay > 0.5) {
     vec3 mw = texture(uMilkyWay, uv).rgb;
-    sky += mw * (${MW_GAIN.toFixed(2)} * uMwVisibility * uMwZoomFade);
+    sky += mw * (${MW_GAIN.toFixed(2)} * mix(uMwVisibility, 1.0, belowNight) * uMwZoomFade);
   }
 
   // Below the (true) horizon, fade to a dark ground tone — weakened as the below-horizon sky
@@ -153,6 +161,7 @@ export function createSkyBackground(gl) {
     const names = [
       'uRight', 'uUp', 'uFwd', 'uFocal', 'uViewport', 'uDpr', 'uBelowFade',
       'uZenithColor', 'uHorizonColor', 'uSunGlowColor', 'uSunDir',
+      'uBelowZenithColor', 'uBelowHorizonColor', 'uBelowAirglow',
       'uSunGlowStrength', 'uHorizonAirglow', 'uMwVisibility', 'uMwZoomFade', 'uHasMilkyWay',
       'uEnuToGal', 'uMilkyWay',
     ];
@@ -206,6 +215,9 @@ export function createSkyBackground(gl) {
     gl.uniform1f(loc.uBelowFade, p.belowFade || 0);
     gl.uniform3fv(loc.uZenithColor, p.zenithColor);
     gl.uniform3fv(loc.uHorizonColor, p.horizonColor);
+    gl.uniform3fv(loc.uBelowZenithColor, p.belowZenithColor);
+    gl.uniform3fv(loc.uBelowHorizonColor, p.belowHorizonColor);
+    gl.uniform1f(loc.uBelowAirglow, p.belowAirglow);
     gl.uniform3fv(loc.uSunGlowColor, p.sunGlowColor);
     gl.uniform3fv(loc.uSunDir, p.sunDir);
     gl.uniform1f(loc.uSunGlowStrength, p.sunGlowStrength);

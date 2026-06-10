@@ -16,7 +16,7 @@
 
 import { cameraBasis, vec } from '../core/projection.js';
 import { zoomScale, STAR_CONSTS } from './starstyle.js';
-import { EXT_K, milkyWayZoomFade } from './atmosphere.js';
+import { EXT_K, milkyWayZoomFade, BELOW_NIGHT_BAND } from './atmosphere.js';
 import { createSkyBackground } from './sky-background.js';
 import { createBodySphere } from './body-sphere.js';
 import { REFRACTION_GLSL, buildStarAttributesJ2000 } from './star-transform.js';
@@ -138,7 +138,10 @@ void main() {
     radius = ${glslFloat(C.STAR_MIN_R)};
   }
   float belowA = (dir.z < 0.0) ? uBelowFade : 1.0;
-  vAlpha = magAlpha * aAlphaScale * uStarDayFade * belowA; // size/colour fade * wash-out * horizon fade
+  // Below the horizon it is ALWAYS full night (matching the sky background's belowNight blend):
+  // daylight never washes out the lower hemisphere's stars.
+  float dayFade = mix(uStarDayFade, 1.0, smoothstep(0.0, -${glslFloat(BELOW_NIGHT_BAND)}, dir.z));
+  vAlpha = magAlpha * aAlphaScale * dayFade * belowA; // size/colour fade * wash-out * horizon fade
 
   // Atmospheric extinction: dim + redden toward the horizon. Air mass (Kasten-Young) comes from the
   // star's altitude (aDir.z == sin(alt)); this mirrors airmass()/extinction() in atmosphere.js, with

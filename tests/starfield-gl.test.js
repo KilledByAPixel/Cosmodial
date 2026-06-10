@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { buildMarkerAttributes, hexToRgb01, vertexShaderSource, markerVertexShaderSource } from '../js/render/starfield-gl.js';
 import { cameraBasis, vec, dot } from '../js/core/projection.js';
 import { STAR_CONSTS } from '../js/render/starstyle.js';
-import { EXT_K } from '../js/render/atmosphere.js';
+import { EXT_K, BELOW_NIGHT_BAND } from '../js/render/atmosphere.js';
 import { degToRad } from '../js/core/angles.js';
 
 test('cameraBasis is orthonormal with the expected focal length', () => {
@@ -80,4 +80,10 @@ test('star + marker shaders use the stereographic projection and the shared anti
     assert.ok(src.includes('-0.8660254'), 'cull at cos(150deg), matching MIN_VIS_Z');
     assert.ok(!src.includes('/ z'), 'gnomonic divide-by-z is gone');
   }
+});
+
+test('star shader releases the daylight wash-out below the horizon (always full night down there)', () => {
+  const src = vertexShaderSource();
+  assert.ok(src.includes('mix(uStarDayFade, 1.0'), 'below-horizon stars blend to full-night visibility');
+  assert.ok(src.includes(`-${BELOW_NIGHT_BAND}`), 'blend band matches atmosphere.BELOW_NIGHT_BAND (drift guard)');
 });
