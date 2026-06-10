@@ -56,9 +56,10 @@ export function invProject(x, y, center) {
   const sinC = Math.sin(c), cosC = Math.cos(c);
   const d0 = center.dec * DEG;
   const sinD0 = Math.sin(d0), cosD0 = Math.cos(d0);
-  const dec = Math.asin(cosC * sinD0 + (y * sinC * cosD0) / rho);
+  const dec = Math.asin(Math.max(-1, Math.min(1, cosC * sinD0 + (y * sinC * cosD0) / rho)));
   const ra = center.ra * DEG + Math.atan2(x * sinC, rho * cosD0 * cosC - y * sinD0 * sinC);
   let raDeg = ra / DEG;
   raDeg -= 360 * Math.floor(raDeg / 360);
+  if (raDeg >= 360) raDeg = 0; // a sub-ulp negative input rounds to exactly 360
   return { ra: raDeg, dec: dec / DEG };
 }

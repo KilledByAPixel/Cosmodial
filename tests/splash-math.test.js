@@ -42,7 +42,7 @@ test('the projection center lands at the plane origin', () => {
 });
 
 test('project/invProject round-trip', () => {
-  for (const [ra, dec] of [[300, -10], [250, -45], [10, 60], [266.4, 30]]) {
+  for (const [ra, dec] of [[300, -10], [250, -45], [10, 60], [266.4, 30], [266.4, -29]]) {
     const p = project(ra, dec, CENTER);
     const s = invProject(p.x, p.y, CENTER);
     assert.ok(Math.abs(s.ra - ra) < 1e-9, `ra ${ra} -> ${s.ra}`);
