@@ -1,5 +1,5 @@
 import { createState } from './core/state.js';
-import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, jupiterMoonsAltAz } from './core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, planetMoonsAltAz } from './core/astro.js';
 import { makeStarAltAz, horToEqjRotation, eqjToGalRotation } from './core/astro.js';
 import { eqjToEnuMatrix } from './render/star-transform.js';
 import { bodyScreenOrientation } from './core/moon.js';
@@ -69,7 +69,7 @@ let selected = null;        // first star picked in edit mode (a skyObjects entr
 let highlighted = null;     // object whose card is currently open (gets a ring on canvas)
 let followTarget = null;    // object kept centred as time changes (set by Find/search; cleared on drag/tap)
 let bodyInputs = [];   // per-recompute lit-sphere inputs (Moon + planets); see computeSky()
-let jupiterMoons = [];      // Galilean moons {name, altaz, mag, behind}; drawn when Jupiter is a sphere
+let planetMoons = [];       // all systems, flat [{planet, name, altaz, mag, behind}]; drawn when planet resolves
 let namedStars = []; // skyObjects with names — label positions refresh on the frequent cadence
 let skyStamp = null; // { lat, lng, ms } of the last FULL recompute (pick-staleness guard)
 let editIndex = 0;          // index into figures[] of the currently active constellation
@@ -123,7 +123,7 @@ function computeSky(full) {
     { altaz: altAzOfBody(Body.Sun, observer, time), label: 'Sun', color: '#ffd27f', angularRadiusDeg: bodyAngularRadiusDeg(Body.Sun, observer, time), body: Body.Sun, alpha: 1 },
     ...planetMarkers,
   ];
-  jupiterMoons = jupiterMoonsAltAz(observer, time); // cheap analytic theory; fine on the frequent cadence
+  planetMoons = planetMoonsAltAz(observer, time);
   if (useGL) {
     // Sky background: atmosphere colour + star wash-out are driven by the Sun's altitude; the warm
     // glow lobe needs its direction, and the Milky Way texture its ENU->galactic sampling matrix.
@@ -195,16 +195,6 @@ function markerAlpha(mag) {
   return Math.max(0.22, Math.min(1.0, 1.0 - (mag + 4) * 0.0625));
 }
 
-// Scale `point`'s (small) angular offset from `center` by k, on the sphere — used to inflate the
-// Galilean moons' orbital radii by the same PLANET_SCALE that inflates Jupiter's drawn disc.
-function scaleAltAzOffset(center, point, k) {
-  const c = vec(center.az, center.alt), p = vec(point.az, point.alt);
-  const d = [c[0] + (p[0] - c[0]) * k, c[1] + (p[1] - c[1]) * k, c[2] + (p[2] - c[2]) * k];
-  const n = Math.hypot(d[0], d[1], d[2]) || 1;
-  const az = (Math.atan2(d[0] / n, d[1] / n) * 180) / Math.PI; // ENU: x = east, y = north
-  const alt = (Math.asin(Math.max(-1, Math.min(1, d[2] / n))) * 180) / Math.PI;
-  return { az: (az + 360) % 360, alt };
-}
 
 function render() {
   if (skyDirty) {
@@ -258,18 +248,15 @@ function render() {
       sphereLabels.add(bi.label);
     }
     starfield.setBodies(bodyList);
-    // Galilean moons: labeled glow dots, only once Jupiter has resolved into a disc. Render-local
-    // pseudo-markers (NOT in the module markers array) so picking/guide/conjunctions never see them;
-    // occulted moons (behind the disc) are hidden, transiting ones stay drawn. Each moon's angular
-    // offset FROM Jupiter is inflated by PLANET_SCALE — the same exaggeration as the drawn disc — so
-    // the orbits stay proportional to the disc (set the scale to 1 and the whole system is true-scale).
-    const jupiterM = markers.find((m) => m.label === 'Jupiter');
-    const moonMarkers = sphereLabels.has('Jupiter') && jupiterM
-      ? jupiterMoons.filter((m) => !m.behind).map((m) => ({
-          altaz: scaleAltAzOffset(jupiterM.altaz, m.altaz, PLANET_SCALE), label: m.name, color: '#d8cfc0',
-          mag: m.mag, alpha: markerAlpha(m.mag), radius: planetRadius(m.mag),
-        }))
-      : [];
+    // Planetary moons: labeled glow dots, only once their planet has resolved into a disc.
+    // Render-local pseudo-markers (NOT in the module markers array) so picking/guide/conjunctions
+    // never see them; occulted moons (behind the disc) are hidden, transiting ones stay drawn.
+    const moonMarkers = st.flags.edit ? [] : planetMoons
+      .filter((m) => sphereLabels.has(m.planet) && !m.behind)
+      .map((m) => ({
+        altaz: m.altaz, label: m.name, color: '#d8cfc0',
+        mag: m.mag, alpha: markerAlpha(m.mag), radius: planetRadius(m.mag),
+      }));
     drawList = st.flags.edit ? [] : markers.concat(moonMarkers);
     starfield.draw(cam, { showBelow: st.flags.sphere, edit: st.flags.edit });
     // Sun/Moon/planets as glowing discs: size from markerRadius (angular for Sun/Moon, disk for
