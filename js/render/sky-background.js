@@ -59,13 +59,17 @@ const float TAU = 6.28318530717959;
 ${REFRACTION_GLSL}
 
 void main() {
-  // Reconstruct the ENU view ray for this pixel — exact inverse of the gnomonic projectPoint().
+  // Reconstruct the ENU view ray for this pixel — exact inverse of the stereographic projectPoint():
+  // r = 2f·tan(θ/2)  =>  θ = 2·atan(r/(2f)); the ray is fwd tilted by θ toward the pixel's offset.
   // gl_FragCoord is device px, origin bottom-left, +y up (matches the shader's +up convention).
   vec2 fragCss = gl_FragCoord.xy / uDpr;
   vec2 center = uViewport * 0.5;
   float dx = fragCss.x - center.x;
   float dy = fragCss.y - center.y;
-  vec3 ray = normalize(uRight * dx + uUp * dy + uFwd * uFocal);
+  float rPx = length(vec2(dx, dy));
+  float theta = 2.0 * atan(rPx / (2.0 * uFocal));
+  vec3 planar = (rPx > 1.0e-6) ? (uRight * dx + uUp * dy) / rPx : vec3(0.0);
+  vec3 ray = normalize(uFwd * cos(theta) + planar * sin(theta));
 
   // Texture-sampling direction = the pixel's apparent direction warped to TRUE altitude, so the
   // textured sky lines up with the catalogue stars (drawn at apparent = true + refraction). Invert
