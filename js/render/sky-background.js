@@ -5,7 +5,7 @@
 // ENU->GAL matrix, zoom fade, extinction) lives in atmosphere.js; this file is just the GL plumbing.
 //
 // Projection inversion: the fragment shader reconstructs the ENU view ray per pixel as the exact
-// inverse of projectPoint()/the star vertex shader (gnomonic). The Milky Way texture is in GALACTIC
+// inverse of projectPoint()/the star vertex shader (stereographic). The Milky Way texture is in GALACTIC
 // coordinates (the bright band runs along the image midline, galactic centre at the centre), so each
 // ray is rotated into the galactic frame (uEnuToGal, built on the CPU each recompute) and mapped to
 // equirectangular UV: longitude across, latitude up. Output alpha is always 1.0 (opaque sky).
