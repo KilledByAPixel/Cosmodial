@@ -39,10 +39,10 @@ const TITLE = {
   nameColor: '#f0e9d8',
   tagColor: '#c9b88e',
   nameSpacing: 0.1,  // name letter spacing, em of the name size
-  tagScale: 0.48,    // tag size as a fraction of the name size
+  tagScale: 0.42,    // tag size as a fraction of the name size
   tagSpacing: 0.6,   // tag letter spacing, em of the tag size
   baselineY: 0.02,   // name baseline below image center, fraction of the short side
-  tagGap: 1.9,       // tag baseline below the name baseline, in tag-size units
+  tagGap: 1.3,       // tag baseline below the name baseline, in tag-size units
   glow: 0.025,       // name glow radius, fraction of the short side
 };
 const MOON = {
@@ -55,6 +55,25 @@ const state = {
   backdrop: 'moon', ringScale: 0.42, phase: 0.65, rotate: 0,
 };
 let data = null; // { stars, mwTex, moonTex: ImageData }
+
+// Settings persist across refreshes — handy while iterating on the design constants above.
+const STORE_KEY = 'cosmodial-splash-settings';
+
+function loadSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+    for (const k of Object.keys(state)) {
+      if (k in saved && typeof saved[k] === typeof state[k]) state[k] = saved[k];
+    }
+  } catch { /* corrupt storage -> just use the defaults */ }
+  if (!PRESETS[state.preset]) state.preset = 0;
+  if (!SKY_CENTERS[state.center]) state.center = 'core';
+  if (state.backdrop !== 'dial') state.backdrop = 'moon';
+}
+
+function saveSettings() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch { /* private mode etc. */ }
+}
 
 function setStatus(msg) { document.getElementById('status').textContent = msg; }
 
@@ -255,16 +274,27 @@ function buildControls() {
   PRESETS.forEach((p, i) => preset.add(new Option(p.label, i)));
   const center = document.getElementById('center');
   for (const [key, c] of Object.entries(SKY_CENTERS)) center.add(new Option(c.label, key));
+  // reflect the (possibly restored) state in the controls
+  const el = (id) => document.getElementById(id);
+  preset.value = state.preset;
+  center.value = state.center;
+  el('mw').value = state.mw;
+  el('backdrop').value = state.backdrop;
+  el('ringScale').value = state.ringScale;
+  el('phase').value = state.phase;
+  el('rotate').value = state.rotate;
+  el('nameScale').value = state.nameScale;
   // 'change' (not 'input') events: a full render takes a beat, no point re-rendering mid-drag
-  preset.onchange = () => { state.preset = +preset.value; render(); };
-  center.onchange = () => { state.center = center.value; render(); };
-  document.getElementById('mw').onchange = (e) => { state.mw = +e.target.value; render(); };
-  document.getElementById('backdrop').onchange = (e) => { state.backdrop = e.target.value; render(); };
-  document.getElementById('ringScale').onchange = (e) => { state.ringScale = +e.target.value; render(); };
-  document.getElementById('phase').onchange = (e) => { state.phase = +e.target.value; render(); };
-  document.getElementById('rotate').onchange = (e) => { state.rotate = +e.target.value; render(); };
-  document.getElementById('nameScale').onchange = (e) => { state.nameScale = +e.target.value; render(); };
-  document.getElementById('save').onclick = download;
+  const update = (patch) => { Object.assign(state, patch); saveSettings(); render(); };
+  preset.onchange = () => update({ preset: +preset.value });
+  center.onchange = () => update({ center: center.value });
+  el('mw').onchange = (e) => update({ mw: +e.target.value });
+  el('backdrop').onchange = (e) => update({ backdrop: e.target.value });
+  el('ringScale').onchange = (e) => update({ ringScale: +e.target.value });
+  el('phase').onchange = (e) => update({ phase: +e.target.value });
+  el('rotate').onchange = (e) => update({ rotate: +e.target.value });
+  el('nameScale').onchange = (e) => update({ nameScale: +e.target.value });
+  el('save').onclick = download;
 }
 
 function download() {
@@ -305,6 +335,7 @@ async function init() {
     setStatus('Serve this page over http (the same way you run the app) — data/ can\'t be fetched from file://.');
     return;
   }
+  loadSettings();
   buildControls();
   try {
     setStatus('Loading sky data…');
