@@ -95,24 +95,33 @@ function onScreen(p, cam) {
   return p.visible && p.x >= 0 && p.x <= cam.width && p.y >= 0 && p.y <= cam.height;
 }
 
-export function drawGrid(ctx, projector, cam, below = false) {
+// belowFade (0..1): the below-horizon half of the grid draws at that alpha (hidden at 0).
+export function drawGrid(ctx, projector, cam, belowFade = 0) {
+  const below = belowFade > 0;
   const { azimuths, altitudes } = gridSpec(cam, { below });
   ctx.strokeStyle = LINE_STYLES.grid.color;
   ctx.lineWidth = LINE_STYLES.grid.width;
   // Altitude rings: full 360° so the whole circle — including the part overhead — is drawn; the
-  // projector culls the half behind the camera.
+  // projector culls the half behind the camera. Sub-horizon rings ride the fade.
   for (const alt of altitudes) {
+    ctx.globalAlpha = alt < 0 ? belowFade : 1;
     const pts = [];
     for (let az = 0; az <= 360; az += SAMPLE_DEG) pts.push([az, alt]);
     strokePolyline(ctx, projector, pts);
   }
-  // Azimuth spokes converge at a pole. Normally horizon (0) -> zenith (90); in full-sphere mode the
-  // whole meridian, nadir (-90) -> zenith (90), so they cap at both poles.
-  const spokeLo = below ? -90 : 0;
+  // Azimuth spokes: the horizon->zenith half at full alpha; when fading in, the nadir->horizon
+  // half as a separate stroke at the fade alpha.
   for (const az of azimuths) {
+    ctx.globalAlpha = 1;
     const pts = [];
-    for (let h = spokeLo; h <= 90; h += SAMPLE_DEG) pts.push([az, h]);
+    for (let h = 0; h <= 90; h += SAMPLE_DEG) pts.push([az, h]);
     strokePolyline(ctx, projector, pts);
+    if (below) {
+      ctx.globalAlpha = belowFade;
+      const sub = [];
+      for (let h = -90; h <= 0; h += SAMPLE_DEG) sub.push([az, h]);
+      strokePolyline(ctx, projector, sub);
+    }
   }
   // Degree labels. Rings label on the screen's vertical centerline; spokes a little below the aim so
   // they spread out instead of piling up at the zenith when looking up.
@@ -121,9 +130,11 @@ export function drawGrid(ctx, projector, cam, below = false) {
   const fovV = cam.fov * (cam.height / cam.width);
   const azLabelAlt = Math.max(0, Math.min(89, cam.alt - fovV * 0.3));
   for (const alt of altitudes) {
+    ctx.globalAlpha = alt < 0 ? belowFade : 1;
     const p = projector(cam.az, alt);
     if (onScreen(p, cam)) ctx.fillText(`${alt}°`, p.x + 3, p.y - 2);
   }
+  ctx.globalAlpha = 1;
   for (const az of azimuths) {
     const p = projector(az, azLabelAlt);
     if (onScreen(p, cam)) ctx.fillText(`${Math.round(az)}°`, p.x + 3, p.y - 2);
