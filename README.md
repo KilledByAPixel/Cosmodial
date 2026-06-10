@@ -71,6 +71,6 @@ Every path is relative, so it runs from a server root *or* a subpath unchanged. 
 
 ## Credits
 
-Built with the MIT-licensed [Astronomy Engine](https://github.com/cosinekitty/astronomy). Stars from the [HYG Database](https://github.com/astronexus/HYG-Database) (CC-BY-SA 4.0); constellation lines from [d3-celestial](https://github.com/ofrohn/d3-celestial) (BSD-3-Clause); Milky Way panorama and Moon/planet/ring textures from [Solar System Scope](https://www.solarsystemscope.com/textures/) (CC-BY 4.0). Planetary-moon orbits verified against [JPL Horizons](https://ssd.jpl.nasa.gov/horizons/). Full details in [ATTRIBUTION.md](ATTRIBUTION.md).
+Built with the MIT-licensed [Astronomy Engine](https://github.com/cosinekitty/astronomy). Stars from the [HYG Database](https://github.com/astronexus/HYG-Database) (CC-BY-SA 4.0); constellation lines from [d3-celestial](https://github.com/ofrohn/d3-celestial) (BSD-3-Clause); Milky Way panorama and Moon/planet/ring textures from [Solar System Scope](https://www.solarsystemscope.com/textures/) (CC-BY 4.0). Planetary-moon orbits verified against [JPL Horizons](https://ssd.jpl.nasa.gov/horizons/). Programming assisted by [Claude](https://claude.com/claude-code). Full details in [ATTRIBUTION.md](ATTRIBUTION.md).
 
 App code is **MIT** — see [LICENSE](LICENSE).
