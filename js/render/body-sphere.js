@@ -26,9 +26,10 @@ void main() {
   vec2 corner = vec2((gl_VertexID == 1 || gl_VertexID == 3) ? 1.0 : -1.0,
                      (gl_VertexID == 2 || gl_VertexID == 3) ? 1.0 : -1.0);
   vCorner = corner * uQuadScale;
-  if (z <= 0.000001) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
-  float sx = uFocal * dot(uBodyDir, uRight) / z;
-  float sy = uFocal * dot(uBodyDir, uUp) / z;
+  if (z <= -0.8660254) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; } // = MIN_VIS_Z (stereographic)
+  float k = 2.0 * uFocal / (1.0 + z);
+  float sx = k * dot(uBodyDir, uRight);
+  float sy = k * dot(uBodyDir, uUp);
   vec2 centerNdc = vec2(sx / (uViewport.x * 0.5), sy / (uViewport.y * 0.5));
   vec2 cornerNdc = (corner * uRadiusPx * uQuadScale) / (uViewport * 0.5);
   gl_Position = vec4(centerNdc + cornerNdc, 0.0, 1.0);
