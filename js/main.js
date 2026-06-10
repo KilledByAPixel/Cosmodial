@@ -168,7 +168,8 @@ function computeSky(full) {
   dsoObjects = dsos.map((d) => ({ ...d, kind: 'dso', altaz: toAltAz(d.ra, d.dec) }));
   const sh = activeShower(eclipseAt);
   tonightShower = sh ? { ...sh, radiant: toAltAz(sh.radiantRa, sh.radiantDec) } : null;
-  const bright = markers.filter((m) => m.label !== 'Sun' && m.altaz.alt >= 0);
+  // Telescope-only Pluto (mag ~14.5) is excluded: a "conjunction" with an invisible dot isn't an event.
+  const bright = markers.filter((m) => m.label !== 'Sun' && m.altaz.alt >= 0 && (m.mag == null || m.mag < 9));
   conjunctions = findConjunctions(bright, 5);
   if (full) {
     eclipseCtx = findEclipseContext({
@@ -381,7 +382,7 @@ function buildPicks() {
     .filter((s) => s.name && s.altaz.alt >= 0 && s.mag <= 2.0)
     .map((s) => ({ kind: 'star', id: s.id, name: s.name, mag: s.mag, bv: s.bv, con: s.con, dist: s.dist, altaz: s.altaz, why: `a bright ${colorWord(s.bv)} star` }));
   const bodies = markers
-    .filter((m) => m.label !== 'Sun' && m.altaz.alt >= 0)
+    .filter((m) => m.label !== 'Sun' && m.altaz.alt >= 0 && (m.mag == null || m.mag < 9)) // guide has taste: no telescope-only Pluto
     .map((m) => ({
       kind: m.label === 'Moon' ? 'moon' : 'planet',
       name: m.label, label: m.label, body: m.body, mag: m.mag, altaz: m.altaz,

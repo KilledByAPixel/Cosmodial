@@ -116,7 +116,7 @@ function bodyLines(obj, ctx) {
     lines.push(row(`<b>How to see it:</b> ${easeTag(obj.mag)} (magnitude ${obj.mag})`));
   } else { // planet
     const au = bodyDistanceAu(obj.body, ctx.observer, ctx.time);
-    lines.push(row(`${obj.label} — a planet.`));
+    lines.push(row(`${obj.label} — a ${obj.label === 'Pluto' ? 'dwarf planet' : 'planet'}.`));
     lines.push(row(`<b>Distance:</b> ${au.toFixed(2)} AU`));
     const magStr = Number.isFinite(obj.mag) ? ` (magnitude ${obj.mag.toFixed(1)})` : '';
     lines.push(row(`<b>How to see it:</b> ${easeTag(obj.mag)}${magStr}`));

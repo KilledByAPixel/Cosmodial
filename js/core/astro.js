@@ -64,6 +64,7 @@ const BODY_RADIUS_AU = {
   Sun: 0.00465047, Moon: 1.16138e-5,
   Mercury: 1.6310e-5, Venus: 4.0454e-5, Mars: 2.2654e-5,
   Jupiter: 4.7789e-4, Saturn: 4.0288e-4, Uranus: 1.7081e-4, Neptune: 1.6554e-4,
+  Pluto: 7.943e-6,
 };
 
 // Sun-body-Earth phase angle in degrees (0 = full, 180 = new). Drives where the terminator sits.

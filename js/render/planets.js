@@ -1,10 +1,11 @@
 import { Body } from '../core/astro.js';
 import { clamp } from '../core/angles.js';
 
-// The seven planets we render: the five naked-eye ones plus the two ice giants. Each carries a
-// representative tint for its disk marker. Uranus (~mag 5.7) and Neptune (~mag 7.8) are too faint
-// for the unaided eye; they fall to the smallest disk (planetRadius saturates at its floor) and dim
-// toward the alpha floor (markerAlpha in main.js), so they read as faint pinpoints, not bright discs.
+// The planets we render: the five naked-eye ones, the two ice giants, and Pluto for completeness.
+// Each carries a representative tint for its disk marker. Uranus (~mag 5.7), Neptune (~mag 7.8), and
+// Pluto (~mag 14.5) are too faint for the unaided eye; they fall to the smallest disk (planetRadius
+// saturates at its floor) and dim toward the alpha floor (markerAlpha in main.js), so they read as
+// faint pinpoints, not bright discs. Pluto has no texture (none exists at our source) — it stays a dot.
 export const PLANETS = [
   { body: Body.Mercury, name: 'Mercury', color: '#b0a48f', tex: 'mercury' },
   { body: Body.Venus,   name: 'Venus',   color: '#fff4d6', tex: 'venus' }, // cloud deck (what an eye sees), not the radar surface
@@ -13,6 +14,7 @@ export const PLANETS = [
   { body: Body.Saturn,  name: 'Saturn',  color: '#e8d9a0', tex: 'saturn', rings: true },
   { body: Body.Uranus,  name: 'Uranus',  color: '#bfe3e8', tex: 'uranus' },
   { body: Body.Neptune, name: 'Neptune', color: '#7c9fe0', tex: 'neptune' },
+  { body: Body.Pluto,   name: 'Pluto',   color: '#c9b29a' },
 ];
 
 // Apparent magnitude -> planet disk radius (px). Brighter (smaller mag) -> larger.
