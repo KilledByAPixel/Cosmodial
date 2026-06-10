@@ -2,7 +2,7 @@
 
 **View the whole cosmos in your web browser.**
 
-# [Try Cosmodial Live!](https://killedbyapixel.github.io/Cosmodial/)
+# [Use The Cosmodial App](https://killedbyapixel.github.io/Cosmodial/)
 
 ![LittleJS Screenshot](images/cosmodial-social.png)
 
