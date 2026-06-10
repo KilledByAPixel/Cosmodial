@@ -97,6 +97,8 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 body.night #night-overlay { display: block; }
 .night-toggle.on { color: #ff9a8c; border-color: #5a2a26; }
 
+/* Tonight's event: a highlighted first row inside the opened panel (the collapsed chip carries
+   the event's emoji instead — see chipLabel). */
 .guide-event {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   margin: 0 0 6px; padding: 6px 10px; border-radius: 8px; font-size: 13px;

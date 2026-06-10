@@ -1,22 +1,34 @@
 import { altazToWhere, easeFor, headline } from '../guide/ranking.js';
 import { azToCompass } from '../render/hud.js';
 
-const TOP = 5;
+const TOP = 3; // default pick count when opened; "See all" expands to the full ranked list
+
+// Collapsed-chip label: the active event's leading emoji is appended ("✦ Up now · ☄️") so an event
+// stays discoverable while the panel is closed. PURE — unit-tested. Keeps a U+FE0F variation
+// selector attached so emoji-style glyphs don't degrade to text-style.
+export function chipLabel(event) {
+  if (!event || !event.text) return '✦ Up now';
+  const cps = [...event.text.trim()];
+  if (!cps.length) return '✦ Up now';
+  const emoji = cps[1] === '️' ? cps[0] + cps[1] : cps[0];
+  return `✦ Up now · ${emoji}`;
+}
 
 // Build the collapsible "Up now" panel. onFind(pick) fires when a pick's Find button is clicked.
-// Returns { el, setPicks(picks, { isDay }) }.
+// Returns { el, setPicks(picks, { isDay }), setEvent(event) }.
 export function buildGuide(store, { onFind }) {
   const el = document.createElement('div');
   el.className = 'guide collapsed';
   el.innerHTML = `
-    <div class="guide-event" data-event hidden></div>
     <button type="button" class="guide-toggle" data-toggle>✦ Up now</button>
     <div class="guide-body">
+      <div class="guide-event" data-event hidden></div>
       <p class="guide-headline" data-headline></p>
       <ul class="guide-picks" data-picks></ul>
       <button type="button" class="guide-seeall" data-seeall hidden>See all</button>
     </div>`;
 
+  const toggle = el.querySelector('[data-toggle]');
   const headlineEl = el.querySelector('[data-headline]');
   const picksEl = el.querySelector('[data-picks]');
   const seeAll = el.querySelector('[data-seeall]');
@@ -24,7 +36,7 @@ export function buildGuide(store, { onFind }) {
   let picks = [];
   let expanded = false;
 
-  el.querySelector('[data-toggle]').addEventListener('click', () => el.classList.toggle('collapsed'));
+  toggle.addEventListener('click', () => el.classList.toggle('collapsed'));
   seeAll.addEventListener('click', () => { expanded = !expanded; seeAll.textContent = expanded ? 'See fewer' : 'See all'; renderPicks(); });
 
   function renderPicks() {
@@ -54,8 +66,10 @@ export function buildGuide(store, { onFind }) {
     renderPicks();
   }
 
-  // event = { text, actionLabel, onAction } | null. Rendered above the toggle, visible when collapsed.
+  // event = { text, actionLabel, onAction } | null. Rendered as a highlighted first row inside the
+  // panel; the collapsed chip appends the event's emoji so it stays discoverable.
   function setEvent(event) {
+    toggle.textContent = chipLabel(event);
     eventEl.innerHTML = '';
     if (!event) { eventEl.hidden = true; return; }
     eventEl.hidden = false;
