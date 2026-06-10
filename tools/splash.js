@@ -210,6 +210,7 @@ function download() {
   if (!data) return;
   const { w, h } = PRESETS[state.preset];
   document.getElementById('out').toBlob((blob) => {
+    if (!blob) { setStatus('PNG encode failed.'); return; }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `cosmodial-splash-${w}x${h}.png`;
@@ -220,18 +221,22 @@ function download() {
 
 function render() {
   if (!data) return; // controls fire before the data load finishes
-  const { w, h } = PRESETS[state.preset];
-  const canvas = document.getElementById('out');
-  canvas.width = w; canvas.height = h; // exact pixel dimensions; CSS scales the preview
-  const ctx = canvas.getContext('2d');
-  const center = SKY_CENTERS[state.center];
-  const t0 = performance.now();
-  paintSky(ctx, w, h, center, state.mw, data.mwTex);
-  if (state.lines) paintConstellations(ctx, w, h, center, data.constellations);
-  paintStars(ctx, w, h, center, data.stars);
-  paintDial(ctx, w, h, state.ringScale);
-  paintTitle(ctx, w, h);
-  setStatus(`Rendered ${w}×${h} in ${Math.round(performance.now() - t0)} ms`);
+  try {
+    const { w, h } = PRESETS[state.preset];
+    const canvas = document.getElementById('out');
+    canvas.width = w; canvas.height = h; // exact pixel dimensions; CSS scales the preview
+    const ctx = canvas.getContext('2d');
+    const center = SKY_CENTERS[state.center];
+    const t0 = performance.now();
+    paintSky(ctx, w, h, center, state.mw, data.mwTex);
+    if (state.lines) paintConstellations(ctx, w, h, center, data.constellations);
+    paintStars(ctx, w, h, center, data.stars);
+    paintDial(ctx, w, h, state.ringScale);
+    paintTitle(ctx, w, h);
+    setStatus(`Rendered ${w}×${h} in ${Math.round(performance.now() - t0)} ms`);
+  } catch (e) {
+    setStatus(`Render failed: ${e.message}`);
+  }
 }
 
 async function init() {
