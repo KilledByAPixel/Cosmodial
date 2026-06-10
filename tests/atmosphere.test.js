@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { airmass, extinction, skyParams, milkyWayZoomFade, enuToEqjMatrix, enuToGalMatrix } from '../js/render/atmosphere.js';
+import { airmass, extinction, skyParams, milkyWayZoomFade, enuToEqjMatrix, enuToGalMatrix, belowHorizonFade, spaceSkyParams } from '../js/render/atmosphere.js';
 import { makeObserver, makeTime, makeStarAltAz, horToEqjRotation, eqjToGalRotation } from '../js/core/astro.js';
 import * as Astronomy from '../js/vendor/astronomy.js';
 import { vec } from '../js/core/projection.js';
@@ -176,6 +176,37 @@ test('enuToGalMatrix sends known sky directions to their galactic coordinates', 
   assert.ok(Math.abs(ngp.b - 90) < 0.2, `north galactic pole latitude ~90 (got ${ngp.b.toFixed(2)})`);
   const anti = galOf(86.405, 28.936); // galactic anticentre -> l=180
   assert.ok(angularSep(anti.l, 180) < 0.3, `galactic anticentre longitude ~180 (got ${anti.l.toFixed(2)})`);
+});
+
+test('belowHorizonFade: 0 at/above the horizon, 1 by 10° below, eased between', () => {
+  assert.equal(belowHorizonFade(45), 0, 'aiming up — lower hemisphere hidden');
+  assert.equal(belowHorizonFade(0), 0, 'exactly at the horizon — still hidden');
+  assert.equal(belowHorizonFade(-10), 1, 'fully faded in 10° below');
+  assert.equal(belowHorizonFade(-89), 1, 'stays fully on below that');
+  const mid = belowHorizonFade(-5);
+  assert.ok(Math.abs(mid - 0.5) < 1e-9, 'smoothstep midpoint is exactly 0.5');
+  let prev = 0;
+  for (let alt = 0; alt >= -12; alt -= 0.5) {
+    const f = belowHorizonFade(alt);
+    assert.ok(f >= prev, `fade never decreases while tilting down (alt ${alt})`);
+    prev = f;
+  }
+});
+
+test('spaceSkyParams: black sky, full stars/Milky Way, extinction off', () => {
+  const p = spaceSkyParams();
+  assert.deepEqual(p.zenithColor, [0, 0, 0]);
+  assert.deepEqual(p.horizonColor, [0, 0, 0]);
+  assert.equal(p.sunGlowStrength, 0);
+  assert.equal(p.horizonAirglow, 0);
+  assert.equal(p.mwVisibility, 1, 'Milky Way always visible in space view');
+  assert.equal(p.starDayFade, 1, 'no daytime star wash-out in space view');
+  assert.equal(p.extinction, 0, 'no horizon dimming/reddening in space view');
+});
+
+test('skyParams always applies extinction (space view is the only exception)', () => {
+  assert.equal(skyParams(-30).extinction, 1);
+  assert.equal(skyParams(20).extinction, 1);
 });
 
 test('milkyWayZoomFade: full at wide FOV, gone when zoomed in', () => {

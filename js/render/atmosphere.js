@@ -62,6 +62,34 @@ export function skyParams(sunAltDeg) {
     mwVisibility: night,                                // Milky Way only shows once the sky is dark
     horizonAirglow: night * 0.5,                        // faint night lift hugging the horizon
     starDayFade: 1 - smoothstep(-8, 2, sunAltDeg),      // 1 at night, 0 in daylight (multiplies star alpha)
+    extinction: 1,                                      // star-shader extinction gain (0 only in space view)
+  };
+}
+
+// How visible the below-horizon sky is for a given aim altitude (deg): 0 at/above the horizon,
+// 1 once aiming FULL_BELOW_DEG below, smoothstep-eased between. This replaces the old full-sphere
+// toggle — dip the view under the horizon and the lower hemisphere fades in; tilt back up and it
+// fades away. There is nothing to switch.
+export const FULL_BELOW_DEG = 10;
+export function belowHorizonFade(aimAltDeg) {
+  return smoothstep(0, FULL_BELOW_DEG, -aimAltDeg);
+}
+
+// Sky params with the atmosphere switched OFF ("space view"): pure black sky, no Sun glow or
+// airglow, stars and the Milky Way at full strength regardless of the Sun, and extinction 0 so the
+// star shader skips the horizon dimming/reddening too. Same shape as skyParams() — main.js swaps
+// between the two on the `atmo` flag. (Refraction stays on either way: turning it off would shift
+// near-horizon positions and desync the GPU stars from the CPU picking positions.)
+export function spaceSkyParams() {
+  return {
+    zenithColor: [0, 0, 0],
+    horizonColor: [0, 0, 0],
+    sunGlowColor: SUN_GLOW_COLOR.slice(),
+    sunGlowStrength: 0,
+    mwVisibility: 1,
+    horizonAirglow: 0,
+    starDayFade: 1,
+    extinction: 0,
   };
 }
 
