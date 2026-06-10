@@ -37,6 +37,16 @@ test('looking up draws the full wheel but widens the step so spokes do not crowd
   assert.ok(overhead.azimuths.length <= 8, `few spokes overhead (${overhead.azimuths.length})`);
 });
 
+test('aiming straight up or down keeps at least 8 spokes (the wheel never thins to 4)', () => {
+  for (const [alt, below] of [[90, false], [-90, true]]) {
+    for (const fov of [30, 60, 200]) {
+      const spec = gridSpec({ az: 180, alt, fov, width: 800, height: 600 }, { below });
+      assert.ok(spec.azStep <= 45, `azStep capped at 45 (alt=${alt}, fov=${fov}, got ${spec.azStep})`);
+      assert.ok(spec.azimuths.length >= 8, `>= 8 spokes at the pole (alt=${alt}, fov=${fov}, got ${spec.azimuths.length})`);
+    }
+  }
+});
+
 test('the innermost ring caps the spokes when the zenith is in view', () => {
   const spec = gridSpec({ az: 180, alt: 89, fov: 60, width: 800, height: 600 });
   const top = Math.max(...spec.altitudes);

@@ -64,8 +64,9 @@ export function gridSpec(cam, { targetLines = TARGET_LINES, below = false } = {}
   const fovV = cam.fov * (cam.height / cam.width);
   const cosA = Math.cos(degToRad(cam.alt));
   // Near a pole, azimuth lines bunch up on screen (spacing ∝ cos alt); widen the step to keep the
-  // spoke count steady instead of fanning out densely overhead. cos floored so it can't blow up.
-  const azStep = niceStep(cam.fov / (SPOKE_TARGET_LINES * Math.max(Math.abs(cosA), 1e-3)));
+  // spoke count steady instead of fanning out densely overhead. cos floored so it can't blow up,
+  // and the step capped at 45° so the wheel never thins below 8 spokes aiming straight up/down.
+  const azStep = Math.min(45, niceStep(cam.fov / (SPOKE_TARGET_LINES * Math.max(Math.abs(cosA), 1e-3))));
   const altStep = niceStep(fovV / targetLines);
   const azimuths = visibleAzimuths(cam, azStep, below);
   // Rings are windowed to the view; when a pole is on screen, extend rings out to it so the innermost
