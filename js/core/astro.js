@@ -1,6 +1,7 @@
 // The ONLY module that imports the astronomy-engine vendor file.
 // Inputs/outputs are in DEGREES. RA stored in degrees; converted to hours where the library needs hours.
 import * as Astronomy from '../vendor/astronomy.js';
+import { MOON_ELEMENTS, moonOffsetEqjAu } from './planet-moons.js';
 
 // Re-export the body enum so the rest of the app never imports the vendor directly.
 export const Body = Astronomy.Body;
@@ -88,33 +89,45 @@ export function bodyAngularRadiusDeg(body, observer, time) {
 // Mean visual magnitudes of the Galilean moons (they vary by a few tenths; fine for dot sizing).
 const GALILEAN_MAGS = { Io: 5.0, Europa: 5.3, Ganymede: 4.6, Callisto: 5.7 };
 
-// The four Galilean moons as sky positions: [{ name, altaz:{alt,az}, mag, behind }].
-// Jovicentric EQJ offsets (vendor L1.2 theory) added to Jupiter's geocentric vector, then through the
-// same J2000 -> precessed -> refracted alt/az path as the stars (topocentric parallax is negligible at
-// Jupiter's distance). `behind` = occulted by the disc: farther than Jupiter AND within its physical
-// radius of the line of sight.
-export function jupiterMoonsAltAz(observer, time) {
-  const jup = Astronomy.GeoVector(Body.Jupiter, time, /*aberration*/ true);
-  const jlen = Math.hypot(jup.x, jup.y, jup.z);
-  // Light-travel time: we see the moons where they were when the light LEFT Jupiter (~35-50 min ago).
-  // Io sweeps ~6 deg of orbital phase in that interval — skipping this visibly shifts elongations.
-  const jm = Astronomy.JupiterMoons(time.AddDays(-jlen * (499.00478939 / 86400)));
-  const los = [jup.x / jlen, jup.y / jlen, jup.z / jlen]; // unit line of sight to Jupiter
-  return ['Io', 'Europa', 'Ganymede', 'Callisto'].map((name) => {
-    const sv = jm[name.toLowerCase()];
-    // Mixing frames slightly: jup is at observation time, sv at emission time — the error is
-    // ~0.02 arcsec (Jupiter drifts ~5 arcsec/day geocentrically), far below rendering scale.
-    const g = new Astronomy.Vector(jup.x + sv.x, jup.y + sv.y, jup.z + sv.z, time);
-    const eq = Astronomy.EquatorFromVector(g); // ra HOURS, dec deg (J2000)
-    const along = sv.x * los[0] + sv.y * los[1] + sv.z * los[2]; // AU beyond (+) / before (-) Jupiter
-    const perp = Math.hypot(sv.x - along * los[0], sv.y - along * los[1], sv.z - along * los[2]);
-    return {
-      name,
-      altaz: altAzOfStar(eq.ra * 15, eq.dec, observer, time),
-      mag: GALILEAN_MAGS[name],
-      behind: along > 0 && perp < BODY_RADIUS_AU.Jupiter,
-    };
+// All planetary moons as sky positions: [{ planet, name, altaz:{alt,az}, mag, behind }].
+// Jupiter's four use the vendored L1.2 theory; the rest come from the Kepler element table in
+// planet-moons.js. Each system is evaluated at its LIGHT-EMISSION time (displayed time minus the
+// planet's light-travel time), so on-screen positions are apparent for the displayed clock.
+// `behind` = occulted: farther than the planet AND within its physical radius of the line of sight.
+export function planetMoonsAltAz(observer, time) {
+  const out = [];
+  const system = (planetName, body, moons) => {
+    const pv = Astronomy.GeoVector(body, time, /*aberration*/ true);
+    const plen = Math.hypot(pv.x, pv.y, pv.z);
+    const los = [pv.x / plen, pv.y / plen, pv.z / plen];
+    const emit = time.AddDays(-plen * (499.00478939 / 86400));
+    for (const { name, mag, offset } of moons(emit)) {
+      // Mixing frames slightly: pv is at observation time, offset at emission time — the error is
+      // ~0.02 arcsec (planet drifts ~5 arcsec/day geocentrically), far below rendering scale.
+      const g = new Astronomy.Vector(pv.x + offset[0], pv.y + offset[1], pv.z + offset[2], time);
+      const eq = Astronomy.EquatorFromVector(g);
+      const along = offset[0] * los[0] + offset[1] * los[1] + offset[2] * los[2];
+      const perp = Math.hypot(offset[0] - along * los[0], offset[1] - along * los[1], offset[2] - along * los[2]);
+      out.push({
+        planet: planetName, name, mag,
+        altaz: altAzOfStar(eq.ra * 15, eq.dec, observer, time),
+        behind: along > 0 && perp < BODY_RADIUS_AU[planetName],
+      });
+    }
+  };
+  system('Jupiter', Body.Jupiter, (emit) => {
+    const jm = Astronomy.JupiterMoons(emit);
+    return ['Io', 'Europa', 'Ganymede', 'Callisto'].map((name) => {
+      const sv = jm[name.toLowerCase()];
+      return { name, mag: GALILEAN_MAGS[name], offset: [sv.x, sv.y, sv.z] };
+    });
   });
+  for (const planetName of ['Mars', 'Saturn', 'Uranus', 'Neptune']) {
+    const rows = MOON_ELEMENTS.filter((r) => r.planet === planetName);
+    if (rows.length) system(planetName, Body[planetName], (emit) =>
+      rows.map((r) => ({ name: r.name, mag: r.mag, offset: moonOffsetEqjAu(r, 2451545.0 + emit.tt) })));
+  }
+  return out;
 }
 
 // Build a reusable J2000->alt/az converter for a fixed (observer, time): the EQJ->EQD precession
