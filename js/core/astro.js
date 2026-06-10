@@ -96,8 +96,13 @@ const GALILEAN_MAGS = { Io: 5.0, Europa: 5.3, Ganymede: 4.6, Callisto: 5.7 };
 // `behind` = occulted: farther than the planet AND within its physical radius of the line of sight.
 export function planetMoonsAltAz(observer, time) {
   const out = [];
+  // TOPOCENTRIC planet vector (observer -> planet), matching altAzOfBody's parallax: the planets are
+  // placed topocentrically, so geocentric moons would be offset from their planet by its parallax —
+  // invisible for Jupiter/Saturn (arcsec vs arcmin orbits) but most of Phobos' 6-arcsec orbit at Mars.
+  const ov = Astronomy.ObserverVector(time, observer, /*ofdate*/ false);
   const system = (planetName, body, moons) => {
-    const pv = Astronomy.GeoVector(body, time, /*aberration*/ true);
+    const gv = Astronomy.GeoVector(body, time, /*aberration*/ true);
+    const pv = { x: gv.x - ov.x, y: gv.y - ov.y, z: gv.z - ov.z };
     const plen = Math.hypot(pv.x, pv.y, pv.z);
     const los = [pv.x / plen, pv.y / plen, pv.z / plen];
     const emit = time.AddDays(-plen * (499.00478939 / 86400));
