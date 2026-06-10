@@ -61,18 +61,22 @@ test('roll=90 rotates the view: an object above center moves to the right edge-w
   assert.ok(rolled.x > cx && Math.abs(rolled.y - cy) < 1e-6, 'roll 90: that object is now to the right');
 });
 
-test('a point fov/2 off-axis lands exactly at the screen edge (fov spans the width)', () => {
-  const p = project(30, 0, { az: 0, alt: 0, fov: 60, ...VIEW });
-  assert.ok(p.visible && Math.abs(p.x - 800) < 1e-6 && Math.abs(p.y - cy) < 1e-6);
+test('a point fov/2 off-axis lands exactly at the screen edge of the SHORTER dimension', () => {
+  // VIEW is 800x600 landscape: fov spans the 600px height, so 30° above the aim hits the top edge
+  // (y=0) — and 30° east lands at x=700, inside the wider dimension, not at the 800px right edge.
+  const up = project(0, 30, { az: 0, alt: 0, fov: 60, ...VIEW });
+  assert.ok(up.visible && Math.abs(up.y - 0) < 1e-6 && Math.abs(up.x - cx) < 1e-6);
+  const east = project(30, 0, { az: 0, alt: 0, fov: 60, ...VIEW });
+  assert.ok(east.visible && Math.abs(east.x - 700) < 1e-6, 'horizontal: 30° lands 300px out, not at the 800px edge');
 });
 
 test('near the view center, stereographic matches the old gnomonic within 2%', () => {
-  // Gnomonic reference computed inline: dx = f_g * tan(theta), f_g = (w/2)/tan(fov/2).
+  // Gnomonic reference computed inline: dx = f_g * tan(theta), f_g = (minDim/2)/tan(fov/2).
   // Use a narrow FOV (30°) so the two focal lengths are close — making this a valid invariant.
   // At fov=60° the focal lengths diverge ~7.5%; at fov=30° they diverge ~1.6% (within the 2% band).
   const fov = 30, theta = 5;
   const d2r = Math.PI / 180;
-  const fg = 400 / Math.tan((fov / 2) * d2r);
+  const fg = 300 / Math.tan((fov / 2) * d2r);
   const gnomonicDx = fg * Math.tan(theta * d2r);
   const p = project(theta, 0, { az: 0, alt: 0, fov, ...VIEW });
   assert.ok(Math.abs((p.x - cx) - gnomonicDx) / gnomonicDx < 0.02);
@@ -99,8 +103,9 @@ test('project/inverse round-trip recovers the sky direction (mirrors the sky-bac
 });
 
 test('focalPx is the px-per-radian at the view center and matches cameraBasis', () => {
-  const f = focalPx(60, 800);
-  assert.ok(Math.abs(f - 400 / (2 * Math.tan(Math.PI / 12))) < 1e-9);
+  const f = focalPx(60, 800, 600);
+  assert.ok(Math.abs(f - 300 / (2 * Math.tan(Math.PI / 12))) < 1e-9, 'scaled by the shorter dimension (600)');
+  assert.ok(Math.abs(focalPx(60, 600, 800) - f) < 1e-9, 'orientation-independent: portrait matches landscape');
   assert.ok(Math.abs(cameraBasis({ az: 0, alt: 0, fov: 60, width: 800, height: 600 }).focal - f) < 1e-9);
-  assert.ok(focalPx(235, 800) > 0, 'stays positive past 180 deg fov (tan(fov/2) would go negative)');
+  assert.ok(focalPx(235, 800, 600) > 0, 'stays positive past 180 deg fov (tan(fov/2) would go negative)');
 });

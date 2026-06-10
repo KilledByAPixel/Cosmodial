@@ -25,11 +25,14 @@ export function norm(v) {
 // star/marker/body-sphere shaders — tests guard against drift.
 export const MIN_VIS_Z = Math.cos(degToRad(150));
 
-// Screen scale (px per radian at the view CENTER) for a given fov (degrees, spans the screen width)
-// and width (CSS px). Single source of truth — cameraBasis and the disc-radius helpers (sun/moon/
+// Screen scale (px per radian at the view CENTER) for a given fov (degrees) and canvas size
+// (CSS px). fov spans the SHORTER screen dimension: zoomed out near the zenith the sky is a
+// circle, and tying the scale to the shorter side keeps that circle fully inside the window at
+// MAX_FOV whatever the aspect ratio (width-based, a wide window cropped the circle and a narrow
+// one shrank it). Single source of truth — cameraBasis and the disc-radius helpers (sun/moon/
 // DSO/planets) must agree, or discs drift in size relative to the projected sky.
-export function focalPx(fov, width) {
-  return (width / 2) / (2 * Math.tan(degToRad(fov) / 4));
+export function focalPx(fov, width, height) {
+  return (Math.min(width, height) / 2) / (2 * Math.tan(degToRad(fov) / 4));
 }
 
 // Camera basis (right/up/forward unit vectors) + focal length + screen center for a fixed camera.
@@ -49,10 +52,11 @@ export function cameraBasis(cam) {
     const rUp = [up[0] * cr - right[0] * sr, up[1] * cr - right[1] * sr, up[2] * cr - right[2] * sr];
     right = rRight; up = rUp;
   }
-  // Stereographic screen scale: r_px = 2·focal·tan(θ/2), normalized so `fov` spans the screen width
-  // (a point fov/2 off-axis lands at the screen edge). The px-per-radian at the view CENTER is still
-  // exactly `focal`, so small-angle radius helpers (sun/moon/DSO discs) keep using focalPx directly.
-  const focal = focalPx(cam.fov, cam.width);
+  // Stereographic screen scale: r_px = 2·focal·tan(θ/2), normalized so `fov` spans the SHORTER
+  // screen dimension (a point fov/2 off-axis lands at that edge — see focalPx). The px-per-radian
+  // at the view CENTER is still exactly `focal`, so small-angle radius helpers (sun/moon/DSO
+  // discs) keep using focalPx directly.
+  const focal = focalPx(cam.fov, cam.width, cam.height);
   return { right, up, fwd, focal, cx: cam.width / 2, cy: cam.height / 2 };
 }
 

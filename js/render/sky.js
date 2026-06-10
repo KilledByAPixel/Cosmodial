@@ -96,7 +96,7 @@ const SUN_SCALE = 1;
 // Exported so the WebGL marker pass (starfield-gl.js, via main.js) sizes discs identically.
 export function markerRadius(m, cam) {
   if (m.angularRadiusDeg != null) {
-    const focal = focalPx(cam.fov, cam.width);
+    const focal = focalPx(cam.fov, cam.width, cam.height);
     return focal * Math.tan(degToRad(m.angularRadiusDeg)) * (m.label === 'Sun' ? SUN_SCALE : MOON_SCALE);
   }
   return m.radius || 4;

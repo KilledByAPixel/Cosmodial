@@ -1,8 +1,9 @@
 // Grab-the-sky drag: convert a pixel delta into an aim (az, alt) delta in degrees.
 // Dragging right pulls the sky right (azimuth decreases); dragging down tilts the view up
-// (altitude increases). fov is the horizontal field of view; width is the canvas CSS width.
-export function dragToAimDelta(dx, dy, fov, width) {
-  const degPerPx = fov / width;
+// (altitude increases). fov spans `span` px — the SHORTER canvas dimension (see focalPx), so the
+// sky tracks the pointer at the view centre whatever the window aspect.
+export function dragToAimDelta(dx, dy, fov, span) {
+  const degPerPx = fov / span;
   // || 0 coerces -0 -> 0 so negative zero never leaks into the store / strict-equality checks.
   return { dAz: (-dx * degPerPx) || 0, dAlt: (dy * degPerPx) || 0 };
 }
@@ -69,7 +70,7 @@ export function attachInput(canvas, store, opts = {}) {
     const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
     if (!dragAimEnabled(store.getState().flags)) return; // gyro/AR owns the aim
     const { fov, aim } = store.getState();
-    const { dAz, dAlt } = dragToAimDelta(dx, dy, fov, canvas.clientWidth);
+    const { dAz, dAlt } = dragToAimDelta(dx, dy, fov, Math.min(canvas.clientWidth, canvas.clientHeight));
     store.setAim(aim.az + dAz, aim.alt + dAlt);
     if (opts.onViewDrag) opts.onViewDrag(); // user moved the view -> exit any lock-on follow
   };

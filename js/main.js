@@ -227,7 +227,7 @@ function render() {
     // One EQJ->ENU rotation per frame: stars sweep smoothly in live/play/scrub at zero per-star CPU cost.
     const t = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
     starfield.setStarMatrix(eqjToEnuMatrix(horToEqjRotation(makeObserver(st.location.lat, st.location.lng), t)));
-    const focal = focalPx(st.fov, view.width); // px per radian at screen centre
+    const focal = focalPx(st.fov, view.width, view.height); // px per radian at screen centre
     const sphereLabels = new Set();
     const bodyList = [];
     for (const bi of bodyInputs) {
@@ -349,7 +349,7 @@ function ensureFreshPickData() {
   const ms = (st.time.instant ? new Date(st.time.instant) : new Date()).getTime();
   const locChanged = !skyStamp || skyStamp.lat !== st.location.lat || skyStamp.lng !== st.location.lng;
   const driftDeg = skyStamp ? (Math.abs(ms - skyStamp.ms) / 1000) * 0.00418 : Infinity;
-  const pickRadiusDeg = 18 * (st.fov / canvas.clientWidth);
+  const pickRadiusDeg = 18 * (st.fov / Math.min(canvas.clientWidth, canvas.clientHeight)); // fov spans the shorter dimension (see focalPx)
   if (locChanged || driftDeg > pickRadiusDeg * 0.5) { computeSky(true); fullDirty = false; } // full just ran; don't repeat it next render
 }
 

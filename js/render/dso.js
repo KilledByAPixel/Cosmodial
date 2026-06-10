@@ -7,7 +7,7 @@ const MAX_ALPHA = 0.6;       // even the brightest DSO is a faint glow, never a 
 // On-screen radius (px) from real angular size (arcmin), via the same focal projection as
 // markerRadius — so a DSO grows as you zoom in (unlike a magnitude-sized star). Floored.
 export function dsoScreenRadius(sizeArcmin, cam) {
-  const focal = focalPx(cam.fov, cam.width);
+  const focal = focalPx(cam.fov, cam.width, cam.height);
   const radiusDeg = (sizeArcmin / 60) / 2; // arcmin diameter -> degree radius
   return Math.max(focal * Math.tan(degToRad(radiusDeg)), MIN_GLOW_R);
 }

@@ -3,14 +3,14 @@ import assert from 'node:assert/strict';
 import { dsoScreenRadius, dsoAlpha, dsoSymbol } from '../js/render/dso.js';
 
 test('dsoScreenRadius scales with angular size and grows as FOV shrinks', () => {
-  const wide = { width: 1000, fov: 60 };
-  const narrow = { width: 1000, fov: 15 };
+  const wide = { width: 1000, height: 800, fov: 60 };
+  const narrow = { width: 1000, height: 800, fov: 15 };
   assert.ok(dsoScreenRadius(60, wide) > dsoScreenRadius(20, wide), 'bigger object -> bigger radius');
   assert.ok(dsoScreenRadius(60, narrow) > dsoScreenRadius(60, wide), 'zoom in -> bigger');
 });
 
 test('dsoScreenRadius respects a minimum floor', () => {
-  assert.ok(dsoScreenRadius(0.5, { width: 1000, fov: 60 }) >= 2, 'tiny object floored');
+  assert.ok(dsoScreenRadius(0.5, { width: 1000, height: 800, fov: 60 }) >= 2, 'tiny object floored');
 });
 
 test('dsoAlpha: compact bright reads brighter than large dim, clamped to [0,1]', () => {
