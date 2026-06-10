@@ -1,12 +1,4 @@
-// Grab-the-sky drag: convert a pixel delta into an aim (az, alt) delta in degrees.
-// Dragging right pulls the sky right (azimuth decreases); dragging down tilts the view up
-// (altitude increases). fov spans `span` px — the SHORTER canvas dimension (see focalPx), so the
-// sky tracks the pointer at the view centre whatever the window aspect.
-export function dragToAimDelta(dx, dy, fov, span) {
-  const degPerPx = fov / span;
-  // || 0 coerces -0 -> 0 so negative zero never leaks into the store / strict-equality checks.
-  return { dAz: (-dx * degPerPx) || 0, dAlt: (dy * degPerPx) || 0 };
-}
+import { unproject, grabAim } from '../core/projection.js';
 
 // Mouse-wheel zoom: scale FOV multiplicatively. Scrolling up (deltaY<0) zooms IN (smaller FOV).
 // Returns the new, UNCLAMPED FOV; state.setFov clamps to [MIN_FOV, MAX_FOV].
@@ -43,6 +35,12 @@ export function attachInput(canvas, store, opts = {}) {
   const pointers = new Map(); // pointerId -> { x, y }
   let pinch = null;           // { startDist, startFov } while two fingers are down
   let downAt = null; // { x, y, moved } for tap-vs-drag detection
+  let grabDir = null; // ENU direction grabbed at pointer-down; the drag pins it under the cursor
+
+  const camNow = () => {
+    const { aim, fov } = store.getState();
+    return { az: aim.az, alt: aim.alt, fov, width: canvas.clientWidth, height: canvas.clientHeight };
+  };
 
   const twoPointerDist = () => {
     const [a, b] = [...pointers.values()];
@@ -54,6 +52,7 @@ export function attachInput(canvas, store, opts = {}) {
     canvas.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.size === 1) downAt = { x: e.clientX, y: e.clientY, moved: false };
+    if (pointers.size === 1) grabDir = unproject(e.clientX, e.clientY, camNow());
     // pointerdown always fires before the next pointermove, so the pointer map is consistent here.
     if (pointers.size === 2) pinch = { startDist: twoPointerDist(), startFov: store.getState().fov };
   };
@@ -67,11 +66,12 @@ export function attachInput(canvas, store, opts = {}) {
       store.setFov(pinchToFov(pinch.startFov, pinch.startDist, twoPointerDist()));
       return;
     }
-    const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
     if (!dragAimEnabled(store.getState().flags)) return; // gyro/AR owns the aim
-    const { fov, aim } = store.getState();
-    const { dAz, dAlt } = dragToAimDelta(dx, dy, fov, Math.min(canvas.clientWidth, canvas.clientHeight));
-    store.setAim(aim.az + dAz, aim.alt + dAlt);
+    if (!grabDir) return;
+    // Grab-the-sky: solve for the aim that keeps the grabbed point pinned under the cursor —
+    // exact at any pitch (near the zenith the drag naturally becomes rotation about it).
+    const { az, alt } = grabAim(grabDir, e.clientX, e.clientY, camNow());
+    store.setAim(az, alt);
     if (opts.onViewDrag) opts.onViewDrag(); // user moved the view -> exit any lock-on follow
   };
 
@@ -81,6 +81,11 @@ export function attachInput(canvas, store, opts = {}) {
     }
     if (pointers.size <= 1) downAt = null;
     pointers.delete(e.pointerId);
+    if (pointers.size === 1) {
+      const [pt] = [...pointers.values()];
+      grabDir = unproject(pt.x, pt.y, camNow());
+    }
+    if (pointers.size === 0) grabDir = null;
     if (pointers.size < 2) pinch = null;
   };
 
