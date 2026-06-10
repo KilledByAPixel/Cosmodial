@@ -92,7 +92,8 @@ uniform vec2 uViewport;   // CSS px
 uniform float uDpr;       // device pixels per CSS px (gl_PointSize is in device px)
 uniform float uZoom;      // zoomScale(fov)
 uniform float uMaxPointSize;
-uniform float uShowBelow; // 1 = also draw stars below the horizon
+uniform float uBelowFade;   // 0..1: visibility of the below-horizon sky (0 = culled, 1 = full)
+uniform float uExtinction;  // 1 = atmospheric extinction on; 0 = space view (no dimming/reddening)
 uniform float uStarDayFade; // 1 at night, 0 in daylight — fades stars out when the sky is bright
 uniform mat3 uEqjToEnu;      // J2000 -> ENU (true direction); per-frame rotation for GPU star transform
 
@@ -110,8 +111,8 @@ void main() {
   float appAlt = radians(trueAlt + refractionDeg(trueAlt));
   float hxy = length(e.xy);
   vec3 dir = (hxy < 1e-6) ? e : vec3(e.xy * (cos(appAlt) / hxy), sin(appAlt));
-  // dir.z == sin(alt): cull below-horizon stars unless full-sphere/edit is on.
-  if (uShowBelow < 0.5 && dir.z < 0.0) {
+  // dir.z == sin(alt): below-horizon stars fade by uBelowFade (culled entirely at 0).
+  if (uBelowFade <= 0.0 && dir.z < 0.0) {
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
     gl_PointSize = 0.0;
     return;
@@ -135,20 +136,21 @@ void main() {
     magAlpha = clamp(pow(radius / ${glslFloat(C.STAR_MIN_R)}, ${glslFloat(C.STAR_DIM_EXP)}), 0.0, 1.0);
     radius = ${glslFloat(C.STAR_MIN_R)};
   }
-  vAlpha = magAlpha * aAlphaScale * uStarDayFade; // size/colour fade * daylight wash-out
+  float belowA = (dir.z < 0.0) ? uBelowFade : 1.0;
+  vAlpha = magAlpha * aAlphaScale * uStarDayFade * belowA; // size/colour fade * wash-out * horizon fade
 
   // Atmospheric extinction: dim + redden toward the horizon. Air mass (Kasten-Young) comes from the
   // star's altitude (aDir.z == sin(alt)); this mirrors airmass()/extinction() in atmosphere.js, with
   // the EXT_K coefficients embedded as literals (a test guards against drift). Below-horizon stars
   // (full-sphere/edit) clamp at the horizon air mass rather than blowing up.
-  // Full-sphere mode mirrors the gradient below the horizon, so mirror the air mass too (|alt|) —
-  // otherwise every below-horizon star clamps to the horizon's ~11 magnitudes of extinction and
-  // vanishes. Normal mode culls below-horizon stars anyway, so max(alt,0) is equivalent there.
   float altDeg = degrees(asin(clamp(dir.z, -1.0, 1.0)));
-  float hh = (uShowBelow > 0.5) ? abs(altDeg) : max(altDeg, 0.0);
+  // |alt| mirrors the air mass below the horizon (matching the mirrored sky gradient) so faded-in
+  // stars don't clamp at the horizon's ~11 magnitudes of extinction and vanish; above the horizon
+  // it's identical to max(alt, 0). uExtinction zeroes the whole effect in space view.
+  float hh = abs(altDeg);
   float airmass = 1.0 / (sin(radians(hh)) + 0.50572 * pow(hh + 6.07995, -1.6364));
   vec3 extK = vec3(${glslFloat(EXT_K.r)}, ${glslFloat(EXT_K.g)}, ${glslFloat(EXT_K.b)});
-  vColor = aColor * pow(vec3(10.0), -0.4 * extK * (airmass - 1.0));
+  vColor = aColor * pow(vec3(10.0), -0.4 * extK * (airmass - 1.0) * uExtinction);
 
   // Sprite is larger than the 2D core radius to leave room for the glow halo (device px, hardware-capped).
   gl_PointSize = min(radius * 2.0 * ${glslFloat(GLOW_SCALE)} * uDpr, uMaxPointSize);
@@ -193,13 +195,13 @@ uniform float uFocal;
 uniform vec2 uViewport;
 uniform float uDpr;
 uniform float uMaxPointSize;
-uniform float uShowBelow;
+uniform float uBelowFade;
 
 out vec3 vColor;
 out float vAlpha;
 
 void main() {
-  if (uShowBelow < 0.5 && aDir.z < 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; }
+  if (uBelowFade <= 0.0 && aDir.z < 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; }
   float z = dot(aDir, uFwd);
   if (z <= 0.000001) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; }
   // Identical projection to the star shader / projectPoint() (CSS px; +y up, do NOT negate).
@@ -207,7 +209,7 @@ void main() {
   float sy = uFocal * dot(aDir, uUp) / z;
   gl_Position = vec4(sx / (uViewport.x * 0.5), sy / (uViewport.y * 0.5), 0.0, 1.0);
   vColor = aColor;
-  vAlpha = aAlpha;
+  vAlpha = aAlpha * ((aDir.z < 0.0) ? uBelowFade : 1.0); // below-horizon markers ride the fade
   // Sprite diameter = disc diameter * MARKER_GLOW_SCALE so the disc fills the central 1/scale (see fragment).
   gl_PointSize = min(aCoreRadius * 2.0 * ${glslFloat(MARKER_GLOW_SCALE)} * uDpr, uMaxPointSize);
 }`;
@@ -300,7 +302,7 @@ export function createStarfield(glCanvas) {
     uViewport: gl.getUniformLocation(program, 'uViewport'),
     uDpr: gl.getUniformLocation(program, 'uDpr'),
     uMaxPointSize: gl.getUniformLocation(program, 'uMaxPointSize'),
-    uShowBelow: gl.getUniformLocation(program, 'uShowBelow'),
+    uBelowFade: gl.getUniformLocation(program, 'uBelowFade'),
   });
 
   // dir(3)@0, color(3)@12, then two more floats (mag/alphaScale or coreRadius/alpha) @24,@28.
@@ -323,6 +325,7 @@ export function createStarfield(glCanvas) {
       ...cameraUniforms(program),
       uZoom: gl.getUniformLocation(program, 'uZoom'),
       uStarDayFade: gl.getUniformLocation(program, 'uStarDayFade'),
+      uExtinction: gl.getUniformLocation(program, 'uExtinction'),
       uEqjToEnu: gl.getUniformLocation(program, 'uEqjToEnu'),
     };
     markerLoc = cameraUniforms(markerProgram);
@@ -383,7 +386,8 @@ export function createStarfield(glCanvas) {
 
   // Set the camera-projection uniforms shared by the star and marker programs. The target program
   // must already be active (gl.useProgram). L is that program's uniform-location map.
-  function setCameraUniforms(L, cam, showBelow) {
+  // belowFade is the 0..1 visibility of the below-horizon sky (0 = fully culled, 1 = fully visible).
+  function setCameraUniforms(L, cam, belowFade) {
     const { right, up, fwd, focal } = cameraBasis(cam);
     gl.uniform3f(L.uRight, right[0], right[1], right[2]);
     gl.uniform3f(L.uUp, up[0], up[1], up[2]);
@@ -392,7 +396,7 @@ export function createStarfield(glCanvas) {
     gl.uniform2f(L.uViewport, cam.width, cam.height);
     gl.uniform1f(L.uDpr, dpr);
     gl.uniform1f(L.uMaxPointSize, maxPointSize);
-    gl.uniform1f(L.uShowBelow, showBelow ? 1 : 0);
+    gl.uniform1f(L.uBelowFade, belowFade);
   }
 
   // Stash the latest sky-background params (sun-driven colours + ENU->galactic matrix). Called from
@@ -406,22 +410,24 @@ export function createStarfield(glCanvas) {
   function setBodyTexture(name, url, opts) { if (bodySphere) bodySphere.setTexture(name, url, opts); }
 
   // Draw the sky background (opaque) then all stars. cam: { az, alt, fov, width, height } (CSS px).
-  function draw(cam, { showBelow = false, edit = false } = {}) {
+  function draw(cam, { belowFade = 0, edit = false } = {}) {
     if (lost) return;
+    const fade = edit ? 1 : belowFade; // edit mode always shows the whole sphere
     gl.clear(gl.COLOR_BUFFER_BIT);
     // Sky background first: an OPAQUE base under the additive star pass. Blend is disabled so the
     // fragment's alpha=1 fully replaces the pixel; restore additive (ONE,ONE) before the stars.
     if (skyBg && skyParamsStash) {
       gl.disable(gl.BLEND);
-      skyBg.draw(cam, { ...skyParamsStash, dpr, showBelow: showBelow || edit, mwZoomFade: milkyWayZoomFade(cam.fov) });
+      skyBg.draw(cam, { ...skyParamsStash, dpr, belowFade: fade, mwZoomFade: milkyWayZoomFade(cam.fov) });
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.ONE, gl.ONE);
     }
     if (count && starMatrix) {
       gl.useProgram(program);
-      setCameraUniforms(loc, cam, showBelow || edit);
+      setCameraUniforms(loc, cam, fade);
       gl.uniform1f(loc.uZoom, zoomScale(cam.fov));
       gl.uniform1f(loc.uStarDayFade, skyParamsStash ? skyParamsStash.starDayFade : 1);
+      gl.uniform1f(loc.uExtinction, skyParamsStash && skyParamsStash.extinction != null ? skyParamsStash.extinction : 1);
       gl.uniformMatrix3fv(loc.uEqjToEnu, false, starMatrix);
       gl.bindVertexArray(vao);
       gl.drawArrays(gl.POINTS, 0, count);
@@ -433,13 +439,13 @@ export function createStarfield(glCanvas) {
   // Draw the Sun/Moon/planet markers as glowing discs. Call AFTER draw() (which does the clear) so the
   // markers accumulate over the stars; this does NOT clear. Markers are few, so the tiny buffer is
   // rebuilt each call. markerList items: { az, alt, color (hex), radiusPx, alpha }.
-  function drawMarkers(markerList, cam, { showBelow = false } = {}) {
+  function drawMarkers(markerList, cam, { belowFade = 0 } = {}) {
     if (lost || !markerList || markerList.length === 0) return;
     const { data, count: n } = buildMarkerAttributes(markerList);
     gl.bindBuffer(gl.ARRAY_BUFFER, markerVbo);
     gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
     gl.useProgram(markerProgram);
-    setCameraUniforms(markerLoc, cam, showBelow);
+    setCameraUniforms(markerLoc, cam, belowFade);
     gl.bindVertexArray(markerVao);
     gl.drawArrays(gl.POINTS, 0, n);
     gl.bindVertexArray(null);

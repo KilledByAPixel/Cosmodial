@@ -41,7 +41,7 @@ uniform vec3 uRight, uUp, uFwd;
 uniform float uFocal;       // CSS px
 uniform vec2 uViewport;     // CSS px
 uniform float uDpr;         // device px per CSS px
-uniform float uShowBelow;   // 1 = full sphere (mirror the gradient below the horizon, no ground)
+uniform float uBelowFade;   // 0..1: mirror the gradient below the horizon by this much (1 = no ground)
 
 uniform vec3 uZenithColor, uHorizonColor, uSunGlowColor, uSunDir;
 uniform float uSunGlowStrength, uHorizonAirglow, uMwVisibility, uMwZoomFade, uHasMilkyWay;
@@ -70,7 +70,7 @@ void main() {
   // Texture-sampling direction = the pixel's apparent direction warped to TRUE altitude, so the
   // textured sky lines up with the catalogue stars (drawn at apparent = true + refraction). Invert
   // refraction by two fixed-point iterations (it's small); the taper in refractionDeg() means this also
-  // works BELOW the horizon in full-sphere mode. Identity at the zenith; leaves azimuth alone.
+  // works BELOW the horizon when the below-horizon sky is faded in. Identity at the zenith; leaves azimuth alone.
   float az = atan(ray.x, ray.y);
   float hApp = degrees(asin(clamp(ray.z, -1.0, 1.0)));
   float hTrue = hApp - refractionDeg(hApp);
@@ -84,8 +84,8 @@ void main() {
   float b = atan(gal.z, length(gal.xy));   // galactic latitude
   vec2 uv = vec2(${lonExpr}, ${latExpr});  // u may exit [0,1]; wrapS=REPEAT handles the longitude seam
 
-  // Altitude gradient. ray.z == sin(altitude). Full-sphere mirrors the gradient below the horizon.
-  float s = (uShowBelow > 0.5) ? abs(ray.z) : ray.z;
+  // Altitude gradient. ray.z == sin(altitude). uBelowFade mirrors the gradient below the horizon.
+  float s = mix(ray.z, abs(ray.z), uBelowFade);
   float h = clamp(s, 0.0, 1.0);
   float grad = pow(h, 0.55);
   vec3 sky = mix(uHorizonColor, uZenithColor, grad);
@@ -103,11 +103,10 @@ void main() {
     sky += mw * (${MW_GAIN.toFixed(2)} * uMwVisibility * uMwZoomFade);
   }
 
-  // Below the (true) horizon when not in full-sphere mode, fade to a dark ground tone.
-  if (uShowBelow < 0.5) {
-    float ground = smoothstep(0.0, -0.08, ray.z);
-    sky = mix(sky, sky * 0.12, ground);
-  }
+  // Below the (true) horizon, fade to a dark ground tone — weakened as the below-horizon sky
+  // fades in (uBelowFade 1 = no ground at all; the mirrored sky shows instead).
+  float ground = smoothstep(0.0, -0.08, ray.z) * (1.0 - uBelowFade);
+  sky = mix(sky, sky * 0.12, ground);
 
   fragColor = vec4(clamp(sky, 0.0, 1.0), 1.0); // opaque base
 }`;
@@ -148,7 +147,7 @@ export function createSkyBackground(gl) {
     }
     vao = gl.createVertexArray(); // empty: the vertex shader uses gl_VertexID only
     const names = [
-      'uRight', 'uUp', 'uFwd', 'uFocal', 'uViewport', 'uDpr', 'uShowBelow',
+      'uRight', 'uUp', 'uFwd', 'uFocal', 'uViewport', 'uDpr', 'uBelowFade',
       'uZenithColor', 'uHorizonColor', 'uSunGlowColor', 'uSunDir',
       'uSunGlowStrength', 'uHorizonAirglow', 'uMwVisibility', 'uMwZoomFade', 'uHasMilkyWay',
       'uEnuToGal', 'uMilkyWay',
@@ -200,7 +199,7 @@ export function createSkyBackground(gl) {
     gl.uniform1f(loc.uFocal, focal);
     gl.uniform2f(loc.uViewport, cam.width, cam.height);
     gl.uniform1f(loc.uDpr, p.dpr || 1);
-    gl.uniform1f(loc.uShowBelow, p.showBelow ? 1 : 0);
+    gl.uniform1f(loc.uBelowFade, p.belowFade || 0);
     gl.uniform3fv(loc.uZenithColor, p.zenithColor);
     gl.uniform3fv(loc.uHorizonColor, p.horizonColor);
     gl.uniform3fv(loc.uSunGlowColor, p.sunGlowColor);

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildMarkerAttributes, hexToRgb01, vertexShaderSource } from '../js/render/starfield-gl.js';
+import { buildMarkerAttributes, hexToRgb01, vertexShaderSource, markerVertexShaderSource } from '../js/render/starfield-gl.js';
 import { cameraBasis, vec, dot } from '../js/core/projection.js';
 import { STAR_CONSTS } from '../js/render/starstyle.js';
 import { EXT_K } from '../js/render/atmosphere.js';
@@ -62,4 +62,14 @@ test('vertex shader embeds the extinction coefficients (drift guard)', () => {
     const lit = String(EXT_K[key]);
     assert.ok(src.includes(lit), `shader should embed EXT_K.${key} = ${lit}`);
   }
+});
+
+test('shaders use the continuous below-horizon fade + extinction switch (not the old boolean)', () => {
+  const star = vertexShaderSource();
+  assert.ok(star.includes('uBelowFade'), 'star shader fades below-horizon stars');
+  assert.ok(star.includes('uExtinction'), 'star shader can switch extinction off (space view)');
+  assert.ok(!star.includes('uShowBelow'), 'old boolean uniform is gone from the star shader');
+  const marker = markerVertexShaderSource();
+  assert.ok(marker.includes('uBelowFade'), 'marker shader fades below-horizon markers');
+  assert.ok(!marker.includes('uShowBelow'), 'old boolean uniform is gone from the marker shader');
 });
