@@ -137,7 +137,7 @@ export function drawScene(ctx, { stars, markers, constellations = [], cam, edit 
   const fade = edit ? 1 : belowFade; // edit mode always shows the whole sphere
   clear(ctx, cam.width, cam.height, !drawStarPoints);
   if (grid) drawGrid(ctx, projector, cam, fade);
-  if (eqGrid) drawEqGrid(ctx, projector, cam, eqGrid, fade); // eqGrid = the EQJ->ENU matrix when the toggle is on
+  if (eqGrid) drawEqGrid(ctx, cam, eqGrid, fade); // eqGrid = the EQJ->ENU matrix when the toggle is on
   if (!edit) drawDsoGlow(ctx, dsos, projector, cam, fade);   // realistic glow, behind the stars
   drawConstellations(ctx, projector, constellations, cam, edit, labels, fade);
   if (drawStarPoints) drawStars(ctx, stars, projector, cam, edit, labels, fade);

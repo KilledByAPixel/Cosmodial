@@ -53,8 +53,44 @@ test('drawEqGrid strokes lines and places RA/Dec labels without throwing', () =>
     stroke() { calls.stroke++; }, fillText(t) { calls.texts.push(t); },
   };
   const cam = { az: 0, alt: 41, fov: 90, width: 800, height: 600 }; // aimed at the celestial pole region
-  assert.doesNotThrow(() => drawEqGrid(ctx, createProjector(cam), cam, M, 0.5));
+  assert.doesNotThrow(() => drawEqGrid(ctx, cam, M, 0.5));
   assert.ok(calls.stroke > 10, `strokes many grid lines (got ${calls.stroke})`);
   assert.ok(calls.texts.some((t) => /^\d+h(\d+m)?$/.test(t)), `labels RA in hours (got ${calls.texts.join(', ')})`);
   assert.ok(calls.texts.some((t) => t.endsWith('°')), 'labels Dec in degrees');
+});
+
+test('off-screen lines are windowed away when zoomed in (the frame-rate guard)', () => {
+  let strokes = 0, moves = 0;
+  const ctx = {
+    set strokeStyle(_) {}, get strokeStyle() { return ''; },
+    set fillStyle(_) {}, get fillStyle() { return ''; },
+    set lineWidth(_) {}, get lineWidth() { return 1; },
+    set font(_) {}, get font() { return ''; },
+    set globalAlpha(_) {}, get globalAlpha() { return 1; },
+    beginPath() {}, moveTo() { moves++; }, lineTo() {},
+    stroke() { strokes++; }, fillText() {},
+  };
+  // Deep zoom aimed at the equator, far from the pole: almost every ring/hour-circle is off-screen
+  // and must be skipped before sampling (this was the perf cliff — every line drawn, none visible).
+  const cam = { az: 180, alt: 10, fov: 5, width: 800, height: 600 };
+  drawEqGrid(ctx, cam, M, 0);
+  assert.ok(strokes <= 30, `few lines survive the window at fov 5 (${strokes} strokes)`);
+  assert.ok(moves > 0, 'but the lines crossing the view are still drawn');
+});
+
+test('RA spokes run pole to pole, so they converge at the celestial pole', () => {
+  // Project the spoke endpoints directly: dec ±90 must be ON the line (the old version stopped at
+  // ±80 and left dangling spoke ends with no cap).
+  const ncp = eqToAltAz(M, 0, 90);
+  const cam = { az: ncp.az, alt: ncp.alt, fov: 60, width: 800, height: 600 };
+  const proj = createProjector(cam);
+  const pole = proj(ncp.az, ncp.alt);
+  // Sample the last step of two different spokes approaching the pole; both must land within a
+  // sample-step of the pole's pixel — i.e. the spokes truly meet there.
+  for (const ra of [0, 90]) {
+    const near = eqToAltAz(M, ra, 88);
+    const p = proj(near.az, near.alt);
+    assert.ok(p.visible && Math.hypot(p.x - pole.x, p.y - pole.y) < 60,
+      `spoke at RA ${ra} closes onto the pole (${Math.hypot(p.x - pole.x, p.y - pole.y).toFixed(1)}px away at dec 88)`);
+  }
 });
