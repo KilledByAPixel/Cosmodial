@@ -11,7 +11,7 @@ Tell Volvella where you are and it draws the live sky as if you were looking thr
 ## What makes it different
 
 - **It has taste.** Instead of dumping a catalog on you, the **Up now** guide names the handful of sights worth your time tonight — easiest first, each with a *why it's cool* and a one-tap **Find**.
-- **It feels like a telescope.** Zoom from the whole sky down to an eyepiece-tight field and watch a faint dot resolve into a planet — Venus a crescent, Saturn ringed, Jupiter trailed by its four moons. **Find** smoothly *swings* the view to your target so you learn where it actually is.
+- **It feels like a telescope.** Zoom from the whole sky down to an eyepiece-tight field and watch a faint dot resolve into a planet — Venus a crescent, Saturn ringed, every planet trailed by its moons, down to Phobos hugging Mars. **Find** smoothly *swings* the view to your target so you learn where it actually is.
 - **The sky is alive.** The Milky Way's band arcs across the dark, daylight glows blue, dusk burns at the horizon, low stars dim and redden through the air, and the Moon shows its real lit phase — not a flat black field.
 - **It's honest.** Every object tells you what you'll *really* see through your own eyes — not the long-exposure fantasy photo.
 - **It just works.** One web page, same on phone or laptop. No install, no sign-up, no network calls once it's loaded.
@@ -25,7 +25,7 @@ Tell Volvella where you are and it draws the live sky as if you were looking thr
 | ⭐ **61,816 stars** | colored by their true tint, sized by brightness |
 | 🏷️ **417 named stars** | from Sirius on down |
 | ✏️ **22 constellations** | line figures + labels, and an editor to redraw them |
-| 🪐 **Sun + Moon + 7 planets** | computed live — the Moon in its true lit phase and face, Saturn with its rings, Jupiter with its four Galilean moons, everything at true 1:1 scale |
+| 🪐 **Sun + Moon + 7 planets** | computed live — the Moon in its true lit phase and face, Saturn with its rings, and 16 planetary moons (NASA-ephemeris-checked), everything at true 1:1 scale |
 | 🌌 **30 deep-sky objects** | galaxies, nebulae, and star clusters — drawn faint, the honest way |
 | 🎯 **~1 arcminute** | positional accuracy |
 | 🌙 **0 backends** | the sky is just math + a local star file |

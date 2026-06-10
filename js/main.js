@@ -27,8 +27,8 @@ import { isGyroSupported, requestGyroPermission, attachGyro } from './ui/gyro.js
 
 // Planet disc size vs true angular size. 1 = true scale (Stellarium-like): zoomed out, planets are the
 // oversized glow DOTS (visibility); the textured sphere appears exactly when its TRUE disc outgrows the
-// dot, and from there the disc, Saturn's rings, and the Galilean moons' orbits are all 1:1 (they all
-// key off this constant, so raising it inflates the whole system proportionally).
+// dot, and from there the disc and Saturn's rings are 1:1. (Moon positions are always true-scale, so a
+// value != 1 would inflate discs relative to the moons around them.)
 const PLANET_SCALE = 1;
 
 const canvas = document.getElementById('sky');
@@ -218,7 +218,7 @@ function render() {
   const visibleCons = st.flags.edit
     ? (constellations[editIndex] ? [constellations[editIndex]] : [])
     : (st.flags.lines ? constellations : []);
-  let drawList = st.flags.edit ? [] : markers; // markers (+ Galilean moons when Jupiter is a sphere)
+  let drawList = st.flags.edit ? [] : markers; // markers (+ planetary moons when their planet resolves)
   if (useGL) {
     starfield.resize(view.width, view.height, window.devicePixelRatio || 1);
     // One EQJ->ENU rotation per frame: stars sweep smoothly in live/play/scrub at zero per-star CPU cost.

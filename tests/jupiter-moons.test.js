@@ -9,7 +9,7 @@ const sepDeg = (a, b) => {
   return (Math.acos(Math.max(-1, Math.min(1, va[0] * vb[0] + va[1] * vb[1] + va[2] * vb[2]))) * 180) / Math.PI;
 };
 
-test('jupiterMoonsAltAz returns the four Galilean moons, near Jupiter, sane fields', () => {
+test('planetMoonsAltAz returns the four Galilean moons, near Jupiter, sane fields', () => {
   const time = makeTime(new Date('2026-06-09T04:00:00Z'));
   const moons = planetMoonsAltAz(observer, time).filter((m) => m.planet === 'Jupiter');
   assert.equal(moons.length, 4);
