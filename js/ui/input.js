@@ -28,6 +28,18 @@ export function toggleKeyAction(key) {
 // orientation owns the aim, so a stray finger drag must not fight it. (Pinch-zoom and tap still work.)
 export function dragAimEnabled(flags) { return !flags.gyro; }
 
+// Damped azimuth for grab-drags near the zenith/nadir. The exact grab solve spins the view
+// arbitrarily fast when the grabbed point is angularly close to a pole (like spinning a record
+// by a point near its centre — az sensitivity grows as 1/distance-from-pole). Within `zone`
+// degrees of the pole the applied az delta is scaled by distance/zone — exactly cancelling that
+// growth, so the spin rate stays bounded; the grabbed point trades exact pinning for control
+// there. At the zone edge and beyond the solve passes through untouched.
+export function dampedGrabAz(currentAz, solvedAz, grabAltDeg, zone = 20) {
+  const f = Math.min(1, (90 - Math.abs(grabAltDeg)) / zone);
+  const delta = ((solvedAz - currentAz + 540) % 360) - 180; // shortest signed way around
+  return (((currentAz + delta * f) % 360) + 360) % 360;
+}
+
 // Attach pointer/wheel input to the canvas. Mouse + single-finger touch drag the sky
 // (grab-the-sky); the wheel and two-finger pinch zoom toward the view center. Returns a detach()
 // function that removes all listeners.
@@ -69,9 +81,12 @@ export function attachInput(canvas, store, opts = {}) {
     if (!dragAimEnabled(store.getState().flags)) { grabDir = null; return; } // gyro/AR owns the aim — and may move it, so the grab is stale
     if (!grabDir) return;
     // Grab-the-sky: solve for the aim that keeps the grabbed point pinned under the cursor —
-    // exact at any pitch (near the zenith the drag naturally becomes rotation about it).
-    const { az, alt } = grabAim(grabDir, e.clientX, e.clientY, camNow());
-    store.setAim(az, alt);
+    // exact at any pitch (near the zenith the drag naturally becomes rotation about it), with
+    // the azimuth damped when the grabbed point is within a few degrees of a pole.
+    const cam = camNow();
+    const { az, alt } = grabAim(grabDir, e.clientX, e.clientY, cam);
+    const grabAlt = (Math.asin(Math.max(-1, Math.min(1, grabDir[2]))) * 180) / Math.PI;
+    store.setAim(dampedGrabAz(cam.az, az, grabAlt), alt);
     if (opts.onViewDrag) opts.onViewDrag(); // user moved the view -> exit any lock-on follow
   };
 
