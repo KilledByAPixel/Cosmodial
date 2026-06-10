@@ -41,3 +41,22 @@ test('drawHud runs over a stubbed canvas without throwing', () => {
   assert.ok(calls.fillText >= 1, 'draws compass labels');
   assert.ok(calls.fill >= 1, 'fills the compass pill backdrop');
 });
+
+test('looking nearly straight up fully zoomed out, the horizon draws as a closed ring', () => {
+  const calls = { lineTo: 0 };
+  const ctx = {
+    set fillStyle(_) {}, get fillStyle() { return ''; },
+    set strokeStyle(_) {}, get strokeStyle() { return ''; },
+    set lineWidth(_) {}, get lineWidth() { return 1; },
+    set font(_) {}, get font() { return ''; },
+    set textAlign(_) {}, get textAlign() { return 'left'; },
+    set textBaseline(_) {}, get textBaseline() { return 'alphabetic'; },
+    fillRect() {}, beginPath() {}, moveTo() {}, lineTo() { calls.lineTo++; }, closePath() {},
+    arc() {}, fill() {}, stroke() {}, fillText() {}, save() {}, restore() {}, clip() {},
+  };
+  // Aim at the zenith at MAX_FOV: every horizon azimuth is 89° off-axis -> all projectable.
+  // The full ±180° sweep (181 samples) yields 180 horizon lineTo calls; the old ±90° half-sweep
+  // gave only 90 — assert well above that so a regression to half-horizon sampling fails here.
+  drawHud(ctx, { az: 0, alt: 89, fov: 235, width: 800, height: 600 });
+  assert.ok(calls.lineTo > 150, `expected a closed horizon ring, got ${calls.lineTo} lineTo calls`);
+});

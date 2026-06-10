@@ -11,7 +11,8 @@ const SCREEN_ANGLE_SIGN = 1.0;  // verified for the Moon; -1.0 would mirror limb
 const TERMINATOR_SOFT = 0.2;    // terminator fade width (fraction of the lit dot product); higher = softer
 const EDGE_AA = 0.02;           // rim antialiasing width (fraction of radius)
 
-function vertexShaderSource() {
+// Exported for the projection drift-guard test (mirrors starfield-gl.js's exported shader sources).
+export function vertexShaderSource() {
   return `#version 300 es
 precision highp float;
 uniform vec3 uRight, uUp, uFwd;

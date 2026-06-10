@@ -40,10 +40,12 @@ function drawHorizon(ctx, cam) {
   ctx.strokeStyle = 'rgba(120, 160, 200, 0.35)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  // Sample the horizon across ±90° of azimuth around the aim (the visible half); the projector
-  // culls points not actually in view, so the line only appears when altitude 0 is on screen.
+  // Sample the horizon across the full ±180° of azimuth: zoomed out near the zenith/nadir the
+  // entire horizon is a closed on-screen ring (the headline stereographic view). At narrower FOVs
+  // the projector culls the far side (NaN -> pen up) and canvas clipping trims the rest, so the
+  // line still only appears where altitude 0 is actually on screen.
   let started = false;
-  for (let d = -90; d <= 90; d += 2) {
+  for (let d = -180; d <= 180; d += 2) {
     const p = projector(cam.az + d, 0);
     if (!p.visible) { started = false; continue; }
     if (!started) { ctx.moveTo(p.x, p.y); started = true; } else { ctx.lineTo(p.x, p.y); }
