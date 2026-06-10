@@ -4,7 +4,10 @@ const CARDINALS = [
   { az: 0, label: 'N' }, { az: 45, label: 'NE' }, { az: 90, label: 'E' }, { az: 135, label: 'SE' },
   { az: 180, label: 'S' }, { az: 225, label: 'SW' }, { az: 270, label: 'W' }, { az: 315, label: 'NW' },
 ];
-const STRIP_SPAN_DEG = 180; // the compass ribbon shows this much azimuth across the full width
+const STRIP_SPAN_DEG = 90; // the mini compass pill shows this much azimuth across its width
+const PILL_MAX_W = 240;    // CSS px pill width cap (shrinks to 60% of the canvas on narrow screens)
+const PILL_H = 24;         // pill height
+const PILL_GAP = 8;        // gap between the pill and the control bar below it
 const POINTS8 = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 
 // Shortest signed angle from->to in [-180, 180).
@@ -58,43 +61,51 @@ function drawHorizon(ctx, cam) {
   ctx.textBaseline = 'alphabetic'; // restore default for the rest of the HUD
 }
 
-// The always-visible compass ribbon along the bottom. `bottomInset` lifts it above the on-screen
-// control bar (whose measured height main.js passes in) so the labels aren't hidden behind buttons.
-function drawCompass(ctx, cam) {
-  const inset = cam.bottomInset || 0;
-  const barTop = cam.height - inset - 36;
-  const labelY = cam.height - inset - 13;
-  ctx.fillStyle = 'rgba(5, 7, 13, 0.55)';
-  ctx.fillRect(0, barTop, cam.width, 36);
-  ctx.strokeStyle = 'rgba(150, 190, 230, 0.4)';
-  ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(0, barTop); ctx.lineTo(cam.width, barTop); ctx.stroke();
-
-  ctx.font = '12px system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  for (const m of compassMarks(cam.az, cam.width)) {
-    ctx.fillStyle = m.label.length === 1 ? 'rgba(200, 220, 245, 0.95)' : 'rgba(150, 180, 210, 0.7)';
-    ctx.fillText(m.label, m.x, labelY);
-    ctx.strokeStyle = 'rgba(150, 190, 230, 0.4)';
-    ctx.beginPath(); ctx.moveTo(m.x, barTop); ctx.lineTo(m.x, barTop + 6); ctx.stroke();
-  }
-  // center pointer (marks where the view is aimed)
-  ctx.strokeStyle = 'rgba(120, 200, 255, 0.95)';
-  ctx.beginPath(); ctx.moveTo(cam.width / 2, barTop); ctx.lineTo(cam.width / 2, barTop + 10); ctx.stroke();
-  ctx.textAlign = 'left';
+// A rounded-rect path with semicircular ends (arc corners — no roundRect, so test stubs stay tiny).
+function pillPath(ctx, x, y, w, h) {
+  const r = h / 2;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arc(x + w - r, y + r, r, -Math.PI / 2, Math.PI / 2);
+  ctx.lineTo(x + r, y + h);
+  ctx.arc(x + r, y + r, r, Math.PI / 2, (3 * Math.PI) / 2);
+  ctx.closePath();
 }
 
-// The text readout: which way you're facing, altitude, field of view.
-function drawReadout(ctx, cam) {
-  ctx.font = '13px system-ui, sans-serif';
-  ctx.fillStyle = 'rgba(200, 220, 245, 0.9)';
+// The mini compass: a small centered pill above the control bar. `bottomInset` lifts it above the
+// on-screen bar (whose measured height main.js passes in).
+function drawCompass(ctx, cam) {
+  const inset = cam.bottomInset || 0;
+  const w = Math.min(PILL_MAX_W, cam.width * 0.6);
+  const x0 = (cam.width - w) / 2;
+  const y0 = cam.height - inset - PILL_H - PILL_GAP;
+  ctx.fillStyle = 'rgba(5, 7, 13, 0.55)';
+  pillPath(ctx, x0, y0, w, PILL_H);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(150, 190, 230, 0.25)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.save();
+  pillPath(ctx, x0, y0, w, PILL_H);
+  ctx.clip(); // ticks/labels sliding past the rounded ends stay inside the pill
+  ctx.font = '11px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  for (const m of compassMarks(cam.az, w)) {
+    ctx.fillStyle = m.label.length === 1 ? 'rgba(200, 220, 245, 0.95)' : 'rgba(150, 180, 210, 0.7)';
+    ctx.fillText(m.label, x0 + m.x, y0 + 16);
+    ctx.strokeStyle = 'rgba(150, 190, 230, 0.4)';
+    ctx.beginPath(); ctx.moveTo(x0 + m.x, y0); ctx.lineTo(x0 + m.x, y0 + 4); ctx.stroke();
+  }
+  ctx.restore();
+  // center pointer (marks where the view is aimed)
+  ctx.strokeStyle = 'rgba(120, 200, 255, 0.95)';
+  ctx.beginPath(); ctx.moveTo(cam.width / 2, y0); ctx.lineTo(cam.width / 2, y0 + 7); ctx.stroke();
   ctx.textAlign = 'left';
-  const txt = `facing ${azToCompass(cam.az)} ${Math.round(cam.az) % 360}° · alt ${Math.round(cam.alt)}° · FOV ${Math.round(cam.fov)}°`;
-  ctx.fillText(txt, 12, cam.height - (cam.bottomInset || 0) - 48);
 }
 
 export function drawHud(ctx, cam) {
   drawHorizon(ctx, cam);
-  drawReadout(ctx, cam);
   drawCompass(ctx, cam);
 }
