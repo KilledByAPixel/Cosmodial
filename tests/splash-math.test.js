@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { eqToGalactic, galacticUV } from '../tools/splash-math.js';
+import { eqToGalactic, galacticUV, project, invProject } from '../tools/splash-math.js';
 
 const RAD = 180 / Math.PI;
 
@@ -32,4 +32,32 @@ test('texture orientation matches the app: LMC near v=0.32, u near 0.72', () => 
   const { u, v } = galacticUV(80.89, -69.76);
   assert.ok(Math.abs(v - 0.317) < 0.01, `v=${v}`);
   assert.ok(Math.abs(u - 0.72) < 0.01, `u=${u}`);
+});
+
+const CENTER = { ra: 266.4, dec: -29.0 };
+
+test('the projection center lands at the plane origin', () => {
+  const p = project(CENTER.ra, CENTER.dec, CENTER);
+  assert.ok(Math.abs(p.x) < 1e-12 && Math.abs(p.y) < 1e-12);
+});
+
+test('project/invProject round-trip', () => {
+  for (const [ra, dec] of [[300, -10], [250, -45], [10, 60], [266.4, 30]]) {
+    const p = project(ra, dec, CENTER);
+    const s = invProject(p.x, p.y, CENTER);
+    assert.ok(Math.abs(s.ra - ra) < 1e-9, `ra ${ra} -> ${s.ra}`);
+    assert.ok(Math.abs(s.dec - dec) < 1e-9, `dec ${dec} -> ${s.dec}`);
+  }
+});
+
+test('plane orientation: higher RA -> +x, higher Dec -> +y; antipode is culled', () => {
+  assert.ok(project(CENTER.ra + 5, CENTER.dec, CENTER).x > 0);
+  assert.ok(project(CENTER.ra, CENTER.dec + 5, CENTER).y > 0);
+  assert.equal(project(CENTER.ra + 180, -CENTER.dec, CENTER), null);
+});
+
+test('angular distance c from center lands at plane radius 2*tan(c/2)', () => {
+  const p = project(CENTER.ra, CENTER.dec + 40, CENTER); // 40 deg straight up in Dec
+  const expected = 2 * Math.tan((40 / 2) * Math.PI / 180);
+  assert.ok(Math.abs(Math.hypot(p.x, p.y) - expected) < 1e-9);
 });

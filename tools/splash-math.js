@@ -33,3 +33,32 @@ export function galacticUV(raDeg, decDeg) {
   u -= Math.floor(u);
   return { u, v: 0.5 + b / Math.PI };
 }
+
+// Stereographic projection about a sky center {ra, dec} (degrees). Plane units: a point at
+// angular distance c from the center lands at radius 2*tan(c/2); +x toward increasing RA,
+// +y toward increasing Dec. The painter mirrors x so larger RA appears on the LEFT, the way
+// the sky looks when you're under it.
+export function project(raDeg, decDeg, center) {
+  const d = decDeg * DEG, d0 = center.dec * DEG, dra = (raDeg - center.ra) * DEG;
+  const sinD = Math.sin(d), cosD = Math.cos(d);
+  const sinD0 = Math.sin(d0), cosD0 = Math.cos(d0);
+  const denom = 1 + sinD0 * sinD + cosD0 * cosD * Math.cos(dra);
+  if (denom < 1e-9) return null; // the center's antipode blows up
+  const k = 2 / denom;
+  return { x: k * cosD * Math.sin(dra), y: k * (cosD0 * sinD - sinD0 * cosD * Math.cos(dra)) };
+}
+
+// Inverse stereographic: plane point -> {ra, dec} in degrees, ra normalized to [0, 360).
+export function invProject(x, y, center) {
+  const rho = Math.hypot(x, y);
+  if (rho < 1e-12) return { ra: center.ra, dec: center.dec };
+  const c = 2 * Math.atan(rho / 2);
+  const sinC = Math.sin(c), cosC = Math.cos(c);
+  const d0 = center.dec * DEG;
+  const sinD0 = Math.sin(d0), cosD0 = Math.cos(d0);
+  const dec = Math.asin(cosC * sinD0 + (y * sinC * cosD0) / rho);
+  const ra = center.ra * DEG + Math.atan2(x * sinC, rho * cosD0 * cosC - y * sinD0 * sinC);
+  let raDeg = ra / DEG;
+  raDeg -= 360 * Math.floor(raDeg / 360);
+  return { ra: raDeg, dec: dec / DEG };
+}
