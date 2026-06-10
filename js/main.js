@@ -130,7 +130,7 @@ function computeSky(full) {
     // glow lobe needs its direction, and the Milky Way texture its ENU->galactic sampling matrix.
     const sun = markers.find((m) => m.label === 'Sun');
     const sunAlt = sun ? sun.altaz.alt : -90;
-    const p = st.flags.atmo ? skyParams(sunAlt) : spaceSkyParams(); // atmo off = space view
+    const p = st.flags.atmo ? skyParams(sunAlt) : spaceSkyParams(); // atmo off = space view (flips via the recompute subscriber in boot)
     p.sunDir = vec(sun ? sun.altaz.az : 0, sunAlt);
     p.enuToGal = enuToGalMatrix(horToEqjRotation(observer, time), eqjToGalRotation()); // sample the galactic-frame Milky Way
     starfield.setSkyParams(p);
@@ -758,6 +758,13 @@ async function boot() {
   const applyNight = () => document.body.classList.toggle('night', store.getState().flags.night);
   store.subscribe(applyNight);
   applyNight();
+  // The atmo flag is consumed inside computeSky (sky params), so flipping it must mark the sky
+  // dirty — a bare re-render would redraw with the stale params (visible when time is paused).
+  let prevAtmo = store.getState().flags.atmo;
+  store.subscribe(() => {
+    const a = store.getState().flags.atmo;
+    if (a !== prevAtmo) { prevAtmo = a; requestRecompute(); }
+  });
   guide = buildGuide(store, { onFind: onFindObject });
   const guideHost = document.getElementById('guide-host');
   if (guideHost) guideHost.append(guide.el);
