@@ -45,9 +45,16 @@ const TITLE = {
   tagGap: 1.9,       // tag baseline below the name baseline, in tag-size units
   glow: 0.025,       // name glow radius, fraction of the short side
 };
+const MOON = {
+  ambient: 0.04, // how visible the night side stays against the sky
+  gamma: 0.85,   // <1 softens the terminator a touch
+};
 
-const state = { preset: 0, center: 'core', mw: 1, ringScale: 0.42, nameScale: 0.13 };
-let data = null; // { stars, mwTex: ImageData }
+const state = {
+  preset: 0, center: 'core', mw: 1, nameScale: 0.13,
+  backdrop: 'moon', ringScale: 0.42, phase: 0.65, rotate: 0,
+};
+let data = null; // { stars, mwTex, moonTex: ImageData }
 
 function setStatus(msg) { document.getElementById('status').textContent = msg; }
 
@@ -56,18 +63,24 @@ async function loadData() {
     if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
     return r.json();
   });
-  const starsPromise = json('../data/stars.json');
-  const img = new Image();
-  await new Promise((resolve, reject) => {
-    img.onload = resolve;
-    img.onerror = () => reject(new Error('milkyway-4k.webp failed to load'));
-    img.src = '../data/milkyway-4k.webp';
+  const texture = (path) => new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      const cx = c.getContext('2d', { willReadFrequently: true });
+      cx.drawImage(img, 0, 0);
+      resolve(cx.getImageData(0, 0, c.width, c.height));
+    };
+    img.onerror = () => reject(new Error(`${path} failed to load`));
+    img.src = path;
   });
-  const c = document.createElement('canvas');
-  c.width = img.naturalWidth; c.height = img.naturalHeight;
-  const cx = c.getContext('2d', { willReadFrequently: true });
-  cx.drawImage(img, 0, 0);
-  return { stars: await starsPromise, mwTex: cx.getImageData(0, 0, c.width, c.height) };
+  const [stars, mwTex, moonTex] = await Promise.all([
+    json('../data/stars.json'),
+    texture('../data/milkyway-4k.webp'),
+    texture('../data/moon-2k.webp'),
+  ]);
+  return { stars, mwTex, moonTex };
 }
 
 // Plane <-> pixel mapping. The stereographic plane radius covering half the horizontal FOV
@@ -170,6 +183,44 @@ function paintDial(ctx, w, h, ringScale) {
   ctx.setLineDash([]);
 }
 
+// Layer 4 (alternative backdrop): the Moon, a per-pixel shaded globe sampled from the
+// equirectangular surface map. Phase swings the sun around the moon (0 new -> 0.5 full ->
+// 1 new again); Rotate rolls the visible face without moving the terminator.
+function paintMoon(ctx, w, h, scale, phase, rotDeg, tex) {
+  const cx = w / 2, cy = h / 2;
+  const Rm = scale * Math.min(w, h);
+  const x0 = Math.max(0, Math.floor(cx - Rm - 1)), x1 = Math.min(w, Math.ceil(cx + Rm + 1));
+  const y0 = Math.max(0, Math.floor(cy - Rm - 1)), y1 = Math.min(h, Math.ceil(cy + Rm + 1));
+  if (x1 <= x0 || y1 <= y0) return;
+  const box = ctx.getImageData(x0, y0, x1 - x0, y1 - y0);
+  const d = box.data, t = tex.data, tw = tex.width, th = tex.height;
+  const theta = Math.PI * (2 * phase - 1);          // sun angle: -pi new, 0 full, +pi new again
+  const Lx = Math.sin(theta), Lz = Math.cos(theta); // the sun stays in the horizontal plane
+  const rot = (rotDeg * Math.PI) / 180;
+  const cr = Math.cos(rot), sr = Math.sin(rot);
+  for (let py = y0; py < y1; py++) {
+    for (let px = x0; px < x1; px++) {
+      const nx = (px + 0.5 - cx) / Rm, ny = -(py + 0.5 - cy) / Rm; // 3D y is up
+      const d2 = nx * nx + ny * ny;
+      if (d2 >= 1) continue;
+      const nz = Math.sqrt(1 - d2);
+      const lambert = Math.max(0, nx * Lx + nz * Lz);
+      const shade = MOON.ambient + (1 - MOON.ambient) * Math.pow(lambert, MOON.gamma);
+      // roll the face for the texture lookup only, so the terminator stays put
+      const tx = nx * cr - ny * sr, ty = nx * sr + ny * cr;
+      const lon = Math.atan2(tx, nz), lat = Math.asin(Math.max(-1, Math.min(1, ty)));
+      const u = 0.5 + lon / (2 * Math.PI), v = 0.5 - lat / Math.PI;
+      const ti = (((v * (th - 1)) | 0) * tw + ((u * (tw - 1)) | 0)) * 4;
+      const a = Math.min(1, (1 - Math.sqrt(d2)) * Rm * 0.8); // ~1px soft rim
+      const i = ((py - y0) * (x1 - x0) + (px - x0)) * 4;
+      d[i]     = t[ti] * shade * a + d[i] * (1 - a);
+      d[i + 1] = t[ti + 1] * shade * a + d[i + 1] * (1 - a);
+      d[i + 2] = t[ti + 2] * shade * a + d[i + 2] * (1 - a);
+    }
+  }
+  ctx.putImageData(box, x0, y0);
+}
+
 // Layer 5: the name (design constants in TITLE up top, overall size from the Title slider).
 // Canvas letterSpacing adds a trailing space after the last glyph, so each line is nudged
 // right by half its spacing to stay optically centered.
@@ -207,7 +258,10 @@ function buildControls() {
   preset.onchange = () => { state.preset = +preset.value; render(); };
   center.onchange = () => { state.center = center.value; render(); };
   document.getElementById('mw').onchange = (e) => { state.mw = +e.target.value; render(); };
+  document.getElementById('backdrop').onchange = (e) => { state.backdrop = e.target.value; render(); };
   document.getElementById('ringScale').onchange = (e) => { state.ringScale = +e.target.value; render(); };
+  document.getElementById('phase').onchange = (e) => { state.phase = +e.target.value; render(); };
+  document.getElementById('rotate').onchange = (e) => { state.rotate = +e.target.value; render(); };
   document.getElementById('nameScale').onchange = (e) => { state.nameScale = +e.target.value; render(); };
   document.getElementById('save').onclick = download;
 }
@@ -236,7 +290,8 @@ function render() {
     const t0 = performance.now();
     paintSky(ctx, w, h, center, state.mw, data.mwTex);
     paintStars(ctx, w, h, center, data.stars);
-    paintDial(ctx, w, h, state.ringScale);
+    if (state.backdrop === 'moon') paintMoon(ctx, w, h, state.ringScale, state.phase, state.rotate, data.moonTex);
+    else paintDial(ctx, w, h, state.ringScale);
     paintTitle(ctx, w, h);
     setStatus(`Rendered ${w}×${h} in ${Math.round(performance.now() - t0)} ms`);
   } catch (e) {
