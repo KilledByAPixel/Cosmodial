@@ -42,10 +42,11 @@ if (!useGL) console.warn('[volvella] WebGL2 unavailable — using the 2D star fa
 if (useGL) starfield.setMilkyWay('./data/milkyway-4k.webp'); // all-sky background; renders atmosphere-only until it loads
 if (useGL) starfield.setBodyTexture('moon', './data/moon-2k.webp');
 if (useGL) {
-  // Planets with features a scope actually shows; the others stay flat-tint lit spheres.
-  starfield.setBodyTexture('jupiter', './data/jupiter-2k.webp');
-  starfield.setBodyTexture('mars', './data/mars-2k.webp');
-  starfield.setBodyTexture('saturn', './data/saturn-2k.webp');
+  // Real surface maps for every planet (Venus = its cloud deck — the visible face). Solar System
+  // Scope, CC-BY 4.0; see ATTRIBUTION.md.
+  for (const p of ['mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune']) {
+    starfield.setBodyTexture(p, `./data/${p}-2k.webp`);
+  }
   starfield.setBodyTexture('saturn-rings', './data/saturn-rings.webp', { clampS: true });
 }
 const store = createState();

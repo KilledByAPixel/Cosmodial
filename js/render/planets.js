@@ -6,13 +6,13 @@ import { clamp } from '../core/angles.js';
 // for the unaided eye; they fall to the smallest disk (planetRadius saturates at its floor) and dim
 // toward the alpha floor (markerAlpha in main.js), so they read as faint pinpoints, not bright discs.
 export const PLANETS = [
-  { body: Body.Mercury, name: 'Mercury', color: '#b0a48f' },
-  { body: Body.Venus,   name: 'Venus',   color: '#fff4d6' },
+  { body: Body.Mercury, name: 'Mercury', color: '#b0a48f', tex: 'mercury' },
+  { body: Body.Venus,   name: 'Venus',   color: '#fff4d6', tex: 'venus' }, // cloud deck (what an eye sees), not the radar surface
   { body: Body.Mars,    name: 'Mars',    color: '#ff6a4d', tex: 'mars' },
   { body: Body.Jupiter, name: 'Jupiter', color: '#e3c8a0', tex: 'jupiter' },
   { body: Body.Saturn,  name: 'Saturn',  color: '#e8d9a0', tex: 'saturn', rings: true },
-  { body: Body.Uranus,  name: 'Uranus',  color: '#bfe3e8' },
-  { body: Body.Neptune, name: 'Neptune', color: '#7c9fe0' },
+  { body: Body.Uranus,  name: 'Uranus',  color: '#bfe3e8', tex: 'uranus' },
+  { body: Body.Neptune, name: 'Neptune', color: '#7c9fe0', tex: 'neptune' },
 ];
 
 // Apparent magnitude -> planet disk radius (px). Brighter (smaller mag) -> larger.

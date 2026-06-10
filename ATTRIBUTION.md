@@ -18,9 +18,9 @@
 - **Moon map:** "Moon" equirectangular albedo texture from Solar System Scope
   (https://www.solarsystemscope.com/textures/), **CC-BY 4.0**. Downscaled to a 2048×1024 WebP in
   `data/moon-2k.webp` and used as the lunar surface in the phase render.
-- **Planet maps:** Jupiter, Mars, and Saturn equirectangular surface textures from Solar System Scope
-  (https://www.solarsystemscope.com/textures/), **CC-BY 4.0**. Downscaled to 2048×1024 WebPs in
-  `data/jupiter-2k.webp`, `data/mars-2k.webp`, `data/saturn-2k.webp` for the planet-disc render.
+- **Planet maps:** Mercury, Venus (atmosphere/cloud deck), Mars, Jupiter, Saturn, Uranus, and Neptune
+  equirectangular surface textures from Solar System Scope (https://www.solarsystemscope.com/textures/),
+  **CC-BY 4.0**. Downscaled to 2048×1024 WebPs in `data/<planet>-2k.webp` for the planet-disc render.
 - **Saturn ring texture:** "Saturn Ring" alpha texture from Solar System Scope
   (https://www.solarsystemscope.com/textures/), **CC-BY 4.0**. Reduced to a 1024×16 RGBA radial strip in
   `data/saturn-rings.webp` (u spans the visible ring system, C-ring inner to A-ring outer edge).
