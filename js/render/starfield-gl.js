@@ -72,7 +72,7 @@ export function buildMarkerAttributes(markerList) {
   return { data, count };
 }
 
-// Vertex shader source. Replicates projectPoint() (gnomonic, via the camera-basis uniforms) and
+// Vertex shader source. Replicates projectPoint() (stereographic, via the camera-basis uniforms) and
 // starSize() (the STAR_CONSTS embedded below as GLSL literals — a test guards against drift).
 export function vertexShaderSource() {
   const C = STAR_CONSTS;
@@ -90,7 +90,7 @@ uniform vec3 uFwd;
 uniform float uFocal;     // CSS px
 uniform vec2 uViewport;   // CSS px
 uniform float uDpr;       // device pixels per CSS px (gl_PointSize is in device px)
-uniform float uZoom;      // zoomScale(fov)
+uniform float uZoom;      // from zoomScale(fov)
 uniform float uMaxPointSize;
 uniform float uBelowFade;   // 0..1: visibility of the below-horizon sky (0 = culled, 1 = full)
 uniform float uExtinction;  // 1 = atmospheric extinction on; 0 = space view (no dimming/reddening)
@@ -117,15 +117,16 @@ void main() {
     gl_PointSize = 0.0;
     return;
   }
-  float z = dot(dir, uFwd);            // along the view axis; front hemisphere when > 0
-  if (z <= 0.000001) {                  // behind the camera
+  float z = dot(dir, uFwd);             // along the view axis
+  if (z <= -0.8660254) {                // beyond 150 deg from the aim (near-antipode): cull. = MIN_VIS_Z
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
     gl_PointSize = 0.0;
     return;
   }
-  // Gnomonic projection in CSS px, identical to projectPoint() in projection.js.
-  float sx = uFocal * dot(dir, uRight) / z;
-  float sy = uFocal * dot(dir, uUp) / z;   // +y is UP here (NDC y is up): do NOT negate.
+  // Stereographic projection in CSS px, identical to projectPoint() in projection.js.
+  float k = 2.0 * uFocal / (1.0 + z);
+  float sx = k * dot(dir, uRight);
+  float sy = k * dot(dir, uUp);   // +y is UP here (NDC y is up): do NOT negate.
   gl_Position = vec4(sx / (uViewport.x * 0.5), sy / (uViewport.y * 0.5), 0.0, 1.0);
 
   // starSize(mag, zoom) from starstyle.js (constants embedded from STAR_CONSTS).
@@ -176,7 +177,7 @@ void main() {
 }`;
 }
 
-// Marker vertex shader. Same gnomonic projection as the star shader, but the point size comes from an
+// Marker vertex shader. Same stereographic projection as the star shader, but the point size comes from an
 // explicit per-marker disc radius (CSS px) rather than the magnitude formula.
 export function markerVertexShaderSource() {
   return `#version 300 es
@@ -202,10 +203,11 @@ out float vAlpha;
 void main() {
   if (uBelowFade <= 0.0 && aDir.z < 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; }
   float z = dot(aDir, uFwd);
-  if (z <= 0.000001) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; }
+  if (z <= -0.8660254) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; } // = MIN_VIS_Z
   // Identical projection to the star shader / projectPoint() (CSS px; +y up, do NOT negate).
-  float sx = uFocal * dot(aDir, uRight) / z;
-  float sy = uFocal * dot(aDir, uUp) / z;
+  float k = 2.0 * uFocal / (1.0 + z);
+  float sx = k * dot(aDir, uRight);
+  float sy = k * dot(aDir, uUp);
   gl_Position = vec4(sx / (uViewport.x * 0.5), sy / (uViewport.y * 0.5), 0.0, 1.0);
   vColor = aColor;
   vAlpha = aAlpha * ((aDir.z < 0.0) ? uBelowFade : 1.0); // below-horizon markers ride the fade

@@ -73,3 +73,11 @@ test('shaders use the continuous below-horizon fade + extinction switch (not the
   assert.ok(marker.includes('uBelowFade'), 'marker shader fades below-horizon markers');
   assert.ok(!marker.includes('uShowBelow'), 'old boolean uniform is gone from the marker shader');
 });
+
+test('star + marker shaders use the stereographic projection and the shared antipode cull (drift guard)', () => {
+  for (const src of [vertexShaderSource(), markerVertexShaderSource()]) {
+    assert.ok(src.includes('2.0 * uFocal / (1.0 + z)'), 'stereographic forward formula');
+    assert.ok(src.includes('-0.8660254'), 'cull at cos(150deg), matching MIN_VIS_Z');
+    assert.ok(!src.includes('/ z'), 'gnomonic divide-by-z is gone');
+  }
+});
