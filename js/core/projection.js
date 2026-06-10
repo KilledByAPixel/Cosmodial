@@ -25,6 +25,13 @@ export function norm(v) {
 // star/marker/body-sphere shaders — tests guard against drift.
 export const MIN_VIS_Z = Math.cos(degToRad(150));
 
+// Screen scale (px per radian at the view CENTER) for a given fov (degrees, spans the screen width)
+// and width (CSS px). Single source of truth — cameraBasis and the disc-radius helpers (sun/moon/
+// DSO/planets) must agree, or discs drift in size relative to the projected sky.
+export function focalPx(fov, width) {
+  return (width / 2) / (2 * Math.tan(degToRad(fov) / 4));
+}
+
 // Camera basis (right/up/forward unit vectors) + focal length + screen center for a fixed camera.
 // Shared by the CPU projector (createProjector below) and the WebGL starfield, so both project
 // stars identically — guaranteeing taps land on the star the user sees. cam: { az, alt, fov, width, height }.
@@ -44,8 +51,8 @@ export function cameraBasis(cam) {
   }
   // Stereographic screen scale: r_px = 2·focal·tan(θ/2), normalized so `fov` spans the screen width
   // (a point fov/2 off-axis lands at the screen edge). The px-per-radian at the view CENTER is still
-  // exactly `focal`, so small-angle radius helpers (sun/moon/DSO discs) keep using focal directly.
-  const focal = (cam.width / 2) / (2 * Math.tan(degToRad(cam.fov) / 4));
+  // exactly `focal`, so small-angle radius helpers (sun/moon/DSO discs) keep using focalPx directly.
+  const focal = focalPx(cam.fov, cam.width);
   return { right, up, fwd, focal, cx: cam.width / 2, cy: cam.height / 2 };
 }
 

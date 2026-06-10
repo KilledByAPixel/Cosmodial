@@ -1,4 +1,5 @@
 import { degToRad, clamp } from '../core/angles.js';
+import { focalPx } from '../core/projection.js';
 
 const MIN_GLOW_R = 2;        // px floor so tiny objects still show as a faint dot
 const MAX_ALPHA = 0.6;       // even the brightest DSO is a faint glow, never a solid blob
@@ -6,7 +7,7 @@ const MAX_ALPHA = 0.6;       // even the brightest DSO is a faint glow, never a 
 // On-screen radius (px) from real angular size (arcmin), via the same focal projection as
 // markerRadius — so a DSO grows as you zoom in (unlike a magnitude-sized star). Floored.
 export function dsoScreenRadius(sizeArcmin, cam) {
-  const focal = (cam.width / 2) / Math.tan(degToRad(cam.fov) / 2);
+  const focal = focalPx(cam.fov, cam.width);
   const radiusDeg = (sizeArcmin / 60) / 2; // arcmin diameter -> degree radius
   return Math.max(focal * Math.tan(degToRad(radiusDeg)), MIN_GLOW_R);
 }

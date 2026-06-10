@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { project, cameraBasis, vec } from '../js/core/projection.js';
+import { project, cameraBasis, vec, focalPx } from '../js/core/projection.js';
 
 const VIEW = { width: 800, height: 600 };
 const cx = 400, cy = 300;
@@ -96,4 +96,11 @@ test('project/inverse round-trip recovers the sky direction (mirrors the sky-bac
     const want = vec(az, alt);
     for (let k = 0; k < 3; k++) assert.ok(Math.abs(ray[k] - want[k]) < 1e-9, `ray[${k}] at ${az},${alt}`);
   }
+});
+
+test('focalPx is the px-per-radian at the view center and matches cameraBasis', () => {
+  const f = focalPx(60, 800);
+  assert.ok(Math.abs(f - 400 / (2 * Math.tan(Math.PI / 12))) < 1e-9);
+  assert.ok(Math.abs(cameraBasis({ az: 0, alt: 0, fov: 60, width: 800, height: 600 }).focal - f) < 1e-9);
+  assert.ok(focalPx(235, 800) > 0, 'stays positive past 180 deg fov (tan(fov/2) would go negative)');
 });

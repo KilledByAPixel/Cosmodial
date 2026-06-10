@@ -1,4 +1,4 @@
-import { createProjector } from '../core/projection.js';
+import { createProjector, focalPx } from '../core/projection.js';
 import { starSize, bvToRGB, zoomScale, colorBrightness } from './starstyle.js';
 import { drawConstellations } from './constellations.js';
 import { drawGrid } from './grid.js';
@@ -96,7 +96,7 @@ const SUN_SCALE = 1;
 // Exported so the WebGL marker pass (starfield-gl.js, via main.js) sizes discs identically.
 export function markerRadius(m, cam) {
   if (m.angularRadiusDeg != null) {
-    const focal = (cam.width / 2) / Math.tan(degToRad(cam.fov) / 2);
+    const focal = focalPx(cam.fov, cam.width);
     return focal * Math.tan(degToRad(m.angularRadiusDeg)) * (m.label === 'Sun' ? SUN_SCALE : MOON_SCALE);
   }
   return m.radius || 4;

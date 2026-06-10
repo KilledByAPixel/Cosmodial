@@ -13,7 +13,7 @@ import { drawHud, azToCompass } from './render/hud.js';
 import { createRenderScheduler } from './core/scheduler.js';
 import { attachInput } from './ui/input.js';
 import { splitSegments, toggleEdge, pickNearest, circularCentroid, exportFigures } from './edit/figures.js';
-import { createProjector, vec } from './core/projection.js';
+import { createProjector, vec, focalPx } from './core/projection.js';
 import { skyParams, spaceSkyParams, belowHorizonFade, enuToGalMatrix } from './render/atmosphere.js';
 import { openCard, closeCard, colorWord, constellationName, isCardOpen } from './ui/card.js';
 import { rankCandidates, altazToWhere } from './guide/ranking.js';
@@ -227,7 +227,7 @@ function render() {
     // One EQJ->ENU rotation per frame: stars sweep smoothly in live/play/scrub at zero per-star CPU cost.
     const t = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
     starfield.setStarMatrix(eqjToEnuMatrix(horToEqjRotation(makeObserver(st.location.lat, st.location.lng), t)));
-    const focal = (view.width / 2) / Math.tan((st.fov * Math.PI) / 360); // px per radian at screen centre
+    const focal = focalPx(st.fov, view.width); // px per radian at screen centre
     const sphereLabels = new Set();
     const bodyList = [];
     for (const bi of bodyInputs) {
