@@ -96,7 +96,8 @@ function paintStars(ctx, w, h, center, stars) {
     const p = project(st.ra, st.dec, center);
     if (!p) continue;
     const { x, y } = toPx(p);
-    if (x < -8 || y < -8 || x > w + 8 || y > h + 8) continue;
+    const m = 30 * s; // wide enough that a just-off-frame bright star's halo still spills in
+    if (x < -m || y < -m || x > w + m || y > h + m) continue;
     const r = Math.max(0.4, (5.5 - st.mag) * 0.5) * s;
     const [cr, cg, cb] = bvToColor(st.bv);
     const a = Math.max(0.25, Math.min(1, 1.1 - st.mag * 0.11));
@@ -130,6 +131,66 @@ function paintConstellations(ctx, w, h, center, constellations) {
   }
 }
 
+// Layer 5: the antique-brass astrolabe dial.
+function paintDial(ctx, w, h, ringScale) {
+  const cx = w / 2, cy = h / 2;
+  const R = ringScale * Math.min(w, h);
+  const s = Math.min(w, h) / 640;
+  const ring = (r, alpha, lw, blur = 0) => {
+    ctx.strokeStyle = `rgba(${BRASS}, ${alpha})`;
+    ctx.lineWidth = lw;
+    ctx.shadowColor = blur ? `rgba(${BRASS}, 0.5)` : 'transparent';
+    ctx.shadowBlur = blur;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI); ctx.stroke();
+    ctx.shadowBlur = 0;
+  };
+  ring(R, 0.65, 2.5 * s, 12 * s); // main circle, glowing
+  ring(R * 0.933, 0.35, 1 * s);   // close inner echo
+  ring(R * 1.096, 0.28, 1 * s);   // faint outer circle
+  for (let i = 0; i < 64; i++) {  // 8 major ticks on the compass points, fine minors between
+    const major = i % 8 === 0;
+    const ang = (i / 64) * 2 * Math.PI - Math.PI / 2;
+    const r1 = major ? R * 0.94 : R * 0.965;
+    ctx.strokeStyle = `rgba(${BRASS}, ${major ? 0.6 : 0.3})`;
+    ctx.lineWidth = (major ? 2 : 1) * s;
+    ctx.beginPath();
+    ctx.moveTo(cx + R * Math.cos(ang), cy + R * Math.sin(ang));
+    ctx.lineTo(cx + r1 * Math.cos(ang), cy + r1 * Math.sin(ang));
+    ctx.stroke();
+  }
+  // dotted gradation band along the top half of the outer circle
+  ctx.strokeStyle = `rgba(${BRASS}, 0.18)`;
+  ctx.lineWidth = 22 * s;
+  ctx.setLineDash([1 * s, 7 * s]);
+  ctx.beginPath(); ctx.arc(cx, cy, R * 1.096, Math.PI, 2 * Math.PI); ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+// Layer 6: the name. Canvas letterSpacing adds a trailing space after the last glyph, so each
+// line is nudged right by half its spacing to stay optically centered.
+function paintTitle(ctx, w, h) {
+  const m = Math.min(w, h);
+  const cx = w / 2, cy = h / 2;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+
+  const nameSize = 0.13 * m;
+  ctx.font = `${nameSize}px Georgia, 'Times New Roman', serif`;
+  ctx.letterSpacing = `${0.1 * nameSize}px`;
+  ctx.fillStyle = '#f0e9d8';
+  ctx.shadowColor = 'rgba(212, 175, 110, 0.35)';
+  ctx.shadowBlur = 0.025 * m;
+  ctx.fillText('COSMODIAL', cx + 0.05 * nameSize, cy + 0.02 * m);
+  ctx.shadowBlur = 0;
+
+  const tagSize = 0.042 * m;
+  ctx.font = `${tagSize}px Georgia, serif`;
+  ctx.letterSpacing = `${0.6 * tagSize}px`;
+  ctx.fillStyle = '#c9b88e';
+  ctx.fillText('SKY ATLAS', cx + 0.3 * tagSize, cy + 0.02 * m + 1.9 * tagSize);
+  ctx.letterSpacing = '0px';
+}
+
 function render() {
   const { w, h } = PRESETS[state.preset];
   const canvas = document.getElementById('out');
@@ -140,6 +201,8 @@ function render() {
   paintSky(ctx, w, h, center, state.mw, data.mwTex);
   if (state.lines) paintConstellations(ctx, w, h, center, data.constellations);
   paintStars(ctx, w, h, center, data.stars);
+  paintDial(ctx, w, h, state.ringScale);
+  paintTitle(ctx, w, h);
   setStatus(`Rendered ${w}×${h} in ${Math.round(performance.now() - t0)} ms`);
 }
 
