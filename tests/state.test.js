@@ -36,6 +36,7 @@ test('atmo flag defaults ON and toggles', () => {
 });
 
 test('setFov clamps to [MIN_FOV, MAX_FOV]', () => {
+  assert.equal(MAX_FOV, 235); // Stellarium's stereographic limit — full horizon circle fits when looking up
   const s = createState();
   s.setFov(1000);
   assert.equal(s.getState().fov, MAX_FOV);
