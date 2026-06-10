@@ -79,6 +79,29 @@ export function skyParams(sunAltDeg) {
 // hemisphere. Embedded as a GLSL literal in sky-background.js and starfield-gl.js.
 export const BELOW_NIGHT_BAND = 0.1;
 
+// The atmosphere's foreground veil for a sky direction `dir` (ENU unit vector): the colour the
+// sky-background pass paints there (gradient + sun glow + airglow, with the lower hemisphere's
+// pinned night look). The air is IN FRONT of a celestial body, so this is ADDED over its disc —
+// the daytime Moon's shadowed side then shows sky-blue instead of black and its lit side washes
+// out pale, both as in life. A body's true angular size is well under a degree, so one veil
+// sample per body is exact in practice. ~Zero at night and exactly zero in space view.
+export function skyVeil(dir, sunDir, p) {
+  const z = dir[2];
+  const belowNight = smoothstep(0, BELOW_NIGHT_BAND, -z);
+  const grad = Math.pow(clamp(Math.abs(z), 0, 1), 0.55); // mirrored gradient, like the shader at full belowFade
+  const zen = lerp3(p.zenithColor, p.belowZenithColor, belowNight);
+  const hor = lerp3(p.horizonColor, p.belowHorizonColor, belowNight);
+  const sky = lerp3(hor, zen, grad);
+  const cosSun = Math.max(dir[0] * sunDir[0] + dir[1] * sunDir[1] + dir[2] * sunDir[2], 0);
+  const glow = Math.pow(cosSun, 8) * p.sunGlowStrength * (1 - belowNight);
+  const airglow = lerp(p.horizonAirglow, p.belowAirglow, belowNight) * (1 - grad);
+  return [
+    clamp(sky[0] + p.sunGlowColor[0] * glow + airglow * 0.03, 0, 1),
+    clamp(sky[1] + p.sunGlowColor[1] * glow + airglow * 0.05, 0, 1),
+    clamp(sky[2] + p.sunGlowColor[2] * glow + airglow * 0.04, 0, 1),
+  ];
+}
+
 // How visible the below-horizon sky is for a given aim altitude (deg): 0 at/above the horizon,
 // 1 once aiming FULL_BELOW_DEG below, smoothstep-eased between. This replaces the old full-sphere
 // toggle — dip the view under the horizon and the lower hemisphere fades in; tilt back up and it

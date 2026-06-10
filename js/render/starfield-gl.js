@@ -16,7 +16,7 @@
 
 import { cameraBasis, vec } from '../core/projection.js';
 import { zoomScale, STAR_CONSTS } from './starstyle.js';
-import { EXT_K, milkyWayZoomFade, BELOW_NIGHT_BAND } from './atmosphere.js';
+import { EXT_K, milkyWayZoomFade, BELOW_NIGHT_BAND, skyVeil } from './atmosphere.js';
 import { createSkyBackground } from './sky-background.js';
 import { createBodySphere } from './body-sphere.js';
 import { REFRACTION_GLSL, buildStarAttributesJ2000 } from './star-transform.js';
@@ -437,7 +437,15 @@ export function createStarfield(glCanvas) {
       gl.drawArrays(gl.POINTS, 0, count);
       gl.bindVertexArray(null);
     }
-    if (bodySphere && bodyList) bodySphere.draw(cam, bodyList); // after the stars (opaque, occludes them); independent of star count
+    if (bodySphere && bodyList) {
+      // One atmosphere-veil sample per body (its true angular size is < 1°, so a single colour is
+      // exact in practice): the air is in front of the disc, so the daytime Moon's shadowed side
+      // shows sky-blue instead of black. See skyVeil in atmosphere.js.
+      const withVeil = skyParamsStash
+        ? bodyList.map((b) => ({ ...b, veil: skyVeil(b.dir, skyParamsStash.sunDir, skyParamsStash) }))
+        : bodyList;
+      bodySphere.draw(cam, withVeil); // after the stars (opaque, occludes them); independent of star count
+    }
   }
 
   // Draw the Sun/Moon/planet markers as glowing discs. Call AFTER draw() (which does the clear) so the

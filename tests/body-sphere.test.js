@@ -21,3 +21,13 @@ test('body-sphere fragment shader applies the below-horizon fade to every output
   const outputs = (src.match(/fragColor = /g) || []).length;
   assert.equal(fadedOutputs, outputs, `every fragColor assignment is scaled by uFade (${fadedOutputs}/${outputs})`);
 });
+
+// The atmosphere is in FRONT of a body, so its scattered light (skyVeil in atmosphere.js) adds
+// over the disc's covered fraction — the daytime Moon's shadow shows sky-blue, not black.
+test('body-sphere fragment shader adds the atmosphere veil over every output path', () => {
+  const src = fragmentShaderSource();
+  assert.ok(src.includes('uniform vec3 uVeil'), 'veil uniform declared');
+  const veiledOutputs = (src.match(/uVeil \* /g) || []).length;
+  const outputs = (src.match(/fragColor = /g) || []).length;
+  assert.equal(veiledOutputs, outputs, `every output path adds the veil (${veiledOutputs}/${outputs})`);
+});

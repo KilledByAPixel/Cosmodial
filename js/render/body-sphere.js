@@ -52,6 +52,7 @@ uniform float uRingTilt;     // sin(B): ring opening; 0 = edge-on (also: pole z 
 uniform vec2 uRingRadii;     // ring inner/outer radii in globe radii; (0,0) = no rings
 uniform sampler2D uRingTex;  // radial strip: u = (r - inner) / (outer - inner), with alpha
 uniform float uFade;         // 0..1 global fade (below-horizon bodies ride belowFade like the markers)
+uniform vec3 uVeil;          // atmosphere foreground colour at the body (skyVeil in atmosphere.js)
 out vec4 fragColor;
 const float PI = 3.14159265358979;
 vec2 dirFromUp(float a) { return vec2(sin(a), cos(a)); }
@@ -82,7 +83,8 @@ void main() {
   // into the RING behind it, not punch a transparent seam through to the sky.
   if (r2 > 1.0) {                   // off the globe: ring only
     if (ringA <= 0.003) discard;
-    fragColor = vec4(ringC * ringA, ringA) * uFade; // premultiplied: scaling the whole vec4 fades "over"
+    // + veil over the covered fraction; premultiplied, so scaling the whole vec4 fades "over".
+    fragColor = vec4(ringC * ringA + uVeil * ringA, ringA) * uFade;
     return;
   }
 
@@ -105,11 +107,16 @@ void main() {
   float sphA = 1.0 - smoothstep(1.0 - ${EDGE_AA.toFixed(3)}, 1.0, sqrt(r2)); // rim AA
   vec3 sph = surf * lit * sphA;     // premultiplied sphere layer
   vec3 ring = ringC * ringA;        // premultiplied ring layer
+  vec3 cOut; float aOut;
   if (ringA > 0.0 && ringZ > zc) {  // ring crosses IN FRONT of the globe: ring over sphere
-    fragColor = vec4(ring + sph * (1.0 - ringA), ringA + sphA * (1.0 - ringA)) * uFade;
+    cOut = ring + sph * (1.0 - ringA); aOut = ringA + sphA * (1.0 - ringA);
   } else {                          // ring behind (or none): sphere over ring — the limb fades into the ring
-    fragColor = vec4(sph + ring * (1.0 - sphA), sphA + ringA * (1.0 - sphA)) * uFade;
+    cOut = sph + ring * (1.0 - sphA); aOut = sphA + ringA * (1.0 - sphA);
   }
+  // The atmosphere is IN FRONT of the body: its scattered light (uVeil) adds over the covered
+  // fraction. Daytime Moon: the shadowed limb shows sky-blue, the lit side washes out pale —
+  // both as in life. Night/space: the veil is ~zero and this is a no-op.
+  fragColor = vec4(cOut + uVeil * aOut, aOut) * uFade;
 }`;
 }
 
@@ -182,7 +189,7 @@ export function createBodySphere(gl) {
       console.error('[cosmodial] body-sphere link failed:', gl.getProgramInfoLog(program)); return false;
     }
     vao = gl.createVertexArray();
-    const names = ['uRight','uUp','uFwd','uFocal','uViewport','uBodyDir','uRadiusPx','uTex','uPhaseAngle','uLimbAngle','uNorthAngle','uSubLat','uSubLon','uQuadScale','uRingTilt','uRingRadii','uRingTex','uFade'];
+    const names = ['uRight','uUp','uFwd','uFocal','uViewport','uBodyDir','uRadiusPx','uTex','uPhaseAngle','uLimbAngle','uNorthAngle','uSubLat','uSubLon','uQuadScale','uRingTilt','uRingRadii','uRingTex','uFade','uVeil'];
     loc = Object.fromEntries(names.map((n) => [n, gl.getUniformLocation(program, n)]));
     return true;
   }
@@ -235,6 +242,7 @@ export function createBodySphere(gl) {
       gl.uniform1f(loc.uSubLat, (b.subLatDeg || 0) * D2R);
       gl.uniform1f(loc.uSubLon, (b.subLonDeg || 0) * D2R);
       gl.uniform1f(loc.uFade, b.fade == null ? 1 : b.fade);
+      gl.uniform3fv(loc.uVeil, b.veil || [0, 0, 0]);
       gl.uniform1f(loc.uQuadScale, b.quadScale || 1);
       gl.uniform1f(loc.uRingTilt, b.ringTilt || 0);
       gl.uniform2f(loc.uRingRadii, b.ringRadii ? b.ringRadii[0] : 0, b.ringRadii ? b.ringRadii[1] : 0);

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { airmass, extinction, skyParams, milkyWayZoomFade, enuToEqjMatrix, enuToGalMatrix, belowHorizonFade, spaceSkyParams } from '../js/render/atmosphere.js';
+import { airmass, extinction, skyParams, milkyWayZoomFade, enuToEqjMatrix, enuToGalMatrix, belowHorizonFade, spaceSkyParams, skyVeil } from '../js/render/atmosphere.js';
 import { makeObserver, makeTime, makeStarAltAz, horToEqjRotation, eqjToGalRotation } from '../js/core/astro.js';
 import * as Astronomy from '../js/vendor/astronomy.js';
 import { vec } from '../js/core/projection.js';
@@ -228,6 +228,21 @@ test('spaceSkyParams: black sky, full stars/Milky Way, extinction off', () => {
 test('skyParams always applies extinction (space view is the only exception)', () => {
   assert.equal(skyParams(-30).extinction, 1);
   assert.equal(skyParams(20).extinction, 1);
+});
+
+test('skyVeil: sky-blue by day, near-black at night, exactly zero in space view', () => {
+  const dir = vec(0, 45);                       // looking north, 45 deg up — away from the sun below
+  const day = skyVeil(dir, vec(180, 30), skyParams(30));
+  assert.ok(day[2] > day[0] && day[2] > 0.2, 'daytime veil is blue and substantial (washes the Moon shadow sky-blue)');
+  const night = skyVeil(dir, vec(180, -30), skyParams(-30));
+  for (const c of night) assert.ok(c < 0.06, `night veil near-black (got ${c})`);
+  assert.deepEqual(skyVeil(dir, vec(180, -30), spaceSkyParams()), [0, 0, 0], 'no atmosphere -> no veil');
+  for (const v of [day, night]) for (const c of v) assert.ok(Number.isFinite(c) && c >= 0 && c <= 1, 'veil in [0,1]');
+});
+
+test('skyVeil: below the horizon the veil is the pinned night look even at midday', () => {
+  const v = skyVeil(vec(0, -30), vec(180, 30), skyParams(30));
+  for (const c of v) assert.ok(c < 0.06, `below-horizon veil stays night-dark at midday (got ${c})`);
 });
 
 test('milkyWayZoomFade: full at wide FOV, gone when zoomed in', () => {
