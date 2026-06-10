@@ -1,7 +1,7 @@
 import { wrap360, clamp } from './angles.js';
 
 export const MIN_FOV = 0.02;  // deepest zoom (~1.2 arcmin) — lets the true-scale (1:1) planets resolve large
-export const MAX_FOV = 235;   // widest zoom-out, matching Stellarium's stereographic limit — looking straight up/down shows the full horizon circle
+export const MAX_FOV = 200;   // widest zoom-out, matching Stellarium's stereographic limit — looking straight up/down shows the full horizon circle
 export const DEFAULT_FOV = 60; // startup FOV (comfortable naked-eye view); zoom-out can widen to MAX_FOV
 export const MAX_ALT = 89;   // clamp pitch just shy of the zenith/nadir — at the pole the screen-up reference snaps
 const STORE_KEY = 'cosmodial.location';
