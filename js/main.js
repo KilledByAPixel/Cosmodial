@@ -688,7 +688,7 @@ async function boot() {
   const bodyLabels = ['Moon', 'Sun', ...PLANETS.map((p) => p.name)];
   const search = buildSearch(buildSearchIndex(stars, figures, bodyLabels, dsos), { onSelect: onSearchSelect });
   if (controls) controls.append(buildMenu(store).el, search.el, buildTimeControls(store));
-  // Night mode also tints the whole document (the toggle button's own state is handled by makeToggle).
+  // Night mode also tints the whole document (the toggle button's own state is handled in menu.js).
   const applyNight = () => document.body.classList.toggle('night', store.getState().flags.night);
   store.subscribe(applyNight);
   applyNight();

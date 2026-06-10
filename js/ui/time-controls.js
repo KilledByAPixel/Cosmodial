@@ -1,3 +1,5 @@
+import { attachPopover } from './popover.js';
+
 const HOUR = 3.6e6;
 const DAY = 24 * HOUR;
 const pad = (n) => String(n).padStart(2, '0');
@@ -51,17 +53,24 @@ export function instantOnDay(fraction, refDay) {
   return scrubInstant(fraction, start, new Date(start.getTime() + DAY));
 }
 
-// Build the time control element. Drives store.setTime; reflects live/paused status; ticks the clock.
-// The slider scrubs across the full 24h of the selected day; Play/Pause toggles live tracking.
+// Build the time control: a compact chip (live clock / paused date+time) that opens a popover with
+// Play/Pause, the 24h day scrubber, and a datetime field. Drives store.setTime; ticks the clock.
 export function buildTimeControls(store) {
   const el = document.createElement('div');
   el.className = 'ctrl ctrl-time';
   el.innerHTML = `
-    <button type="button" data-playpause></button>
-    <span class="now-badge" data-status></span>
-    <input type="range" data-scrub min="0" max="1000" value="0" title="Scrub through the day" />
-    <input type="datetime-local" data-datetime title="Jump to a date/time" />`;
+    <button type="button" class="time-chip" data-chip title="Time controls"></button>
+    <div class="popover time-panel" hidden>
+      <div class="time-row">
+        <button type="button" data-playpause></button>
+        <span class="now-badge" data-status></span>
+      </div>
+      <input type="range" data-scrub min="0" max="1000" value="0" title="Scrub through the day" />
+      <input type="datetime-local" data-datetime title="Jump to a date/time" />
+    </div>`;
 
+  const chip = el.querySelector('[data-chip]');
+  const panel = el.querySelector('.time-panel');
   const status = el.querySelector('[data-status]');
   const scrub = el.querySelector('[data-scrub]');
   const playpause = el.querySelector('[data-playpause]');
@@ -93,6 +102,9 @@ export function buildTimeControls(store) {
   const update = () => {
     const live = store.getState().time.live;
     const d = shownInstant();
+    // The chip alone always shows whether you're live (green ●) or time-travelling (⏸ + date).
+    chip.textContent = live ? `● ${formatClock(d)}` : `⏸ ${formatDate(d)} · ${formatClock(d)}`;
+    chip.classList.toggle('live', live);
     playpause.textContent = live ? '⏸ Pause' : '▶ Live';
     playpause.setAttribute('aria-pressed', String(!live));
     status.textContent = live
@@ -108,5 +120,6 @@ export function buildTimeControls(store) {
   store.subscribe(update);
   setInterval(update, 1000); // ticks the live clock readout (display only; sky recompute is in main.js)
   update();
+  attachPopover(chip, panel); // stays open while scrubbing; outside-tap / Escape closes
   return el;
 }

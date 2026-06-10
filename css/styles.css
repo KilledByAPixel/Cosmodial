@@ -29,7 +29,7 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 }
 #controls button { cursor: pointer; }
 #controls button:hover { background: #1b2336; }
-#controls input[type="range"] { width: 180px; padding: 0; }
+#controls input[type="range"] { width: 100%; padding: 0; }
 #controls input.bad { border-color: #c5524a; }
 #controls .ctrl-label { opacity: 0.8; }
 #controls .now-badge { opacity: 0.7; }
@@ -45,7 +45,7 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
 /* Object search: input in the bar, results list opens upward over the sky. */
 #controls .search { position: relative; }
 .search-results { display: none; list-style: none; margin: 0; padding: 4px;
-  position: absolute; left: 0; bottom: calc(100% + 6px); width: 240px; max-height: 280px; overflow-y: auto;
+  position: absolute; left: 0; bottom: calc(100% + 6px); width: min(340px, calc(100vw - 20px)); max-height: 280px; overflow-y: auto;
   background: rgba(12,16,26,0.97); border: 1px solid #2a3550; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,0.5); z-index: 7; }
 .search.open .search-results { display: block; }
 .search-item { display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
@@ -123,3 +123,11 @@ body.night #night-overlay { display: block; }
 .menu-label { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
   color: #7e90b5; margin-bottom: 4px; }
 .menu-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+/* Time chip + popover: the chip alone shows live (green ●) vs paused (⏸ date · time). */
+.time-chip { white-space: nowrap; }
+.time-chip.live { color: #8fdcb0; }
+.ctrl-time .popover { right: 0; width: min(280px, calc(100vw - 20px)); }
+.time-panel .time-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.time-panel input[type="range"] { display: block; width: 100%; margin: 0 0 8px; }
+.time-panel input[type="datetime-local"] { width: 100%; }
