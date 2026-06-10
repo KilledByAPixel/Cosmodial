@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { project, cameraBasis, vec, focalPx, unproject } from '../js/core/projection.js';
+import { project, cameraBasis, vec, focalPx, unproject, grabAim } from '../js/core/projection.js';
 
 const VIEW = { width: 800, height: 600 };
 const cx = 400, cy = 300;
@@ -114,4 +114,47 @@ test('camera basis is continuous through the old 89.5 threshold and exact at the
     'right = (cos az, -sin az, 0) at the zenith — heading preserved');
   assert.ok(Math.abs(pole.up[0] + Math.sin(a)) < 1e-12 && Math.abs(pole.up[1] + Math.cos(a)) < 1e-12 && Math.abs(pole.up[2]) < 1e-12,
     'up points toward azimuth az+180 at the zenith (the continuous limit)');
+});
+
+test('grabAim pins the grabbed sky point under the cursor (feasible cases)', () => {
+  // (cam, grab pixel, target pixel) — all feasible for a level camera.
+  const cases = [
+    [{ az: 180, alt: 10, fov: 60, ...VIEW }, [500, 200], [300, 400]],
+    [{ az: 30, alt: 70, fov: 90, ...VIEW }, [400, 80], [374, 27]],    // high pitch, top of screen
+    [{ az: 300, alt: -35, fov: 120, ...VIEW }, [150, 500], [135, 533]],
+    [{ az: 0, alt: 0, fov: 20, ...VIEW }, [410, 310], [390, 290]],    // small nudge, narrow fov
+  ];
+  for (const [cam, [gx, gy], [tx, ty]] of cases) {
+    const d = unproject(gx, gy, cam);
+    const aim = grabAim(d, tx, ty, cam);
+    const p = project(Math.atan2(d[0], d[1]) * 180 / Math.PI, Math.asin(d[2]) * 180 / Math.PI,
+      { ...cam, az: aim.az, alt: aim.alt });
+    assert.ok(p.visible, 'pinned point projects');
+    assert.ok(Math.abs(p.x - tx) < 1e-6 && Math.abs(p.y - ty) < 1e-6,
+      `pinned to (${tx},${ty}), got (${p.x},${p.y}) for cam az=${cam.az} alt=${cam.alt}`);
+  }
+});
+
+test('grabAim regression: at 70 deg pitch, dragging above screen center follows the cursor (no reverse rotation)', () => {
+  const cam = { az: 180, alt: 70, fov: 60, ...VIEW };
+  const d = unproject(400, 200, cam);          // grab above center (feasible for level camera)
+  const aim = grabAim(d, 480, 200, cam);       // drag 80px to the right
+  const p = project(Math.atan2(d[0], d[1]) * 180 / Math.PI, Math.asin(d[2]) * 180 / Math.PI,
+    { ...cam, az: aim.az, alt: aim.alt });
+  assert.ok(Math.abs(p.x - 480) < 1e-6 && Math.abs(p.y - 200) < 1e-6, 'grabbed point tracks the cursor exactly');
+});
+
+test('grabAim clamps gracefully when pinning is infeasible for a level camera', () => {
+  const cam = { az: 0, alt: 88, fov: 120, ...VIEW };
+  const d = unproject(400, 290, cam);          // a point a hair from the zenith
+  const aim = grabAim(d, 400, 580, cam);       // ask for it at the bottom edge — not reachable level
+  assert.ok(Number.isFinite(aim.az) && Number.isFinite(aim.alt), 'finite fallback');
+  assert.ok(aim.alt >= -90 && aim.alt <= 90, 'alt stays in range');
+});
+
+test('grabAim degenerate guards: grabbing the zenith direction keeps the current heading', () => {
+  const cam = { az: 45, alt: 89, fov: 100, ...VIEW };
+  const aim = grabAim([0, 0, 1], 500, 300, cam); // d IS the zenith: its azimuth is undefined
+  assert.ok(Number.isFinite(aim.az) && Number.isFinite(aim.alt));
+  assert.ok(Math.abs(aim.az - 45) < 1e-9, 'az unchanged when the grabbed direction has no azimuth');
 });

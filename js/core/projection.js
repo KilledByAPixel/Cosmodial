@@ -109,3 +109,42 @@ export function unproject(x, y, cam) {
     fwd[2] * ct + (right[2] * dx + up[2] * dy) * s,
   ];
 }
+
+// Solve for the LEVEL camera (roll 0) aim that projects ENU unit direction `d` to pixel (x, y):
+// the heart of grab-the-sky dragging — the point grabbed at pointer-down stays pinned under the
+// cursor. Closed form; returns { az, alt } in degrees. cam supplies fov/width/height plus the
+// CURRENT az/alt, used only to pick between the two altitude roots (nearest wins) and as the
+// fallback when pinning is infeasible (e.g. the zenith can never leave the screen's vertical
+// centerline while the horizon stays level) or degenerate (grabbing the zenith itself).
+export function grabAim(d, x, y, cam) {
+  const { focal, cx, cy } = cameraBasis(cam);
+  const dx = x - cx, dy = -(y - cy); // +dy = toward screen-up
+  const r = Math.hypot(dx, dy);
+  const theta = 2 * Math.atan(r / (2 * focal));
+  const s = r > 1e-12 ? Math.sin(theta) / r : 0;
+  const rx = dx * s, ry = dy * s, rz = Math.cos(theta); // pixel ray in (right, up, fwd) coords
+
+  // Altitude: the level basis z-row is (0, cos alt, sin alt), so ry·cos(alt) + rz·sin(alt) = d_z.
+  const A = Math.hypot(ry, rz);
+  let altDeg = cam.alt;
+  if (A > 1e-9) {
+    const phi = Math.atan2(ry, rz);
+    const base = Math.asin(Math.max(-1, Math.min(1, d[2] / A))); // clamp = infeasible fallback
+    const wrap = (rad) => ((rad * 180 / Math.PI + 540) % 360) - 180;
+    const cands = [wrap(base - phi), wrap(Math.PI - base - phi)];
+    const inRange = cands.filter((c) => c >= -90 && c <= 90);
+    const pool = inRange.length ? inRange : cands;
+    const nearest = pool.reduce((best, c) => (Math.abs(c - cam.alt) < Math.abs(best - cam.alt) ? c : best));
+    altDeg = Math.max(-90, Math.min(90, nearest));
+  }
+
+  // Azimuth: with alt fixed, the horizontal parts satisfy (d_E, d_N) = Rot(az)·(u, v).
+  const altRad = degToRad(altDeg);
+  const u = rx, v = rz * Math.cos(altRad) - ry * Math.sin(altRad);
+  let azDeg = cam.az;
+  if (Math.hypot(d[0], d[1]) > 1e-9 && Math.hypot(u, v) > 1e-9) {
+    azDeg = (Math.atan2(d[0], d[1]) - Math.atan2(u, v)) * 180 / Math.PI;
+    azDeg = ((azDeg % 360) + 360) % 360;
+  }
+  return { az: azDeg, alt: altDeg };
+}
