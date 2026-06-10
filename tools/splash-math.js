@@ -26,6 +26,7 @@ export function eqToGalactic(raDeg, decDeg) {
 // UV into the galactic equirectangular Milky Way texture. Orientation matches
 // js/render/sky-background.js: longitude increases to the LEFT (u = 0.5 - l/2pi) and the
 // texture is vertically flipped — south galactic hemisphere at the top (v = 0.5 + b/pi).
+// v spans [0,1] inclusive (v=1 exactly at b=+90); clamp pixel indices when sampling.
 export function galacticUV(raDeg, decDeg) {
   const { l, b } = eqToGalactic(raDeg, decDeg);
   let u = 0.5 - l / (2 * Math.PI);

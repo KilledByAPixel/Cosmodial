@@ -27,9 +27,9 @@ test('the galactic center maps to the middle of the texture', () => {
   assert.ok(Math.abs(u - 0.5) < 0.001 && Math.abs(v - 0.5) < 0.001, `u=${u} v=${v}`);
 });
 
-test('texture orientation matches the app: LMC near v=0.32, u in [0,1)', () => {
+test('texture orientation matches the app: LMC near v=0.32, u near 0.72', () => {
   // Large Magellanic Cloud, RA 80.89, Dec -69.76 (l~280.5, b~-32.9)
   const { u, v } = galacticUV(80.89, -69.76);
   assert.ok(Math.abs(v - 0.317) < 0.01, `v=${v}`);
-  assert.ok(u >= 0 && u < 1, `u=${u}`);
+  assert.ok(Math.abs(u - 0.72) < 0.01, `u=${u}`);
 });
