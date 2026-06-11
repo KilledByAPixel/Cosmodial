@@ -248,7 +248,7 @@ test('skyVeil: below the horizon the veil is the pinned night look even at midda
 test('milkyWayZoomFade: full at wide FOV, gone when zoomed in', () => {
   assert.equal(milkyWayZoomFade(60), 1, 'full strength at wide FOV');
   assert.equal(milkyWayZoomFade(10), 0, 'gone when zoomed in');
-  const mid = milkyWayZoomFade(38);
+  const mid = milkyWayZoomFade(20); // middle of the tuned 10..30 deg fade window
   assert.ok(mid > 0 && mid < 1, 'partial in between');
   // Monotonic non-decreasing with FOV.
   let prev = -1;

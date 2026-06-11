@@ -6,6 +6,7 @@
 import { buildLocationControl } from './location.js';
 import { detectGyro, requestGyroPermission, attachGyro } from './gyro.js';
 import { attachPopover } from './popover.js';
+import { openAbout } from './about.js';
 
 // A button that toggles a boolean state flag and reflects it via the `.on` class.
 export function makeToggle(store, label, flag, className = '') {
@@ -112,6 +113,7 @@ export function buildMenu(store, opts = {}) {
   if (opts.onScreenshot) {
     panel.append(section('Capture', makeAction('📷 Screenshot', 'Save the current view as a PNG', opts.onScreenshot)));
   }
+  panel.append(section('Info', makeAction('ℹ️ About Cosmodial', 'About this app', openAbout)));
   el.append(btn, panel);
   attachPopover(btn, panel);
   return { el };

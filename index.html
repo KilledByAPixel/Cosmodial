@@ -17,6 +17,13 @@
   <link rel="stylesheet" href="./css/styles.css" />
 </head>
 <body>
+  <!-- Static boot splash: visible from first paint until main.js finishes loading the catalogues
+       (it fades this out after the first render), so startup is never a bare black screen. -->
+  <div id="boot-splash" aria-hidden="true">
+    <div class="boot-title">Cosmodial</div>
+    <div class="boot-sub">Sky Atlas</div>
+    <div class="boot-loading">loading the sky…</div>
+  </div>
   <canvas id="sky-gl"></canvas>
   <canvas id="sky"></canvas>
   <div id="controls"></div>

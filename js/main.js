@@ -42,9 +42,13 @@ const ctx = canvas.getContext('2d');
 // WebGL2 starfield on a canvas behind #sky. null if WebGL2 is unavailable -> fall back to the 2D
 // star path in drawScene. The 2D overlay (#sky) keeps drawing grid/lines/labels/markers/HUD on top.
 const glCanvas = document.getElementById('sky-gl');
-const starfield = glCanvas ? createStarfield(glCanvas) : null;
+// '?nogl' in the URL forces the 2D fallback — a quick way to test the no-WebGL2 path without
+// hunting for a browser that actually lacks it.
+const forceNoGL = new URLSearchParams(window.location.search).has('nogl');
+const starfield = (glCanvas && !forceNoGL) ? createStarfield(glCanvas) : null;
 const useGL = !!starfield;
-if (!useGL) console.warn('[cosmodial] WebGL2 unavailable — using the 2D star fallback');
+if (!useGL) console.warn(forceNoGL ? '[cosmodial] 2D star fallback forced by ?nogl'
+  : '[cosmodial] WebGL2 unavailable — using the 2D star fallback');
 if (useGL) starfield.setMilkyWay('./data/milkyway-4k.webp'); // all-sky background; renders atmosphere-only until it loads
 if (useGL) starfield.setBodyTexture('moon', './data/moon-2k.webp');
 if (useGL) {
@@ -990,6 +994,14 @@ async function boot() {
   const favHost = document.getElementById('favorites-host');
   if (favHost) favHost.append(favPanel.el);
   requestRender();
+  // Boot splash: linger one frame past the first render, then fade out (CSS transition) and detach.
+  const splash = document.getElementById('boot-splash');
+  if (splash) {
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      splash.classList.add('done');
+      setTimeout(() => splash.remove(), 500);
+    }));
+  }
 }
 
 boot();
