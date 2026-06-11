@@ -1,15 +1,15 @@
 import { altazToWhere } from '../guide/ranking.js';
 import { azToCompass } from '../render/hud.js';
 
-// Collapsed-chip label: the active event's leading emoji is appended ("★ Favorites · ☄️") so an
+// Collapsed-chip label: the active event's leading emoji is appended ("★ Highlights · ☄️") so an
 // event stays discoverable while the panel is closed. PURE — unit-tested. Keeps a U+FE0F variation
 // selector attached so emoji-style glyphs don't degrade to text-style.
 export function chipLabel(event) {
-  if (!event || !event.text) return '★ Favorites';
+  if (!event || !event.text) return '★ Highlights';
   const cps = [...event.text.trim()];
-  if (!cps.length) return '★ Favorites';
+  if (!cps.length) return '★ Highlights';
   const emoji = cps[1] === '\uFE0F' ? cps[0] + cps[1] : cps[0];
-  return `★ Favorites · ${emoji}`;
+  return `★ Highlights · ${emoji}`;
 }
 
 // Live-position phrase for a row. PURE — unit-tested.
@@ -30,7 +30,7 @@ export function buildFavoritesPanel({ onGoTo, onRemove }) {
   const el = document.createElement('div');
   el.className = 'fav-panel collapsed';
   el.innerHTML = `
-    <button type="button" class="fav-toggle" data-toggle>★ Favorites</button>
+    <button type="button" class="fav-toggle" data-toggle>★ Highlights</button>
     <div class="fav-body">
       <div class="fav-sun" data-sun hidden></div>
       <div class="fav-event" data-event hidden></div>

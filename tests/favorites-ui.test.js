@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { chipLabel, rowWhere, sunRowText } from '../js/ui/favorites.js';
 
 test('chipLabel appends the active event\'s leading emoji to the collapsed chip', () => {
-  assert.equal(chipLabel(null), '★ Favorites');
-  assert.equal(chipLabel({ text: '☄️ Perseids peak tonight — up to ~100/hr.' }), '★ Favorites · ☄️',
+  assert.equal(chipLabel(null), '★ Highlights');
+  assert.equal(chipLabel({ text: '☄️ Perseids peak tonight — up to ~100/hr.' }), '★ Highlights · ☄️',
     'keeps the emoji-style variation selector');
-  assert.equal(chipLabel({ text: '🌑 Total lunar eclipse — happening now.' }), '★ Favorites · 🌑');
-  assert.equal(chipLabel({ text: '🌗 Moon and Saturn are close.' }), '★ Favorites · 🌗');
-  assert.equal(chipLabel({ text: '' }), '★ Favorites', 'empty text falls back to the plain chip');
+  assert.equal(chipLabel({ text: '🌑 Total lunar eclipse — happening now.' }), '★ Highlights · 🌑');
+  assert.equal(chipLabel({ text: '🌗 Moon and Saturn are close.' }), '★ Highlights · 🌗');
+  assert.equal(chipLabel({ text: '' }), '★ Highlights', 'empty text falls back to the plain chip');
 });
 
 test('rowWhere phrases the live position, or says below the horizon', () => {
