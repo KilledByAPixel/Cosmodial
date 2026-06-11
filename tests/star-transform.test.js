@@ -5,7 +5,13 @@ import { bvToRGB, colorBrightness } from '../js/render/starstyle.js';
 import { makeObserver, makeTime, makeStarAltAz, horToEqjRotation } from '../js/core/astro.js';
 import { vec } from '../js/core/projection.js';
 
-const sepDeg = (a, b) => (Math.acos(Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]))) * 180) / Math.PI;
+// Angle between two directions, scale-robust: the transform's output length inherits the float32
+// rotation matrix's ~1e-8 length error (harmless — projection is scale-invariant), and a bare
+// acos(dot) would misread that as ~0.008 deg of angle.
+const sepDeg = (a, b) => {
+  const d = (a[0] * b[0] + a[1] * b[1] + a[2] * b[2]) / (Math.hypot(a[0], a[1], a[2]) * Math.hypot(b[0], b[1], b[2]));
+  return (Math.acos(Math.max(-1, Math.min(1, d))) * 180) / Math.PI;
+};
 
 test('oracle: the GPU transform replica matches makeStarAltAz across the whole sphere', () => {
   const cases = [
@@ -24,7 +30,7 @@ test('oracle: the GPU transform replica matches makeStarAltAz across the whole s
         const gpu = transformStarJ2000(j2000Vec(ra, dec), m);
         const d = sepDeg(gpu, vec(aa.az, aa.alt));
         n++;
-        assert.ok(d < 0.01, `ra ${ra} dec ${dec} lat ${c.lat}: separation ${d} deg`);
+        assert.ok(d < 0.001, `ra ${ra} dec ${dec} lat ${c.lat}: separation ${d} deg`);
       }
     }
   }

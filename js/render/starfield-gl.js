@@ -105,12 +105,19 @@ ${REFRACTION_GLSL}
 void main() {
   // GPU star transform: aDir holds the star's FIXED J2000 vector. Rotate by the per-frame EQJ->ENU
   // matrix, then lift true altitude to apparent with the same forward refraction the CPU path
-  // (Horizon 'normal') applies.
+  // (Horizon 'normal') applies. The lift rotates e by the small refraction angle r using the EXACT
+  // sin/cos of the true altitude (e.z and |e.xy|) — never sin(asin(z) + r): hardware asin() is a
+  // coarse polynomial (~1e-4 rad, sign oscillating with input), and routing the POSITION through it
+  // visibly displaced stars vertically vs the CPU ring/labels at deep zoom. asin still feeds
+  // refractionDeg's ARGUMENT, where ~1e-4 rad of input error is harmless (dr/dalt is tiny).
   vec3 e = uEqjToEnu * aDir;
-  float trueAlt = degrees(asin(clamp(e.z, -1.0, 1.0)));
-  float appAlt = radians(trueAlt + refractionDeg(trueAlt));
   float hxy = length(e.xy);
-  vec3 dir = (hxy < 1e-6) ? e : vec3(e.xy * (cos(appAlt) / hxy), sin(appAlt));
+  float trueAlt = degrees(asin(clamp(e.z, -1.0, 1.0)));
+  float r = radians(refractionDeg(trueAlt));
+  float cr = 1.0 - 0.5 * r * r;                 // cos r to O(r^4); r <= ~0.009 rad
+  float sinApp = e.z * cr + hxy * r;            // sin(trueAlt + r)
+  float cosApp = max(hxy * cr - e.z * r, 0.0);  // cos(trueAlt + r)
+  vec3 dir = (hxy < 1e-6) ? e : vec3(e.xy * (cosApp / hxy), sinApp);
   // dir.z == sin(alt): below-horizon stars fade by uBelowFade (culled entirely at 0).
   if (uBelowFade <= 0.0 && dir.z < 0.0) {
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);

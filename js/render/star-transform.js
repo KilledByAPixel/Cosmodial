@@ -47,17 +47,25 @@ export function eqjToEnuMatrix(rotHorEqj) {
 }
 
 // JS replica of the vertex-shader transform: rotate a J2000 vector into ENU (true direction), then
-// lift the true altitude to apparent with forward refraction. Used by the oracle test.
+// lift the true altitude to apparent with forward refraction. Used by the oracle test. The lift
+// mirrors the shader exactly: a small-angle rotation by the refraction angle r built from the EXACT
+// sin/cos of the true altitude (e2 and hypot(e0,e1)) — not sin(asin(z) + r), whose asin/sin round
+// trip is a coarse polynomial on GPUs (~1e-4 rad, sign oscillating) and visibly displaced stars
+// vertically vs the CPU ring/labels at deep zoom. asin only feeds refractAltDeg's argument, where
+// that error is harmless (dr/dalt is tiny).
 export function transformStarJ2000(v, m) {
   const e0 = m[0] * v[0] + m[3] * v[1] + m[6] * v[2];
   const e1 = m[1] * v[0] + m[4] * v[1] + m[7] * v[2];
   const e2 = m[2] * v[0] + m[5] * v[1] + m[8] * v[2];
-  const trueAlt = radToDeg(Math.asin(Math.max(-1, Math.min(1, e2))));
-  const app = degToRad(trueAlt + refractAltDeg(trueAlt));
   const h = Math.hypot(e0, e1);
   if (h < 1e-6) return [e0, e1, e2]; // at the zenith/nadir refraction is ~0 and azimuth is undefined
-  const k = Math.cos(app) / h;
-  return [e0 * k, e1 * k, Math.sin(app)];
+  const trueAlt = radToDeg(Math.asin(Math.max(-1, Math.min(1, e2))));
+  const r = degToRad(refractAltDeg(trueAlt));
+  const cr = 1 - 0.5 * r * r;                 // cos r to O(r^4); r <= ~0.009 rad
+  const sinApp = e2 * cr + h * r;             // sin(trueAlt + r)
+  const cosApp = Math.max(h * cr - e2 * r, 0); // cos(trueAlt + r)
+  const k = cosApp / h;
+  return [e0 * k, e1 * k, sinApp];
 }
 
 // Per-star GPU attributes from the RAW catalogue (ra/dec/mag/bv) — built ONCE at boot. Interleaved
