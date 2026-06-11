@@ -5,6 +5,7 @@ import { eqjToEnuMatrix } from './render/star-transform.js';
 import { bodyScreenOrientation } from './core/moon.js';
 import { buildTimeControls } from './ui/time-controls.js';
 import { buildMenu, buildSkyToggles } from './ui/menu.js';
+import { screenshotName, saveComposite } from './ui/screenshot.js';
 import { PLANETS, planetRadius } from './render/planets.js';
 import { SATURN_RING, ringOpening } from './render/ring-math.js';
 import { drawScene, drawStarLabels, markerRadius, resizeCanvas } from './render/sky.js';
@@ -698,7 +699,13 @@ async function boot() {
   const controls = document.getElementById('controls');
   const bodyLabels = ['Moon', 'Sun', ...PLANETS.map((p) => p.name)];
   const search = buildSearch(buildSearchIndex(stars, figures, bodyLabels, dsos), { onSelect: onSearchSelect });
-  if (controls) controls.append(buildMenu(store).el, ...buildSkyToggles(store), search.el, buildTimeControls(store));
+  // Screenshot: re-render synchronously, then composite GL sky + 2D overlay in the SAME task —
+  // the GL context has no preserveDrawingBuffer, so its pixels only survive until the task ends.
+  const onScreenshot = () => {
+    render();
+    saveComposite(useGL ? [glCanvas, canvas] : [canvas], canvas.width, canvas.height, screenshotName());
+  };
+  if (controls) controls.append(buildMenu(store, { onScreenshot }).el, ...buildSkyToggles(store), search.el, buildTimeControls(store));
   // Night mode also tints the whole document (the toggle button's own state is handled in menu.js).
   const applyNight = () => document.body.classList.toggle('night', store.getState().flags.night);
   store.subscribe(applyNight);

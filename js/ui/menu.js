@@ -77,7 +77,19 @@ function section(label, ...children) {
   return wrap;
 }
 
-export function buildMenu(store) {
+// A one-shot action button for the menu (same styling as the toggles, no on/off state).
+function makeAction(label, title, onClick) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'view-toggle';
+  btn.textContent = label;
+  btn.title = title;
+  btn.addEventListener('click', onClick);
+  return btn;
+}
+
+// opts.onScreenshot: capture the current view as a PNG (wired by main.js, which owns the canvases).
+export function buildMenu(store, opts = {}) {
   const el = document.createElement('div');
   el.className = 'ctrl menu';
   const btn = document.createElement('button');
@@ -97,6 +109,9 @@ export function buildMenu(store) {
       makeToggle(store, 'Eq grid', 'eqgrid'),
       makeToggle(store, 'Deep sky', 'deepsky')),
   );
+  if (opts.onScreenshot) {
+    panel.append(section('Capture', makeAction('📷 Screenshot', 'Save the current view as a PNG', opts.onScreenshot)));
+  }
   el.append(btn, panel);
   attachPopover(btn, panel);
   return { el };
