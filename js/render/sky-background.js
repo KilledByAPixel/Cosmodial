@@ -115,13 +115,13 @@ void main() {
     sky += mw * (${MW_GAIN.toFixed(2)} * mix(uMwVisibility, 1.0, belowNight) * uMwZoomFade);
   }
 
-  // Below the (true) horizon, BLACK ground starts immediately — only a pixel-wide AA band
-  // (fwidth) softens the edge, so the horizon reads crisp at every zoom instead of the sky
-  // bleeding degrees under it. Weakened as the below-horizon sky fades in (uBelowFade 1 = no
-  // ground at all; the night sky shows instead). Fully opaque: a sky-tinted ground leaked 12%
-  // of the Milky Way/stars through when the lower hemisphere was meant hidden.
-  float aa = max(fwidth(ray.z), 1.0e-5);
-  float ground = smoothstep(0.0, -aa, ray.z) * (1.0 - uBelowFade);
+  // Below the (true) horizon the ground fades to black over the first half degree, then stays
+  // solid — a slight softness at the line's underside without the old degrees-wide bleed (and
+  // never under a pixel, so wide zooms stay clean). Weakened as the below-horizon sky fades in
+  // (uBelowFade 1 = no ground at all; the night sky shows instead). Fully opaque: a sky-tinted
+  // ground leaked 12% of the Milky Way/stars through when the lower hemisphere was meant hidden.
+  float band = max(fwidth(ray.z), 0.0087); // sin(0.5 deg)
+  float ground = smoothstep(0.0, -band, ray.z) * (1.0 - uBelowFade);
   sky = mix(sky, vec3(0.0), ground);
 
   fragColor = vec4(clamp(sky, 0.0, 1.0), 1.0); // opaque base
