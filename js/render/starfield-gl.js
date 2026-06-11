@@ -22,14 +22,14 @@ import { createBodySphere } from './body-sphere.js';
 import { REFRACTION_GLSL, buildStarAttributesJ2000 } from './star-transform.js';
 
 // --- Star glow tunables (tweak to taste) ---
-const GLOW_SCALE = 5.0;    // sprite diameter as a multiple of the 2D core radius — room for the halo
+const GLOW_SCALE = 6.0;    // sprite diameter as a multiple of the 2D core radius — room for the halo
 const GLOW_FALLOFF = 9.0;  // halo falloff exponent: higher = tighter core, softer fade to the edge
 const GLOW_BRIGHTNESS = 2.0; // overall light gain: >1 brightens (bright cores bloom to white), <1 dims. Try ~1.3–1.6.
 
 // --- Marker (Sun/Moon/planet) glow tunables ---
 // Markers render as a solid disc (their true angular/disk radius) plus a soft halo, so the Sun and
 // Moon read at roughly their real size while still glowing like the stars.
-const MARKER_GLOW_SCALE = 5.0;    // sprite diameter as a multiple of the disc diameter — halo room beyond the disc
+const MARKER_GLOW_SCALE = 6.0;    // sprite diameter as a multiple of the disc diameter — halo room beyond the disc
 const MARKER_GLOW_FALLOFF = 9.0;  // halo falloff exponent past the disc edge
 const MARKER_BRIGHTNESS = 2.0;    // overall light gain for markers (matches GLOW_BRIGHTNESS for stars)
 
