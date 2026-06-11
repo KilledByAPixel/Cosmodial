@@ -350,7 +350,7 @@ function onEditTap(x, y) {
 
 // Card context, incl. an onClose that clears the on-canvas highlight.
 function cardCtx(observer, time, eclipse = null) {
-  return { observer, time, eclipse, fav: favorites, onClose: () => { highlighted = null; requestRender(); } };
+  return { observer, time, eclipse, fav: favorites, inspect: onInspectObject, onClose: () => { highlighted = null; requestRender(); } };
 }
 
 // Picking reads the CPU skyObjects array, which can lag the live GPU stars. If the sidereal drift since
@@ -567,6 +567,28 @@ function onGoToFavorite(rec) {
   const obj = resolveFavorite(rec);
   if (!obj) return;
   focusObject(obj, GOTO_FOV[obj.kind] || 2);
+}
+
+// Eye-button zoom: for a body with a disc, the FOV that makes the disc span a set fraction of the
+// screen (planets large, Moon/Sun a bit smaller so the whole face fits comfortably); point-like
+// kinds get a fixed deep zoom. setFov clamps to MIN_FOV, so small planets just bottom out fully
+// zoomed. Tuned by eye.
+const INSPECT_FILL = { planet: 0.6, moon: 0.5, sun: 0.5 }; // fraction of the view the disc spans
+const INSPECT_FOV = { star: 1, dso: 1.5 };                   // no disc: fixed deep zoom
+
+function inspectFov(kind, radiusDeg) {
+  const fill = INSPECT_FILL[kind];
+  if (fill && radiusDeg != null) return (2 * radiusDeg) / fill;
+  return INSPECT_FOV[kind] || 1;
+}
+
+// The card's eye button: same lock-on flow as the favorites go-to, zoomed all the way in.
+function onInspectObject(pick) {
+  const st = store.getState();
+  const observer = makeObserver(st.location.lat, st.location.lng);
+  const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
+  const radius = pick.body ? bodyAngularRadiusDeg(pick.body, observer, time) : null;
+  focusObject(pick, inspectFov(pick.kind, radius));
 }
 
 // Search result chosen: resolve it to a live object and reuse Find (slew + card). Constellations

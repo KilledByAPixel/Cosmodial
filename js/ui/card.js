@@ -151,6 +151,11 @@ export function openCard(obj, ctx) {
       if (e.target.closest('.card-fav') && current && current.ctx.fav) {
         current.ctx.fav.toggle(current.obj);
         openCard(current.obj, current.ctx);
+        return;
+      }
+      // Eye: zoom way in (size-aware). focusObject re-renders the card itself.
+      if (e.target.closest('.card-eye') && current && current.ctx.inspect) {
+        current.ctx.inspect(current.obj);
       }
     });
   }
@@ -170,10 +175,18 @@ export function openCard(obj, ctx) {
     star.setAttribute('aria-label', isFav ? 'Remove from favorites' : 'Add to favorites');
     star.textContent = isFav ? '★' : '☆';
   }
+  let eye = null;
+  if (ctx && ctx.inspect) {
+    eye = document.createElement('button');
+    eye.className = 'card-eye';
+    eye.type = 'button';
+    eye.setAttribute('aria-label', 'Zoom in close');
+    eye.textContent = '👁';
+  }
   const h = document.createElement('h2');
   h.className = 'card-title';
   h.textContent = titleOf(obj);
-  card.append(close, ...(star ? [star] : []), h, ...bodyLines(obj, ctx), whereLine(obj.altaz));
+  card.append(close, ...(star ? [star] : []), ...(eye ? [eye] : []), h, ...bodyLines(obj, ctx), whereLine(obj.altaz));
   if (host.firstChild && host.firstChild.innerHTML === card.innerHTML) return; // unchanged: keep the live DOM
   host.innerHTML = '';
   host.append(card);
