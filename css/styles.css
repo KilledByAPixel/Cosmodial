@@ -158,10 +158,10 @@ body.night #night-overlay { display: block; }
 .time-chip.live { color: #8fdcb0; }
 .ctrl-time .popover { right: 0; width: min(280px, calc(100vw - 20px)); }
 .time-panel .time-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-/* City picker popover: filter box on top, scrollable list below. The location row sits at the TOP
-   of the ☰ menu panel, so this one opens DOWNWARD over the menu body (the base .popover opens
-   upward, which here would climb off-screen on short viewports). */
-.city-picker { left: 0; top: calc(100% + 4px); bottom: auto; width: min(260px, calc(100vw - 20px)); }
+/* City picker popover: filter box on top, scrollable list below. Opens UPWARD (the .popover
+   default) from the location row: the menu panel hugs the bottom bar, so there's no room below —
+   the 40vh/260px list cap keeps the top edge on-screen even on short viewports. */
+.city-picker { left: 0; width: min(260px, calc(100vw - 20px)); }
 .city-picker input[type="search"] { width: 100%; }
 .city-list { list-style: none; margin: 6px 0 0; padding: 0; max-height: min(40vh, 260px); overflow-y: auto; }
 .time-panel input[type="range"] { display: block; width: 100%; margin: 0 0 8px; }
