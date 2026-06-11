@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { airmass, extinction, skyParams, milkyWayZoomFade, enuToEqjMatrix, enuToGalMatrix, belowHorizonFade, spaceSkyParams, skyVeil } from '../js/render/atmosphere.js';
+import { airmass, extinction, skyParams, milkyWayZoomFade, enuToEqjMatrix, enuToGalMatrix, belowHorizonFade, spaceSkyParams, skyVeil, eclipseDarkenedSunAlt } from '../js/render/atmosphere.js';
 import { makeObserver, makeTime, makeStarAltAz, horToEqjRotation, eqjToGalRotation } from '../js/core/astro.js';
 import * as Astronomy from '../js/vendor/astronomy.js';
 import { vec } from '../js/core/projection.js';
@@ -257,4 +257,14 @@ test('milkyWayZoomFade: full at wide FOV, gone when zoomed in', () => {
     assert.ok(f >= prev, `non-decreasing with FOV (fov=${fov})`);
     prev = f;
   }
+});
+
+test('eclipseDarkenedSunAlt: bright partials leave the sky alone, totality reaches twilight, never brightens', () => {
+  assert.equal(eclipseDarkenedSunAlt(65, 0), 65, 'no eclipse');
+  assert.equal(eclipseDarkenedSunAlt(65, 0.5), 65, 'shallow partial: sky stays deceptively bright');
+  assert.equal(eclipseDarkenedSunAlt(65, 0.7), 65, 'ramp starts above 70%');
+  assert.equal(eclipseDarkenedSunAlt(65, 1), -9, 'totality renders as civil twilight');
+  const deep = eclipseDarkenedSunAlt(65, 0.95), deeper = eclipseDarkenedSunAlt(65, 0.99);
+  assert.ok(deep < 65 && deeper < deep && deeper > -9, `monotonic ramp: ${deep} -> ${deeper}`);
+  assert.equal(eclipseDarkenedSunAlt(-30, 1), -30, 'a below-horizon alignment must not brighten the night');
 });

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nudgedToward, screenAngleCWFromUp, bodyScreenOrientation } from '../js/core/moon.js';
+import { nudgedToward, screenAngleCWFromUp, bodyScreenOrientation, altazSepDeg, discObscuration } from '../js/core/moon.js';
 import { vec } from '../js/core/projection.js';
 
 const near = (a, b, tol = 1e-6) => Math.abs(a - b) <= tol;
@@ -35,4 +35,23 @@ test('bodyScreenOrientation: bright limb points up/down as the Sun is higher/low
   const down = bodyScreenOrientation(cam, moonDir, vec(180, 5), poleDir);  // Sun below the Moon
   assert.ok(Math.abs(up.brightLimbAngle) < 5, `Sun above -> limb points up (${up.brightLimbAngle})`);
   assert.ok(Math.abs(Math.abs(down.brightLimbAngle) - 180) < 5, `Sun below -> limb points down (${down.brightLimbAngle})`);
+});
+
+test('altazSepDeg: zero for coincident points, exact on the axes', () => {
+  assert.ok(near(altazSepDeg({ az: 120, alt: 35 }, { az: 120, alt: 35 }), 0));
+  assert.ok(near(altazSepDeg({ az: 0, alt: 0 }, { az: 90, alt: 0 }), 90));
+  assert.ok(near(altazSepDeg({ az: 45, alt: 0 }, { az: 45, alt: 90 }), 90));
+  assert.ok(near(altazSepDeg({ az: 10, alt: 20 }, { az: 10, alt: 20.5 }), 0.5, 1e-9));
+});
+
+test('discObscuration: disjoint, contained, annular, and the half-separation oracle', () => {
+  assert.equal(discObscuration(1.0, 0.25, 0.25), 0, 'no overlap');
+  assert.equal(discObscuration(0, 0.25, 0.27), 1, 'larger Moon centred = total');
+  assert.ok(near(discObscuration(0, 0.3, 0.15), 0.25, 1e-12), 'small Moon inside covers r^2/R^2 (annular)');
+  // Equal discs at separation d = R: lens area 2R^2*acos(1/2) - (R/2)*sqrt(3R^2) -> fraction ~0.39100
+  assert.ok(near(discObscuration(0.25, 0.25, 0.25), (2 * Math.acos(0.5) - Math.sqrt(3) / 2) / Math.PI, 1e-9));
+  // Monotonic: closer Moon covers more
+  const f = (d) => discObscuration(d, 0.26, 0.25);
+  assert.ok(f(0.45) < f(0.3) && f(0.3) < f(0.1) && f(0.1) < f(0.005), 'monotonic toward centre');
+  assert.ok(f(0.005) > 0.9 && f(0.005) < 1, 'near-total just before centring');
 });

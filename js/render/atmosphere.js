@@ -74,6 +74,16 @@ export function skyParams(sunAltDeg) {
   };
 }
 
+// During a deep solar eclipse the sky itself darkens. Maps the TRUE Sun altitude to the EFFECTIVE
+// altitude skyParams should render: no change below 70% obscuration (a real partial eclipse leaves
+// the sky deceptively bright), then a steep ramp so totality renders like civil twilight (Sun at
+// -9°) — the atmosphere dims and starDayFade lets the bright stars out, just as real totality does.
+// Never raises the altitude (an alignment with the Sun already below -9° must not brighten the sky).
+export function eclipseDarkenedSunAlt(sunAltDeg, obscuration) {
+  const w = Math.pow(clamp((obscuration - 0.7) / 0.3, 0, 1), 3);
+  return Math.min(sunAltDeg, sunAltDeg * (1 - w) - 9 * w);
+}
+
 // How far below the horizon (in sin-altitude units; 0.1 ~ the first 5.7°) the sky/star shaders
 // blend from the live daytime/twilight look to the pinned full-night look of the lower
 // hemisphere. Embedded as a GLSL literal in sky-background.js and starfield-gl.js.

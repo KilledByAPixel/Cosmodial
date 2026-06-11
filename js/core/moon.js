@@ -31,6 +31,28 @@ export function screenAngleCWFromUp(a, b) {
   return radToDeg(Math.atan2(b.x - a.x, -(b.y - a.y)));
 }
 
+// Great-circle separation (degrees) between two alt/az positions (degrees).
+export function altazSepDeg(a, b) {
+  const d2r = Math.PI / 180;
+  const c = Math.sin(a.alt * d2r) * Math.sin(b.alt * d2r)
+    + Math.cos(a.alt * d2r) * Math.cos(b.alt * d2r) * Math.cos((a.az - b.az) * d2r);
+  return radToDeg(Math.acos(Math.max(-1, Math.min(1, c))));
+}
+
+// Fraction (0..1) of the Sun's disc covered by the Moon's, from their angular separation and radii
+// (all degrees). Flat two-circle overlap — exact to ~1e-5 at the half-degree scales involved.
+// Drives the live solar-eclipse look: Sun glow dimming, corona fade-in, sky darkening.
+export function discObscuration(sepDeg, rSunDeg, rMoonDeg) {
+  const d = sepDeg, R = rSunDeg, r = rMoonDeg;
+  if (d >= R + r) return 0;                                  // discs don't touch
+  if (d <= Math.abs(R - r)) return r >= R ? 1 : (r * r) / (R * R); // one disc inside the other
+  const a1 = Math.acos((d * d + r * r - R * R) / (2 * d * r));     // partial overlap: lens area
+  const a2 = Math.acos((d * d + R * R - r * r) / (2 * d * R));
+  const lens = r * r * a1 + R * R * a2
+    - 0.5 * Math.sqrt((-d + r + R) * (d + r - R) * (d - r + R) * (d + r + R));
+  return lens / (Math.PI * R * R);
+}
+
 // A body's bright-limb and north-pole angles on screen (degrees, CW from screen-up) for a camera.
 // dirs are unit ENU vectors: the body centre, a direction toward the Sun, and toward the body's north
 // pole. Falls back to 0 if a point projects behind the camera (the Moon pass culls it anyway).

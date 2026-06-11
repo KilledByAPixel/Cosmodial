@@ -2,7 +2,7 @@ import { createState } from './core/state.js';
 import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, searchSolarEclipse, nextSolarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, planetMoonsAltAz, moonLibrationDeg, nextSunEvent, cometsAltAz } from './core/astro.js';
 import { makeStarAltAz, horToEqjRotation, eqjToGalRotation } from './core/astro.js';
 import { eqjToEnuMatrix } from './render/star-transform.js';
-import { bodyScreenOrientation } from './core/moon.js';
+import { bodyScreenOrientation, altazSepDeg, discObscuration } from './core/moon.js';
 import { buildTimeControls } from './ui/time-controls.js';
 import { buildMenu, buildSkyToggles } from './ui/menu.js';
 import { screenshotName, saveComposite } from './ui/screenshot.js';
@@ -16,7 +16,7 @@ import { createRenderScheduler } from './core/scheduler.js';
 import { attachInput } from './ui/input.js';
 import { splitSegments, toggleEdge, pickNearest, circularCentroid, exportFigures } from './edit/figures.js';
 import { createProjector, vec, focalPx } from './core/projection.js';
-import { skyParams, spaceSkyParams, belowHorizonFade, enuToGalMatrix } from './render/atmosphere.js';
+import { skyParams, spaceSkyParams, belowHorizonFade, enuToGalMatrix, eclipseDarkenedSunAlt } from './render/atmosphere.js';
 import { openCard, closeCard, constellationName, isCardOpen } from './ui/card.js';
 import { altazToWhere } from './guide/ranking.js';
 import { createFavorites, displayName } from './core/favorites.js';
@@ -71,6 +71,7 @@ let favPanel = null;
 const favorites = createFavorites();
 let eclipseCtx = { inProgress: null, next: null }; // lunar; recomputed each full computeSky from the set time
 let solarEclipseCtx = { inProgress: null, next: null }; // solar, observer-local; same cadence as eclipseCtx
+let eclipseObscuration = 0; // fraction of the Sun's disc the Moon covers right now (per frequent pass)
 let tonightShower = null;   // the meteor shower peaking tonight (+ radiant alt/az), or null
 let conjunctions = [];      // close Moon/planet pairs tonight, closest-first
 let skyDirty = true;  // next render runs the FREQUENT recompute (markers/spheres/lines/labels/DSOs)
@@ -137,6 +138,15 @@ function computeSky(full) {
     { altaz: altAzOfBody(Body.Sun, observer, time), label: 'Sun', color: '#ffd27f', angularRadiusDeg: bodyAngularRadiusDeg(Body.Sun, observer, time), body: Body.Sun, alpha: 1 },
     ...planetMarkers,
   ];
+  // Live solar-eclipse geometry: how much of the Sun's disc the Moon covers RIGHT NOW (pure overlap
+  // math — works at any scrubbed instant, catalogued or not). The Sun's additive glow dims by the
+  // covered fraction (a black Moon silhouette can't occlude an additive pass, but this reads right:
+  // the glow fades as the Moon crosses, and vanishes at totality, leaving the corona in render()).
+  {
+    const [moonMk, sunMk] = markers;
+    eclipseObscuration = discObscuration(altazSepDeg(sunMk.altaz, moonMk.altaz), sunMk.angularRadiusDeg, moonMk.angularRadiusDeg);
+    sunMk.alpha = 1 - eclipseObscuration;
+  }
   planetMoons = planetMoonsAltAz(observer, time);
   cometObjects = cometsAltAz(observer, time).map((c) => ({ ...c, kind: 'comet' }));
   if (useGL) {
@@ -144,7 +154,8 @@ function computeSky(full) {
     // glow lobe needs its direction, and the Milky Way texture its ENU->galactic sampling matrix.
     const sun = markers.find((m) => m.label === 'Sun');
     const sunAlt = sun ? sun.altaz.alt : -90;
-    const p = st.flags.atmo ? skyParams(sunAlt) : spaceSkyParams(); // atmo off = space view (flips via the recompute subscriber in boot)
+    // Deep eclipse darkens the sky toward twilight (stars out at totality) via an effective Sun altitude.
+    const p = st.flags.atmo ? skyParams(eclipseDarkenedSunAlt(sunAlt, eclipseObscuration)) : spaceSkyParams(); // atmo off = space view (flips via the recompute subscriber in boot)
     p.sunDir = vec(sun ? sun.altaz.az : 0, sunAlt);
     p.enuToGal = enuToGalMatrix(horToEqjRotation(observer, time), eqjToGalRotation()); // sample the galactic-frame Milky Way
     starfield.setSkyParams(p);
@@ -248,7 +259,19 @@ function render() {
   const cometMarkers = st.flags.edit ? [] : cometObjects
     .filter((c) => c.altaz && c.mag <= COMET_MARKER_MAG)
     .map((c) => ({ altaz: c.altaz, label: c.name, color: c.color, mag: c.mag, alpha: markerAlpha(c.mag), radius: planetRadius(c.mag) }));
-  let drawList = st.flags.edit ? [] : markers.concat(cometMarkers); // markers (+ moons/comets variants below)
+  // Totality corona: a pale halo at the Sun, fading in across the last ~1.5% of coverage — exactly
+  // as the Sun's own glow (alpha = 1 - obscuration) fades out. True-scale (~2.4 Sun radii), so it
+  // rings the Moon's black disc when zoomed in. Empty label: no text, never pickable.
+  const corona = [];
+  if (!st.flags.edit && eclipseObscuration > 0.985) {
+    const sun = markers.find((m) => m.label === 'Sun');
+    if (sun) corona.push({
+      altaz: sun.altaz, label: '', color: '#dfe5f0',
+      alpha: 0.55 * Math.min(1, (eclipseObscuration - 0.985) / 0.015),
+      angularRadiusDeg: sun.angularRadiusDeg * 2.4,
+    });
+  }
+  let drawList = st.flags.edit ? [] : markers.concat(cometMarkers, corona); // markers (+ moons/comets variants below)
   // One EQJ->ENU rotation per frame, shared by the GPU star transform and the equatorial grid:
   // stars sweep smoothly in live/play/scrub at zero per-star CPU cost, and the grid stays glued
   // to them because both use the SAME rotation.
@@ -302,7 +325,7 @@ function render() {
         altaz: m.altaz, label: m.name, color: '#d8cfc0',
         mag: m.mag, alpha: markerAlpha(m.mag), radius: planetRadius(m.mag),
       }));
-    drawList = st.flags.edit ? [] : markers.concat(moonMarkers, cometMarkers);
+    drawList = st.flags.edit ? [] : markers.concat(moonMarkers, cometMarkers, corona);
     starfield.draw(cam, { belowFade, edit: st.flags.edit });
     // Sun/Moon/planets as glowing discs: size from markerRadius (angular for Sun/Moon, disk for
     // planets), tint from the body's colour, brightness from magnitude. Hidden in edit mode.
