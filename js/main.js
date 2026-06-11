@@ -89,6 +89,10 @@ let resolvedPlanets = new Set(); // sphere-pass planets from the LAST frame; gat
 // planetBody lets the card read the planet's distance without importing Body itself.
 const moonPick = (m) => ({ kind: 'planet-moon', label: m.name, planet: m.planet,
   planetBody: Body[m.planet], mag: m.mag, altaz: m.altaz, behind: m.behind });
+
+// Moons whose planet has resolved into a sphere (per the given set) and that aren't occulted —
+// the one gate shared by drawing and tap-picking so the two can't drift apart.
+const visibleMoons = (resolved) => planetMoons.filter((m) => resolved.has(m.planet) && !m.behind);
 let namedStars = []; // skyObjects with names — label positions refresh on the frequent cadence
 let skyStamp = null; // { lat, lng, ms } of the last FULL recompute (pick-staleness guard)
 let editIndex = 0;          // index into figures[] of the currently active constellation
@@ -327,8 +331,7 @@ function render() {
     // Render-local pseudo-markers (NOT in the module markers array) so body/conjunction code
     // never sees them; picking mirrors this gate via resolvedPlanets. Occulted moons (behind
     // the disc) are hidden, transiting ones stay drawn.
-    const moonMarkers = st.flags.edit ? [] : planetMoons
-      .filter((m) => sphereLabels.has(m.planet) && !m.behind)
+    const moonMarkers = st.flags.edit ? [] : visibleMoons(sphereLabels)
       .map((m) => ({
         altaz: m.altaz, label: m.name, color: '#d8cfc0',
         mag: m.mag, alpha: markerAlpha(m.mag), radius: planetRadius(m.mag),
@@ -437,7 +440,7 @@ function onIdentifyTap(x, y) {
     ...markers.map((m) => ({ kind: m.label === 'Moon' ? 'moon' : m.label === 'Sun' ? 'sun' : 'planet', label: m.label, body: m.body, mag: m.mag, altaz: m.altaz })),
     ...dsoObjects,
     ...cometObjects.filter((c) => c.altaz && c.mag <= COMET_MARKER_MAG),
-    ...planetMoons.filter((m) => resolvedPlanets.has(m.planet) && !m.behind).map(moonPick),
+    ...visibleMoons(resolvedPlanets).map(moonPick),
   ].filter((o) => o.altaz.alt >= 0 || belowHorizonFade(st.aim.alt) > 0.05); // faded-in below-horizon objects are pickable too
   const projected = candidates.map((o) => { const p = projector(o.altaz.az, o.altaz.alt); return { x: p.x, y: p.y, visible: p.visible, ref: o }; });
   const hit = pickNearest(projected, x, y, 18);
@@ -755,7 +758,7 @@ function onInspectObject(pick) {
   // For planet-moons, clamp to moonGotoFov so the eye button never zooms OUT to a wider
   // FOV that would un-resolve the planet (e.g. when moonGotoFov < 0.3 for distant planets).
   const fov = pick.kind === 'planet-moon'
-    ? Math.min(0.3, moonGotoFov(pick))
+    ? Math.min(INSPECT_FOV['planet-moon'], moonGotoFov(pick))
     : inspectFov(pick.kind, radius);
   focusObject(pick, fov);
 }
