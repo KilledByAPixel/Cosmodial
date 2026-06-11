@@ -1,45 +1,52 @@
-# Cosmodial Sky Atlas
+# 🌌 Cosmodial Sky Atlas
 
-**View the whole cosmos in your web browser.**
+**The whole night sky, in your browser. No app store, no signup, no clouds.**
 
-# [Use The Cosmodial App](https://killedbyapixel.github.io/Cosmodial/)
+## [✨ Open Cosmodial →](https://killedbyapixel.github.io/Cosmodial/)
 
-![LittleJS Screenshot](images/cosmodial-social.png)
+![Cosmodial Screenshot](images/cosmodial-social.png)
 
-Tell Cosmodial where you are and it draws the live sky as if you were looking through a telescope — the Milky Way arcing overhead, the horizon glowing at dusk. Drag to aim, scroll to zoom from a wide naked-eye view down to a high-power eyepiece field a hundredth of a degree across, and star your favorite objects to jump straight back to them.
+Ever look up and wonder *"wait, is that a planet or just a really bright star?"*
 
-## Features
+Cosmodial knows. Tell it where you are and it paints the actual sky above your head, live! The Milky Way drifting overhead, the horizon glowing at dusk, planets show up exactly where they really are. Drag to look around, zoom from a wide view all the way down to a telescopic eyepiece view where Saturn's rings resolve.
 
-- **Your sky, live** — set a location and the view tracks the real sky in real time
-- **Aim anywhere** — drag to pan, scroll or pinch to zoom; on a phone, just point it and gyro aim follows
-- **Time travel** — scrub minutes or centuries in either direction; replay last night's eclipse or preview next month's conjunction
-- **Favorites** — star anything from its card and jump back to it in one click, zoomed to fit; meteor showers, conjunctions, and lunar eclipses still get flagged as they happen
-- **Search** — type a name, slew straight to anything in the catalog
-- **Object cards** — tap anything for the details; lock on and the view follows it as the sky turns
-- **True-scale solar system** — zoom in until Saturn's rings and Jupiter's moons resolve, exactly as big as they really appear
-- **Honest atmosphere** — dusk glow and horizon extinction, or switch it off for the view from space
-- **Night mode** — red-on-black for dark-adapted eyes
-- **Constellation editor** — don't like the figures? Redraw them
+## What you can do
 
-## Stats
+🧭 **Just look up.** Set your location and the sky matches reality. Point your phone at the sky and the view follows.
 
-| | |
-|---|---|
-| ⭐ **61,816 stars** | colored by their true tint, sized by brightness |
-| 🏷️ **417 named stars** | from Sirius on down |
-| ✏️ **22 constellations** | line figures and labels |
-| 🪐 **Sun, Moon, 7 planets + Pluto** | computed live, every planet textured, all at true 1:1 scale |
-| 🌕 **16 planetary moons** | Kepler ephemerides checked against JPL Horizons |
-| 🌌 **30 deep-sky objects** | galaxies, nebulae, and clusters — drawn faint, the honest way |
-| 🎯 **~1 arcminute** | positional accuracy |
-| 🌙 **0 backends** | the sky is just math + a local star file |
+⏰ **Bend time.** Scrub forward or backward by minutes or centuries.
+
+🔍 **Find anything.** Search for a name and fly straight to it. Tap any object for details.
+
+⭐ **Keep favorites.** Star the objects you love and jump back with one click.
+
+🪐 **See the solar system for real.** Everything is shown at true scale, from Jupiter's moons to Saturn's rings.
+
+🌅 **Honest skies.** Real dusk glow and horizon haze, or turn the atmosphere off for the view from space.
+
+🔴 **Night mode.** Red-on-black to protect your dark-adapted eyes.
+
+## By the numbers
+
+- ⭐ 61,816 stars - each in its true color, sized by brightness
+- 🏷️ 417 named stars - Sirius, Betelgeuse, and friends
+- 🪐 The Sun, Moon, 7 planets + Pluto - computed live, fully textured
+- 🌕 16 planetary moons -positions checked against NASA's numbers
+- 🌌 30 deep-sky objects - galaxies, nebulae, and clusters
 
 ## Credits
 
-- Built with the MIT-licensed [Astronomy Engine](https://github.com/cosinekitty/astronomy). 
-- Stars from the [HYG Database](https://github.com/astronexus/HYG-Database) (CC-BY-SA 4.0).
-- Constellation lines from [d3-celestial](https://github.com/ofrohn/d3-celestial) (BSD-3-Clause).
-- Milky Way panorama and Moon/planet/ring textures from [Solar System Scope](https://www.solarsystemscope.com/textures/) (CC-BY 4.0).
-- Planetary-moon orbits verified against [JPL Horizons](https://ssd.jpl.nasa.gov/horizons/). 
-- Programming assisted by [Claude](https://claude.com/claude-code). Full details in [ATTRIBUTION.md](ATTRIBUTION.md).
-- App code is **MIT** — see [LICENSE](LICENSE).
+Cosmodial stands on some wonderful shoulders:
+
+- [Astronomy Engine](https://github.com/cosinekitty/astronomy) does the celestial math
+- Star data from the [HYG Database](https://github.com/astronexus/HYG-Database)
+- Constellation lines from [d3-celestial](https://github.com/ofrohn/d3-celestial)
+- Milky Way and planet textures from [Solar System Scope](https://www.solarsystemscope.com/textures/)
+- Moon orbits verified against [JPL Horizons](https://ssd.jpl.nasa.gov/horizons/)
+- Programming assisted by [Claude](https://claude.com/claude-code)
+
+Full details in [ATTRIBUTION.md](ATTRIBUTION.md). The code is **MIT**, see [LICENSE](LICENSE).
+
+---
+
+*Clear skies! 🔭*
