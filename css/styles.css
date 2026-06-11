@@ -73,27 +73,27 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
   font-size: 20px; line-height: 1; color: #cdd6e6; background: #1b2336; border: 1px solid #2a3550; border-radius: 6px; cursor: pointer; }
 .card-close:hover { background: #243049; }
 
-.guide { position: fixed; top: 8px; left: 8px; z-index: 6; width: min(320px, calc(100vw - 16px));
+.fav-panel { position: fixed; top: 8px; left: 8px; z-index: 6; width: min(320px, calc(100vw - 16px));
   font: 13px/1.4 system-ui, sans-serif; color: #dce3f0; }
-.guide-toggle { font: inherit; color: #cdd6e6; background: rgba(18,24,38,0.92); border: 1px solid #2a3550;
+.fav-toggle { font: inherit; color: #cdd6e6; background: rgba(18,24,38,0.92); border: 1px solid #2a3550;
   border-radius: 8px; padding: 6px 12px; cursor: pointer; }
-.guide-toggle:hover { background: #1b2336; }
-.guide-body { margin-top: 6px; padding: 10px 12px; border-radius: 10px;
+.fav-toggle:hover { background: #1b2336; }
+.fav-body { margin-top: 6px; padding: 10px 12px; border-radius: 10px;
   background: rgba(12,16,26,0.95); border: 1px solid #2a3550; box-shadow: 0 6px 24px rgba(0,0,0,0.5);
   max-height: calc(100vh - 64px); overflow-y: auto; }
-.guide.collapsed .guide-body { display: none; }
-.guide-headline { margin: 0 0 8px; opacity: 0.95; }
-.guide-picks { list-style: none; margin: 0; padding: 0; }
-.guide-pick { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid #1d2740; }
-.guide-pick:first-child { border-top: 0; }
-.pick-text { flex: 1; min-width: 0; }
-.pick-name { font-weight: 600; }
-.pick-ease { font-size: 11px; color: #8fb0e0; }
-.pick-where { color: #9fb0cc; }
-.pick-find { font: inherit; color: #cdd6e6; background: #1b2336; border: 1px solid #2a3550;
-  border-radius: 6px; padding: 4px 10px; cursor: pointer; }
-.pick-find:hover { background: #243049; }
-.guide-seeall { margin-top: 6px; font: inherit; color: #8fb0e0; background: none; border: 0; padding: 4px 0; cursor: pointer; }
+.fav-panel.collapsed .fav-body { display: none; }
+.fav-list { list-style: none; margin: 0; padding: 0; }
+.fav-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid #1d2740; }
+.fav-row:first-child { border-top: 0; }
+.fav-row.below { opacity: 0.55; } /* favorite currently under the horizon */
+.fav-go { flex: 1; min-width: 0; text-align: left; font: inherit; color: inherit;
+  background: none; border: 0; padding: 0; cursor: pointer; }
+.fav-name { font-weight: 600; }
+.fav-where { color: #9fb0cc; }
+.fav-remove { flex: none; width: 24px; height: 24px; padding: 0; font-size: 16px; line-height: 1;
+  color: #8fa0c0; background: none; border: 0; border-radius: 6px; cursor: pointer; }
+.fav-remove:hover { color: #dce3f0; background: #243049; }
+.fav-empty { margin: 0; color: #9fb0cc; }
 
 /* Night mode: a single multiply-red overlay tints the whole app (canvas + panels) red-on-black. */
 #night-overlay { position: fixed; inset: 0; background: #ff0000; mix-blend-mode: multiply;
@@ -103,18 +103,18 @@ body.night #night-overlay { display: block; }
 
 /* Tonight's event: a highlighted first row inside the opened panel (the collapsed chip carries
    the event's emoji instead — see chipLabel). */
-.guide-event {
+.fav-event {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   margin: 0 0 6px; padding: 6px 10px; border-radius: 8px; font-size: 13px;
   color: #dce4f5; background: rgba(70,110,210,0.20); border: 1px solid rgba(120,160,255,0.35);
 }
-.guide-event[hidden] { display: none; }
-.guide-event .event-text { line-height: 1.3; }
-.guide-event .event-action {
+.fav-event[hidden] { display: none; }
+.fav-event .event-text { line-height: 1.3; }
+.fav-event .event-action {
   flex: none; cursor: pointer; font: inherit; color: #dce4f5;
   background: #1b2336; border: 1px solid #2a3550; border-radius: 6px; padding: 3px 10px;
 }
-.guide-event .event-action:hover { background: #243152; }
+.fav-event .event-action:hover { background: #243152; }
 
 /* Popovers (menu / time): small panels that open above their bar button. One open at a time;
    outside-tap or Escape closes (see ui/popover.js). Anchored to a position:relative parent (.menu / .ctrl-time set it). */

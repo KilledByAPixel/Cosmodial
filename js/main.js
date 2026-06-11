@@ -16,9 +16,10 @@ import { attachInput } from './ui/input.js';
 import { splitSegments, toggleEdge, pickNearest, circularCentroid, exportFigures } from './edit/figures.js';
 import { createProjector, vec, focalPx } from './core/projection.js';
 import { skyParams, spaceSkyParams, belowHorizonFade, enuToGalMatrix } from './render/atmosphere.js';
-import { openCard, closeCard, colorWord, constellationName, isCardOpen } from './ui/card.js';
-import { rankCandidates, altazToWhere } from './guide/ranking.js';
-import { buildGuide } from './ui/guide.js';
+import { openCard, closeCard, constellationName, isCardOpen } from './ui/card.js';
+import { altazToWhere } from './guide/ranking.js';
+import { createFavorites, displayName } from './core/favorites.js';
+import { buildFavoritesPanel } from './ui/favorites.js';
 import { buildSearch, buildSearchIndex } from './ui/search.js';
 import { animateSlew } from './ui/slew.js';
 import { findEclipseContext } from './guide/eclipses.js';
@@ -60,7 +61,8 @@ let dsos = [];          // raw catalogue from dso.json
 let dsoObjects = [];    // { ...dso, kind:'dso', altaz } for the current time/location
 let originalFigures = [];   // pristine split from the file, for reset
 let loadedRaw = [];   // the raw constellations.json array as loaded (basis for localStorage validity)
-let guide = null;
+let favPanel = null;
+const favorites = createFavorites();
 let eclipseCtx = { inProgress: null, next: null }; // recomputed each computeSky from the set time
 let tonightShower = null;   // the meteor shower peaking tonight (+ radiant alt/az), or null
 let conjunctions = [];      // close Moon/planet pairs tonight, closest-first
@@ -178,11 +180,9 @@ function computeSky(full) {
       getNextAfter: (peak) => nextLunarEclipse(peak),
       moonAltAt: (d) => altAzOfBody(Body.Moon, observer, makeTime(d)).alt,
     });
-    if (guide) {
-      const sun = markers.find((m) => m.label === 'Sun');
-      const isDay = !!sun && sun.altaz.alt > -0.833;
-      guide.setPicks(buildPicks(), { isDay });
-      guide.setEvent(buildTonightEvent());
+    if (favPanel) {
+      favPanel.setRows(buildFavoriteRows());
+      favPanel.setEvent(buildTonightEvent());
     }
   }
   syncSelection();
@@ -350,7 +350,7 @@ function onEditTap(x, y) {
 
 // Card context, incl. an onClose that clears the on-canvas highlight.
 function cardCtx(observer, time, eclipse = null) {
-  return { observer, time, eclipse, onClose: () => { highlighted = null; requestRender(); } };
+  return { observer, time, eclipse, fav: favorites, onClose: () => { highlighted = null; requestRender(); } };
 }
 
 // Picking reads the CPU skyObjects array, which can lag the live GPU stars. If the sidereal drift since
@@ -389,26 +389,6 @@ function onIdentifyTap(x, y) {
   else { highlighted = null; closeCard(); requestRender(); }
 }
 
-// Candidate pool for the guide: bright named stars up + the Moon + naked-eye planets up.
-function buildPicks() {
-  const stars = skyObjects
-    .filter((s) => s.name && s.altaz.alt >= 0 && s.mag <= 2.0)
-    .map((s) => ({ kind: 'star', id: s.id, name: s.name, mag: s.mag, bv: s.bv, con: s.con, dist: s.dist, altaz: s.altaz, why: `a bright ${colorWord(s.bv)} star` }));
-  const bodies = markers
-    .filter((m) => m.label !== 'Sun' && m.altaz.alt >= 0 && (m.mag == null || m.mag < 9)) // guide has taste: no telescope-only Pluto
-    .map((m) => ({
-      kind: m.label === 'Moon' ? 'moon' : 'planet',
-      name: m.label, label: m.label, body: m.body, mag: m.mag, altaz: m.altaz,
-      why: m.label === 'Moon' ? 'our nearest neighbour'
-        : m.mag > 4 ? 'a distant ice giant — bring binoculars'
-        : 'a wandering planet, easy with the naked eye',
-    }));
-  const deepSky = dsoObjects
-    .filter((d) => d.altaz.alt >= 0)
-    .map((d) => ({ ...d, why: d.blurb }));
-  return rankCandidates([...bodies, ...stars, ...deepSky]);
-}
-
 // The eclipse to attach to a Moon card: the live timeline if one's in progress, else the next one,
 // so the eclipse shows whether you tap, search, or Find the Moon. Null for any non-Moon object.
 function eclipseForMoon(kind) {
@@ -426,6 +406,31 @@ function liveAltAzFor(sel) {
   if (sel.kind === 'dso') { const d = dsoObjects.find((o) => o.id === sel.id); return d ? d.altaz : null; }
   const m = markers.find((o) => o.label === sel.label); // moon / sun / planet
   return m ? m.altaz : null;
+}
+
+// Resolve a favorites record (or search entry) to a live card-ready pick, or null if it's not in
+// the current catalog arrays. Stars/DSOs match by id, bodies by label.
+function resolveFavorite(rec) {
+  if (rec.kind === 'star') {
+    const s = skyObjects.find((o) => o.id === rec.id);
+    return s ? { kind: 'star', id: s.id, name: s.name, mag: s.mag, bv: s.bv, con: s.con, dist: s.dist, altaz: s.altaz } : null;
+  }
+  if (rec.kind === 'dso') return dsoObjects.find((o) => o.id === rec.id) || null;
+  const m = markers.find((o) => o.label === rec.label);
+  if (!m) return null;
+  const kind = m.label === 'Moon' ? 'moon' : m.label === 'Sun' ? 'sun' : 'planet';
+  return { kind, label: m.label, body: m.body, mag: m.mag, altaz: m.altaz };
+}
+
+// Panel rows for the current favorites: resolved live positions; unresolvable records (stale
+// catalog ids) are dropped from display but kept in storage.
+function buildFavoriteRows() {
+  return favorites.list()
+    .map((rec) => {
+      const obj = resolveFavorite(rec);
+      return obj ? { rec, name: displayName(rec), altaz: obj.altaz } : null;
+    })
+    .filter(Boolean);
 }
 
 // Keep the selection's highlight ring (and its open card) pinned to the object's live position as the
@@ -537,34 +542,37 @@ function resolveFollowAltAz() {
   return null;
 }
 
-// Find: open the card immediately, then slew to center the pick.
-function onFindObject(pick) {
+// Focus an object: open the card, lock on (keep it centred as time changes), slew to it.
+function focusObject(pick, targetFov) {
   const st = store.getState();
   const observer = makeObserver(st.location.lat, st.location.lng);
   const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
   highlighted = pick;
   followTarget = followIdentity(pick); // lock on: keep it centred as the clock changes
   openCard(pick, cardCtx(observer, time, eclipseForMoon(pick.kind)));
-  const targetFov = Math.max(12, Math.min(st.fov, 20)); // ease in a notch
   animateSlew(store, { az: pick.altaz.az, alt: pick.altaz.alt, fov: targetFov });
+}
+
+// Find (search): open the card and ease the zoom in a notch.
+function onFindObject(pick) {
+  focusObject(pick, Math.max(12, Math.min(store.getState().fov, 20)));
+}
+
+// Go-to zoom per kind: planets close enough that their moons resolve; Moon/Sun framed; stars and
+// DSOs wider. Tuned by eye.
+const GOTO_FOV = { planet: 0.5, moon: 1.5, sun: 1.5, star: 2, dso: 4 };
+
+// A favorites row was clicked: same as Find, but zoomed to the kind's close-up FOV.
+function onGoToFavorite(rec) {
+  const obj = resolveFavorite(rec);
+  if (!obj) return;
+  focusObject(obj, GOTO_FOV[obj.kind] || 2);
 }
 
 // Search result chosen: resolve it to a live object and reuse Find (slew + card). Constellations
 // have no info card, so they just slew to their centroid with a highlight ring.
 function onSearchSelect(entry) {
-  if (entry.type === 'dso') {
-    const d = dsoObjects.find((o) => o.id === entry.ref);
-    if (d) onFindObject(d);
-  } else if (entry.type === 'star') {
-    const s = skyObjects.find((o) => o.id === entry.ref);
-    if (s) onFindObject({ kind: 'star', id: s.id, name: s.name, mag: s.mag, bv: s.bv, con: s.con, dist: s.dist, altaz: s.altaz });
-  } else if (entry.type === 'body') {
-    const m = markers.find((o) => o.label === entry.ref);
-    if (m) {
-      const kind = m.label === 'Moon' ? 'moon' : m.label === 'Sun' ? 'sun' : 'planet';
-      onFindObject({ kind, label: m.label, body: m.body, mag: m.mag, altaz: m.altaz });
-    }
-  } else { // constellation
+  if (entry.type === 'constellation') {
     const c = constellations.find((o) => o.name === entry.ref);
     if (c && c.label) {
       highlighted = { altaz: c.label };
@@ -572,7 +580,11 @@ function onSearchSelect(entry) {
       const st = store.getState();
       animateSlew(store, { az: c.label.az, alt: c.label.alt, fov: Math.max(12, Math.min(st.fov, 20)) });
     }
+    return;
   }
+  const rec = entry.type === 'body' ? { kind: 'body', label: entry.ref } : { kind: entry.type, id: entry.ref };
+  const obj = resolveFavorite(rec);
+  if (obj) onFindObject(obj);
 }
 
 function onTap(x, y) {
@@ -717,9 +729,10 @@ async function boot() {
     const a = store.getState().flags.atmo;
     if (a !== prevAtmo) { prevAtmo = a; requestRecompute(); }
   });
-  guide = buildGuide(store, { onFind: onFindObject });
-  const guideHost = document.getElementById('guide-host');
-  if (guideHost) guideHost.append(guide.el);
+  favPanel = buildFavoritesPanel({ onGoTo: onGoToFavorite, onRemove: (rec) => favorites.toggle(rec) });
+  favorites.onChange(() => favPanel.setRows(buildFavoriteRows())); // star/unstar refreshes the list live
+  const favHost = document.getElementById('favorites-host');
+  if (favHost) favHost.append(favPanel.el);
   requestRender();
 }
 
