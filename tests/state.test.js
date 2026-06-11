@@ -37,6 +37,7 @@ test('atmo flag defaults ON and toggles', () => {
 
 test('setFov clamps to [MIN_FOV, MAX_FOV]', () => {
   assert.equal(MAX_FOV, 200); // hemisphere + margin at max zoom-out — full horizon circle fits when looking up
+  assert.equal(MIN_FOV, 0.01); // deepest zoom doubled (~0.6 arcmin) so favorites' close-ups have headroom
   const s = createState();
   s.setFov(1000);
   assert.equal(s.getState().fov, MAX_FOV);
