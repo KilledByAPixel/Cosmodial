@@ -21,7 +21,7 @@ import { REFRACTION_GLSL } from './star-transform.js';
 const GAL_LON_LEFT = true; // true: galactic longitude increases to the left (verified via the LMC at u~0.72)
 const GAL_NGP_TOP = false; // this texture is vertically flipped: the South galactic hemisphere is at the top
                            // (the LMC, galactic latitude -33, sits at v~0.32 in the upper half)
-const MW_GAIN = 0.6;       // brightness of the Milky Way layer in normal mode — a background glow, not foreground
+const MW_GAIN = 1.0;       // brightness of the Milky Way layer in normal mode — a background glow, not foreground
 
 function vertexShaderSource() {
   // Oversized covering triangle via gl_VertexID — no attributes, no VBO.
