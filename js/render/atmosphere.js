@@ -74,13 +74,22 @@ export function skyParams(sunAltDeg) {
   };
 }
 
+// How "deep" a solar eclipse is for sky purposes: 0 below 70% obscuration (a real partial eclipse
+// leaves the sky deceptively bright), ramping steeply to 1 at totality. One curve drives all the
+// eclipse sky effects (darkening, dusk-lobe suppression, the Moon's veil) so they stay in step.
+export function eclipseDeepFraction(obscuration) {
+  return Math.pow(clamp((obscuration - 0.7) / 0.3, 0, 1), 3);
+}
+
 // During a deep solar eclipse the sky itself darkens. Maps the TRUE Sun altitude to the EFFECTIVE
-// altitude skyParams should render: no change below 70% obscuration (a real partial eclipse leaves
-// the sky deceptively bright), then a steep ramp so totality renders like civil twilight (Sun at
-// -9°) — the atmosphere dims and starDayFade lets the bright stars out, just as real totality does.
+// altitude skyParams should render: totality renders like civil twilight (Sun at -9°) — the
+// atmosphere dims and starDayFade lets the bright stars out, just as real totality does.
 // Never raises the altitude (an alignment with the Sun already below -9° must not brighten the sky).
+// NOTE for callers: the effective twilight would put skyParams' warm dusk lobe AT the eclipsed Sun,
+// which real totality doesn't have (the warm light rings the horizon instead) — scale
+// sunGlowStrength down by eclipseDeepFraction to suppress it.
 export function eclipseDarkenedSunAlt(sunAltDeg, obscuration) {
-  const w = Math.pow(clamp((obscuration - 0.7) / 0.3, 0, 1), 3);
+  const w = eclipseDeepFraction(obscuration);
   return Math.min(sunAltDeg, sunAltDeg * (1 - w) - 9 * w);
 }
 

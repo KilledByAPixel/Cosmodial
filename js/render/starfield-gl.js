@@ -447,9 +447,15 @@ export function createStarfield(glCanvas) {
     if (bodySphere && bodyList) {
       // One atmosphere-veil sample per body (its true angular size is < 1°, so a single colour is
       // exact in practice): the air is in front of the disc, so the daytime Moon's shadowed side
-      // shows sky-blue instead of black. See skyVeil in atmosphere.js.
+      // shows sky-blue instead of black. See skyVeil in atmosphere.js. `veilScale` (0..1, default 1)
+      // dims a body's veil — deep in a solar eclipse the air toward the Moon is in shadow, so its
+      // disc must read as a black silhouette rather than sky-coloured (main.js drives the scale).
       const withVeil = skyParamsStash
-        ? bodyList.map((b) => ({ ...b, veil: skyVeil(b.dir, skyParamsStash.sunDir, skyParamsStash) }))
+        ? bodyList.map((b) => {
+          const v = skyVeil(b.dir, skyParamsStash.sunDir, skyParamsStash);
+          const s = b.veilScale != null ? b.veilScale : 1;
+          return { ...b, veil: [v[0] * s, v[1] * s, v[2] * s] };
+        })
         : bodyList;
       bodySphere.draw(cam, withVeil); // after the stars (opaque, occludes them); independent of star count
     }

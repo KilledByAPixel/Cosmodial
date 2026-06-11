@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { airmass, extinction, skyParams, milkyWayZoomFade, enuToEqjMatrix, enuToGalMatrix, belowHorizonFade, spaceSkyParams, skyVeil, eclipseDarkenedSunAlt } from '../js/render/atmosphere.js';
+import { airmass, extinction, skyParams, milkyWayZoomFade, enuToEqjMatrix, enuToGalMatrix, belowHorizonFade, spaceSkyParams, skyVeil, eclipseDarkenedSunAlt, eclipseDeepFraction } from '../js/render/atmosphere.js';
 import { makeObserver, makeTime, makeStarAltAz, horToEqjRotation, eqjToGalRotation } from '../js/core/astro.js';
 import * as Astronomy from '../js/vendor/astronomy.js';
 import { vec } from '../js/core/projection.js';
@@ -267,4 +267,16 @@ test('eclipseDarkenedSunAlt: bright partials leave the sky alone, totality reach
   const deep = eclipseDarkenedSunAlt(65, 0.95), deeper = eclipseDarkenedSunAlt(65, 0.99);
   assert.ok(deep < 65 && deeper < deep && deeper > -9, `monotonic ramp: ${deep} -> ${deeper}`);
   assert.equal(eclipseDarkenedSunAlt(-30, 1), -30, 'a below-horizon alignment must not brighten the night');
+});
+
+test('eclipseDeepFraction: zero through bright partials, one at totality, monotonic ramp', () => {
+  assert.equal(eclipseDeepFraction(0), 0);
+  assert.equal(eclipseDeepFraction(0.7), 0);
+  assert.equal(eclipseDeepFraction(1), 1);
+  let prev = -1;
+  for (const o of [0.7, 0.8, 0.9, 0.95, 0.99, 1]) {
+    const w = eclipseDeepFraction(o);
+    assert.ok(w >= prev && w >= 0 && w <= 1, `monotonic in [0,1] at ${o}`);
+    prev = w;
+  }
 });

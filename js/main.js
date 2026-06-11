@@ -16,7 +16,7 @@ import { createRenderScheduler } from './core/scheduler.js';
 import { attachInput } from './ui/input.js';
 import { splitSegments, toggleEdge, pickNearest, circularCentroid, exportFigures } from './edit/figures.js';
 import { createProjector, vec, focalPx } from './core/projection.js';
-import { skyParams, spaceSkyParams, belowHorizonFade, enuToGalMatrix, eclipseDarkenedSunAlt } from './render/atmosphere.js';
+import { skyParams, spaceSkyParams, belowHorizonFade, enuToGalMatrix, eclipseDarkenedSunAlt, eclipseDeepFraction } from './render/atmosphere.js';
 import { openCard, closeCard, constellationName, isCardOpen } from './ui/card.js';
 import { altazToWhere } from './guide/ranking.js';
 import { createFavorites, displayName } from './core/favorites.js';
@@ -155,20 +155,24 @@ function computeSky(full) {
     const sun = markers.find((m) => m.label === 'Sun');
     const sunAlt = sun ? sun.altaz.alt : -90;
     // Deep eclipse darkens the sky toward twilight (stars out at totality) via an effective Sun altitude.
+    const eclipseDeep = eclipseDeepFraction(eclipseObscuration);
     const p = st.flags.atmo ? skyParams(eclipseDarkenedSunAlt(sunAlt, eclipseObscuration)) : spaceSkyParams(); // atmo off = space view (flips via the recompute subscriber in boot)
+    // The effective twilight would paint its warm dusk lobe AT the eclipsed Sun — real totality has
+    // no glow there (the warm light rings the horizon instead), and it would wash out the corona.
+    p.sunGlowStrength *= 1 - eclipseDeep;
     p.sunDir = vec(sun ? sun.altaz.az : 0, sunAlt);
     p.enuToGal = enuToGalMatrix(horToEqjRotation(observer, time), eqjToGalRotation()); // sample the galactic-frame Milky Way
     starfield.setSkyParams(p);
     const sunM = markers.find((m) => m.label === 'Sun');
     const sunDir = sunM ? vec(sunM.altaz.az, sunM.altaz.alt) : [0, 0, 1];
     const rgb255 = (hex) => hexToRgb01(hex).map((v) => Math.round(v * 255));
-    const addBody = (label, body, texKey, tint, ring = null, libration = null) => {
+    const addBody = (label, body, texKey, tint, ring = null, libration = null, veilScale = 1) => {
       const m = markers.find((x) => x.label === label);
       if (!m) return;
       const pole = northPoleJ2000(body, time);
       const poleAA = altAzOfStar(pole.raDeg, pole.decDeg, observer, time);
       bodyInputs.push({
-        label, texKey, tint, ring, libration,
+        label, texKey, tint, ring, libration, veilScale,
         bodyDir: vec(m.altaz.az, m.altaz.alt),
         sunDir, poleDir: vec(poleAA.az, poleAA.alt),
         phaseAngleDeg: bodyPhaseAngleDeg(body, time),
@@ -176,7 +180,9 @@ function computeSky(full) {
       });
     };
     bodyInputs = [];
-    addBody('Moon', Body.Moon, 'moon', [232, 232, 232], null, moonLibrationDeg(time));
+    // Deep in a solar eclipse the Moon's atmospheric veil fades out: the air toward it sits in the
+    // shadow, so the disc reads as a true black silhouette instead of sky-coloured, then recovers.
+    addBody('Moon', Body.Moon, 'moon', [232, 232, 232], null, moonLibrationDeg(time), 1 - eclipseDeep);
     for (const p of PLANETS) addBody(p.name, p.body, p.tex || null, rgb255(p.color), p.rings ? SATURN_RING : null);
   } else {
     bodyInputs = [];
@@ -267,8 +273,8 @@ function render() {
     const sun = markers.find((m) => m.label === 'Sun');
     if (sun) corona.push({
       altaz: sun.altaz, label: '', color: '#dfe5f0',
-      alpha: 0.55 * Math.min(1, (eclipseObscuration - 0.985) / 0.015),
-      angularRadiusDeg: sun.angularRadiusDeg * 2.4,
+      alpha: 0.65 * Math.min(1, (eclipseObscuration - 0.985) / 0.015),
+      angularRadiusDeg: sun.angularRadiusDeg * 2.6,
     });
   }
   let drawList = st.flags.edit ? [] : markers.concat(cometMarkers, corona); // markers (+ moons/comets variants below)
@@ -305,7 +311,7 @@ function render() {
       const subLatDeg = bi.libration ? bi.libration.latDeg
         : (Math.asin(Math.max(-1, Math.min(1, ringOpening(bi.bodyDir, bi.poleDir)))) * 180) / Math.PI;
       bodyList.push({
-        texKey: bi.texKey, tint: bi.tint, dir: bi.bodyDir, radiusPx, fade: bodyFade,
+        texKey: bi.texKey, tint: bi.tint, dir: bi.bodyDir, radiusPx, fade: bodyFade, veilScale: bi.veilScale,
         phaseAngleDeg: bi.phaseAngleDeg, brightLimbAngle: o.brightLimbAngle, northAngle: o.northAngle,
         subLatDeg, subLonDeg: bi.libration ? bi.libration.lonDeg : 0,
         quadScale: span,
