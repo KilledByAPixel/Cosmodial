@@ -6,14 +6,14 @@
 
 ![LittleJS Screenshot](images/cosmodial-social.png)
 
-Tell Cosmodial where you are and it draws the live sky as if you were looking through a telescope — the Milky Way arcing overhead, the horizon glowing at dusk. Drag to aim, scroll to zoom from a wide naked-eye view down to a high-power eyepiece field a fiftieth of a degree across, and let the **Up now** guide point you at the good stuff.
+Tell Cosmodial where you are and it draws the live sky as if you were looking through a telescope — the Milky Way arcing overhead, the horizon glowing at dusk. Drag to aim, scroll to zoom from a wide naked-eye view down to a high-power eyepiece field a hundredth of a degree across, and star your favorite objects to jump straight back to them.
 
 ## Features
 
 - **Your sky, live** — set a location and the view tracks the real sky in real time
 - **Aim anywhere** — drag to pan, scroll or pinch to zoom; on a phone, just point it and gyro aim follows
 - **Time travel** — scrub minutes or centuries in either direction; replay last night's eclipse or preview next month's conjunction
-- **Up now** — a ranked guide to tonight's best targets, with meteor showers, conjunctions, and lunar eclipses folded in
+- **Favorites** — star anything from its card and jump back to it in one click, zoomed to fit; meteor showers, conjunctions, and lunar eclipses still get flagged as they happen
 - **Search** — type a name, slew straight to anything in the catalog
 - **Object cards** — tap anything for the details; lock on and the view follows it as the sky turns
 - **True-scale solar system** — zoom in until Saturn's rings and Jupiter's moons resolve, exactly as big as they really appear
