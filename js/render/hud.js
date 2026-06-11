@@ -108,7 +108,7 @@ function drawCompass(ctx, cam) {
   ctx.textAlign = 'left';
 }
 
-export function drawHud(ctx, cam, { horizon = true } = {}) {
-  if (horizon) drawHorizon(ctx, cam);
+export function drawHud(ctx, cam) {
+  drawHorizon(ctx, cam);
   drawCompass(ctx, cam);
 }
