@@ -100,3 +100,15 @@ test('comet records: keyed by id, persist with name, survive validation', () => 
   assert.deepEqual(createFavorites(storage).list(), [{ kind: 'comet', id: '1P', name: "Halley's Comet" }],
     'round-trips through storage validation');
 });
+
+test('planet-moon records: keyed by label, persist, survive validation, display by name', () => {
+  const titan = { kind: 'planet-moon', label: 'Titan', planet: 'Saturn', mag: 8.4 };
+  assert.equal(keyOf(titan), 'planet-moon:Titan');
+  assert.deepEqual(recordOf(titan), { kind: 'planet-moon', label: 'Titan' });
+  assert.equal(displayName({ kind: 'planet-moon', label: 'Titan' }), 'Titan');
+  const storage = fakeStorage({ [KEY]: '[]' });
+  const f = createFavorites(storage);
+  f.toggle(titan);
+  assert.deepEqual(createFavorites(storage).list(), [{ kind: 'planet-moon', label: 'Titan' }],
+    'round-trips through storage validation');
+});

@@ -2,32 +2,33 @@ const STORE_KEY = 'cosmodial.favorites';
 const SEED = [{ kind: 'body', label: 'Moon' }]; // first-run starter so the list isn't empty
 
 // Sun/Moon/planets all persist under one 'body' kind (matched by label, like lock-on follow);
-// stars, DSOs, and comets persist by catalog id.
+// planetary moons keep their own label-keyed kind; stars, DSOs, and comets persist by catalog id.
 function recKind(kind) { return (kind === 'moon' || kind === 'sun' || kind === 'planet') ? 'body' : kind; }
+function labelKeyed(kind) { return kind === 'body' || kind === 'planet-moon'; }
 
 // Stable identity key for a live pick OR a stored record — both shapes map to the same key.
 export function keyOf(obj) {
   const k = recKind(obj.kind);
-  return k === 'body' ? `body:${obj.label}` : `${k}:${obj.id}`;
+  return labelKeyed(k) ? `${k}:${obj.label}` : `${k}:${obj.id}`;
 }
 
 // The persisted form of a card/pick object. Stars/DSOs keep their display name so the list can
 // render without resolving the catalog.
 export function recordOf(obj) {
   const k = recKind(obj.kind);
-  if (k === 'body') return { kind: 'body', label: obj.label };
+  if (labelKeyed(k)) return { kind: k, label: obj.label };
   return { kind: k, id: obj.id, name: obj.name || null };
 }
 
 // List-row label for a stored record (null-name stars were saved from an "Unnamed star" card).
 export function displayName(rec) {
-  if (rec.kind === 'body') return rec.label;
+  if (labelKeyed(rec.kind)) return rec.label;
   return rec.name || (rec.kind === 'star' ? 'Unnamed star' : String(rec.id));
 }
 
 function isValidRecord(r) {
   if (!r || typeof r !== 'object') return false;
-  if (r.kind === 'body') return typeof r.label === 'string' && r.label.length > 0;
+  if (labelKeyed(r.kind)) return typeof r.label === 'string' && r.label.length > 0;
   if (r.kind === 'star' || r.kind === 'dso' || r.kind === 'comet') return r.id != null;
   return false;
 }
