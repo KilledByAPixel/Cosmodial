@@ -43,6 +43,7 @@ test('catalogue covers the 7 comets with sane fields', () => {
     for (const s of c.sets) {
       assert.ok(s.q_au > 0.1 && s.q_au < 1.2, `${c.id} q`);
       assert.ok(s.e > 0.5 && s.e < 1.05, `${c.id} e`);
+      assert.notEqual(s.e, 1, `${c.id} e: exactly-parabolic rows hit the hyperbolic branch's a=q/(1-e) singularity`);
       assert.ok(s.validFromJd < s.validToJd, `${c.id} window ordered`);
       assert.ok(Number.isFinite(s.tpJd) && Number.isFinite(s.i_deg) && Number.isFinite(s.node_deg) && Number.isFinite(s.peri_deg), c.id);
     }
@@ -70,12 +71,23 @@ test('propagator: r equals q exactly at perihelion, elliptic and hyperbolic', ()
   }
 });
 
-test('propagator: high-e orbit is symmetric about perihelion and recedes', () => {
-  const set = { q_au: 0.6, e: 0.9992, i_deg: 45, node_deg: 30, peri_deg: 60, tpJd: 2451545.0 };
-  const rBefore = Math.hypot(...cometHelioEqjAu(set, 2451545.0 - 200));
-  const rAfter = Math.hypot(...cometHelioEqjAu(set, 2451545.0 + 200));
-  assert.ok(Math.abs(rBefore - rAfter) < 1e-9, 'time-symmetric distance');
-  assert.ok(rAfter > 0.6 && rAfter < 10, `recedes sensibly: ${rAfter}`);
+test('propagator: high-e orbits are symmetric about perihelion and recede (both branches)', () => {
+  for (const e of [0.9992, 1.0001]) {
+    const set = { q_au: 0.6, e, i_deg: 45, node_deg: 30, peri_deg: 60, tpJd: 2451545.0 };
+    const rBefore = Math.hypot(...cometHelioEqjAu(set, 2451545.0 - 200));
+    const rAfter = Math.hypot(...cometHelioEqjAu(set, 2451545.0 + 200));
+    assert.ok(Math.abs(rBefore - rAfter) < 1e-9, `e=${e}: time-symmetric distance`);
+    assert.ok(rAfter > 0.6 && rAfter < 10, `e=${e}: recedes sensibly: ${rAfter}`);
+  }
+});
+
+test('propagator: elliptic orbit is periodic across multiple revolutions (mean-anomaly wrap)', () => {
+  // Encke-like: a = q/(1-e), period P = 2π/n days; r at tp+3P must equal r at tp (= q).
+  const set = { q_au: 0.33, e: 0.85, i_deg: 12, node_deg: 334, peri_deg: 187, tpJd: 2451545.0 };
+  const a = set.q_au / (1 - set.e);
+  const periodDays = (2 * Math.PI) / (0.01720209894846 * Math.pow(a, -1.5));
+  const r = Math.hypot(...cometHelioEqjAu(set, 2451545.0 + 3 * periodDays));
+  assert.ok(Math.abs(r - set.q_au) < 1e-9, `r at tp+3P: ${r}`);
 });
 
 test('oracle: propagator matches JPL Horizons heliocentric vectors', () => {

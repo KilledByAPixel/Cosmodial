@@ -98,7 +98,7 @@ export const COMETS = [
 ];
 
 // Elliptic Kepler: E - e sinE = M. Newton with a sign-aware start at π for high e (the classic
-// fixed start at M diverges near perihelion as e -> 1). M wrapped to (-π, π].
+// fixed start at M diverges near perihelion as e -> 1). M wrapped to [-π, π).
 function keplerE(M, e) {
   M -= 2 * Math.PI * Math.round(M / (2 * Math.PI));
   let E = e < 0.8 ? M : Math.PI * (M < 0 ? -1 : 1);
