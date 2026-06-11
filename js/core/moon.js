@@ -66,3 +66,10 @@ export function bodyScreenOrientation(cam, moonDir, sunDir, poleDir) {
     northAngle: (m && n) ? screenAngleCWFromUp(m, n) : 0,
   };
 }
+
+// FOV (deg) that frames a planet + its moon sepDeg apart: 4x the separation puts the pair
+// comfortably in view, clamped so tight systems (Phobos) still resolve the planet's disc and
+// wide ones (Iapetus) stay close. Tuned by eye.
+export function frameFovDeg(sepDeg) {
+  return Math.min(2, Math.max(0.15, sepDeg * 4));
+}

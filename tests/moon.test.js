@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nudgedToward, screenAngleCWFromUp, bodyScreenOrientation, altazSepDeg, discObscuration } from '../js/core/moon.js';
+import { nudgedToward, screenAngleCWFromUp, bodyScreenOrientation, altazSepDeg, discObscuration, frameFovDeg } from '../js/core/moon.js';
 import { vec } from '../js/core/projection.js';
 
 const near = (a, b, tol = 1e-6) => Math.abs(a - b) <= tol;
@@ -54,4 +54,11 @@ test('discObscuration: disjoint, contained, annular, and the half-separation ora
   const f = (d) => discObscuration(d, 0.26, 0.25);
   assert.ok(f(0.45) < f(0.3) && f(0.3) < f(0.1) && f(0.1) < f(0.005), 'monotonic toward centre');
   assert.ok(f(0.005) > 0.9 && f(0.005) < 1, 'near-total just before centring');
+});
+
+test('frameFovDeg frames a planet+moon pair: 4x separation, clamped to [0.15, 2]', () => {
+  assert.ok(Math.abs(frameFovDeg(0.17) - 0.68) < 1e-9, 'Callisto-like elongation -> 4x');
+  assert.equal(frameFovDeg(0.006), 0.15);    // Phobos-like -> bottoms out
+  assert.equal(frameFovDeg(0), 0.15);        // missing/zero separation -> floor, never 0
+  assert.equal(frameFovDeg(3), 2);           // never wider than 2 deg
 });
