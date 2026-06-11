@@ -12,12 +12,15 @@ export function attachPopover(button, panel) {
     button.classList.toggle('on', v);
     button.setAttribute('aria-expanded', String(v));
   };
-  const api = { isOpen: () => open, close: () => { if (open) setOpen(false); } };
+  const api = { isOpen: () => open, close: () => { if (open) setOpen(false); }, owns: (node) => panel.contains(node) };
   all.add(api);
 
   button.addEventListener('click', () => {
     if (open) { setOpen(false); return; }
-    for (const p of all) p.close(); // exclusive: opening one closes the others
+    // Exclusive: opening one closes the others — EXCEPT ancestors. A popover whose panel contains
+    // this button (e.g. the ☰ menu hosting the city picker) must stay open or the new popover
+    // would be unhidden inside a display:none subtree.
+    for (const p of all) if (!p.owns(button)) p.close();
     setOpen(true);
   });
   // Outside-tap closes. pointerdown (not click) so a drag that starts on the sky dismisses it too.
