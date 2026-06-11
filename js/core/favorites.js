@@ -2,7 +2,7 @@ const STORE_KEY = 'cosmodial.favorites';
 const SEED = [{ kind: 'body', label: 'Moon' }]; // first-run starter so the list isn't empty
 
 // Sun/Moon/planets all persist under one 'body' kind (matched by label, like lock-on follow);
-// stars and DSOs persist by catalog id.
+// stars, DSOs, and comets persist by catalog id.
 function recKind(kind) { return (kind === 'moon' || kind === 'sun' || kind === 'planet') ? 'body' : kind; }
 
 // Stable identity key for a live pick OR a stored record — both shapes map to the same key.
@@ -28,7 +28,7 @@ export function displayName(rec) {
 function isValidRecord(r) {
   if (!r || typeof r !== 'object') return false;
   if (r.kind === 'body') return typeof r.label === 'string' && r.label.length > 0;
-  if (r.kind === 'star' || r.kind === 'dso') return r.id != null;
+  if (r.kind === 'star' || r.kind === 'dso' || r.kind === 'comet') return r.id != null;
   return false;
 }
 

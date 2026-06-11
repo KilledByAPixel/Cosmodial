@@ -1,14 +1,15 @@
 // Object search: type a name (or constellation abbreviation) and jump to it. The index is built
 // once from the loaded catalogues; resolving a pick back to live alt/az happens in main.js.
 
-// Flat search index. Entries: { label, type: 'star'|'constellation'|'body', ref, aliases? }.
+// Flat search index. Entries: { label, type: 'star'|'constellation'|'body'|'dso'|'comet', ref, aliases? }.
 // ref is the star id, the constellation name, or the body label — whatever main.js needs to resolve.
-export function buildSearchIndex(stars, figures, bodyLabels, dsos = []) {
+export function buildSearchIndex(stars, figures, bodyLabels, dsos = [], comets = []) {
   const index = [];
   for (const s of stars) if (s.name) index.push({ label: s.name, type: 'star', ref: s.id });
   for (const f of figures) index.push({ label: f.name, type: 'constellation', ref: f.name, aliases: f.abbr ? [f.abbr] : [] });
   for (const b of bodyLabels) index.push({ label: b, type: 'body', ref: b });
   for (const d of dsos) index.push({ label: d.name, type: 'dso', ref: d.id, aliases: [d.id] });
+  for (const c of comets) index.push({ label: c.name, type: 'comet', ref: c.id, aliases: [c.id, ...(c.aliases || [])] });
   return index;
 }
 
@@ -34,7 +35,7 @@ export function searchIndex(index, query, limit = 8) {
   return scored.slice(0, limit).map((x) => x.e);
 }
 
-const TYPE_HINT = { constellation: 'constellation', body: '', star: 'star', dso: 'deep sky' };
+const TYPE_HINT = { constellation: 'constellation', body: '', star: 'star', dso: 'deep sky', comet: 'comet' };
 
 // Build the search control: an input with an as-you-type result list that opens upward over the
 // sky. Selecting a result calls onSelect(entry). Returns { el }.

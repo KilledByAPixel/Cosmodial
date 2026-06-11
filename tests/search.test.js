@@ -42,3 +42,10 @@ test('buildSearchIndex includes DSOs, findable by name and catalog id', () => {
   assert.ok(byName.some((e) => e.type === 'dso' && e.ref === 'M31'), 'found by name');
   assert.ok(byId.some((e) => e.type === 'dso' && e.ref === 'M31'), 'found by catalog id');
 });
+
+test('buildSearchIndex includes comets, findable by name, id, and alias', () => {
+  const comets = [{ id: '1P', name: "Halley's Comet", aliases: ['1P/Halley', 'Halley'] }];
+  const index = buildSearchIndex([], [], [], [], comets);
+  assert.deepEqual(index, [{ label: "Halley's Comet", type: 'comet', ref: '1P', aliases: ['1P', '1P/Halley', 'Halley'] }]);
+  assert.ok(searchIndex(index, 'halley').some((e) => e.ref === '1P'), 'found by alias substring');
+});

@@ -88,3 +88,15 @@ test('list() returns copies — mutating them does not corrupt the store', () =>
   f.list()[0].label = 'Mangled';
   assert.equal(f.list()[0].label, 'Moon');
 });
+
+test('comet records: keyed by id, persist with name, survive validation', () => {
+  assert.equal(keyOf({ kind: 'comet', id: '1P', name: "Halley's Comet" }), 'comet:1P');
+  assert.deepEqual(recordOf({ kind: 'comet', id: '1P', name: "Halley's Comet", mag: 25 }),
+    { kind: 'comet', id: '1P', name: "Halley's Comet" });
+  assert.equal(displayName({ kind: 'comet', id: '1P', name: "Halley's Comet" }), "Halley's Comet");
+  const storage = fakeStorage({ [KEY]: '[]' });
+  const f = createFavorites(storage);
+  f.toggle({ kind: 'comet', id: '1P', name: "Halley's Comet" });
+  assert.deepEqual(createFavorites(storage).list(), [{ kind: 'comet', id: '1P', name: "Halley's Comet" }],
+    'round-trips through storage validation');
+});
