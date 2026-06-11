@@ -24,6 +24,8 @@ Cosmodial knows. Tell it where you are and it paints the actual sky above your h
 
 🌅 **Honest skies.** Real dusk glow and horizon haze, or turn the atmosphere off for the view from space.
 
+☀️ **Solar and lunar eclipses.** Watch the corona emerge as the Moon slides across the Sun, or the full Moon turn coppery-red in Earth's shadow. The Sun and Moon cards show the next eclipse visible from your spot, with one click to jump to the peak.
+
 🔴 **Night mode.** Red-on-black to protect your dark-adapted eyes.
 
 ## By the numbers

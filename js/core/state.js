@@ -8,10 +8,10 @@ const STORE_KEY = 'cosmodial.location';
 const STORE_KEY_VIEW = 'cosmodial.view'; // last aim + fov, so a reload resumes where you were looking
 const STORE_KEY_FLAGS = 'cosmodial.flags'; // remembered view toggles (see PERSISTED_FLAGS)
 
-// View toggles that persist across reloads. Deliberately excludes `lines` (constellations always
-// start hidden) and `edit` (a transient mode, never restored). A previously-saved `sphere` key is
-// silently ignored (the full-sphere toggle was replaced by the aim-driven below-horizon fade).
-const PERSISTED_FLAGS = ['labels', 'grid', 'eqgrid', 'deepsky', 'night', 'atmo'];
+// View toggles that persist across reloads. Deliberately excludes `edit` (a transient mode, never
+// restored). A previously-saved `sphere` key is silently ignored (the full-sphere toggle was
+// replaced by the aim-driven below-horizon fade).
+const PERSISTED_FLAGS = ['lines', 'labels', 'grid', 'eqgrid', 'deepsky', 'night', 'atmo'];
 
 // Default location (used until the user sets one): Houston, TX — Space City.
 const DEFAULT_LOCATION = { lat: 29.76, lng: -95.37, label: 'Houston, TX' };
