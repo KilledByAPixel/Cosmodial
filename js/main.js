@@ -2,7 +2,7 @@ import { createState } from './core/state.js';
 import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, searchSolarEclipse, nextSolarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, planetMoonsAltAz, moonLibrationDeg, nextSunEvent, cometsAltAz, PLANET_MOONS } from './core/astro.js';
 import { makeStarAltAz, horToEqjRotation, eqjToGalRotation } from './core/astro.js';
 import { eqjToEnuMatrix } from './render/star-transform.js';
-import { bodyScreenOrientation, altazSepDeg, discObscuration, frameFovDeg } from './core/moon.js';
+import { bodyScreenOrientation, altazSepDeg, discObscuration, frameFovDeg, planetResolveFovDeg } from './core/moon.js';
 import { buildTimeControls } from './ui/time-controls.js';
 import { buildMenu, buildSkyToggles } from './ui/menu.js';
 import { screenshotName, saveComposite } from './ui/screenshot.js';
@@ -82,6 +82,8 @@ let followTarget = null;    // object kept centred as time changes (set by Find/
 let bodyInputs = [];   // per-recompute lit-sphere inputs (Moon + planets); see computeSky()
 let planetMoons = [];       // all systems, flat [{planet, name, altaz, mag, behind}]; drawn when planet resolves
 let resolvedPlanets = new Set(); // sphere-pass planets from the LAST frame; gates moon picks like moon draws
+// NOTE: the 2D (non-GL) fallback path never assigns resolvedPlanets, so moons stay unsearchable-on-screen
+// and untappable there by construction.
 
 // Live pick object for a planetary moon — search, tap, follow, and favorites all converge here.
 // planetBody lets the card read the planet's distance without importing Body itself.
@@ -533,6 +535,11 @@ function syncSelection() {
     // legitimately become null (scrubbed outside coverage) — the card copes with both.
     const c = cometObjects.find((o) => o.id === highlighted.id);
     if (c) Object.assign(highlighted, c);
+  } else if (highlighted.kind === 'planet-moon') {
+    // Planet-moon picks refresh the whole pick so behind (and altaz) stay live — scrubbing time
+    // forward otherwise leaves the card's "hidden behind X" note frozen at open time.
+    const m = planetMoons.find((o) => o.name === highlighted.label);
+    if (m) Object.assign(highlighted, moonPick(m));
   } else {
     const altaz = liveAltAzFor(highlighted);
     if (altaz) highlighted.altaz = altaz;          // ring follows the object
@@ -693,9 +700,19 @@ function focusObject(pick, targetFov) {
 // Moons zoom to frame planet + moon (their dots only draw once the planet resolves into a
 // disc, so the gentle search zoom would land on empty sky); falls back to a tight default
 // if the planet marker is missing.
+// Uses Math.min of frameFovDeg (frames the pair) and planetResolveFovDeg (guarantees the
+// planet passes the render sphere gate) so we never land on an unresolved glow dot.
 function moonGotoFov(pick) {
   const planet = markers.find((m) => m.label === pick.planet);
-  return frameFovDeg(planet ? altazSepDeg(planet.altaz, pick.altaz) : 0.125);
+  const frameFov = frameFovDeg(planet ? altazSepDeg(planet.altaz, pick.altaz) : 0.125);
+  if (!planet) return frameFov;
+  const bi = bodyInputs.find((b) => b.label === pick.planet);
+  if (!bi) return frameFov;
+  const dotR = planetRadius(planet.mag);
+  const minDim = Math.min(canvas.clientWidth, canvas.clientHeight);
+  const span = bi.ring ? bi.ring.OUTER : 1;
+  const resolveFov = planetResolveFovDeg(bi.angularRadiusDeg, dotR, minDim, PLANET_SCALE, span);
+  return Math.min(frameFov, resolveFov);
 }
 
 // Find (search): open the card and ease the zoom in a notch.
@@ -735,7 +752,12 @@ function onInspectObject(pick) {
   const observer = makeObserver(st.location.lat, st.location.lng);
   const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
   const radius = pick.body ? bodyAngularRadiusDeg(pick.body, observer, time) : null;
-  focusObject(pick, inspectFov(pick.kind, radius));
+  // For planet-moons, clamp to moonGotoFov so the eye button never zooms OUT to a wider
+  // FOV that would un-resolve the planet (e.g. when moonGotoFov < 0.3 for distant planets).
+  const fov = pick.kind === 'planet-moon'
+    ? Math.min(0.3, moonGotoFov(pick))
+    : inspectFov(pick.kind, radius);
+  focusObject(pick, fov);
 }
 
 // Search result chosen: resolve it to a live object and reuse Find (slew + card). Constellations

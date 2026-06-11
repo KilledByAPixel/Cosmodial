@@ -73,3 +73,18 @@ export function bodyScreenOrientation(cam, moonDir, sunDir, poleDir) {
 export function frameFovDeg(sepDeg) {
   return Math.min(2, Math.max(0.15, sepDeg * 4));
 }
+
+// FOV (deg) at which a planet's disc outgrows its glow dot (the sphere-pass gate in main.js:
+// disc pixels = angularRadiusDeg * (π/180) * focalPx(fov) * scale * span vs the dot's pixel
+// radius), with a margin so the disc clears the gate comfortably rather than grazing it.
+// focalPx spans the shorter screen dimension, so compute against that.
+//
+// Derived by inverting focalPx exactly:
+//   focalPx(fov, w, h) = (minDim/2) / (2*tan(fov_rad/4))
+// Gate: angularRadiusDeg*(π/180)*focalPx*scale*span = margin*dotRadiusPx
+// => tan(fov_rad/4) = minDim * angularRadiusDeg*(π/180) * scale * span / (4 * margin * dotRadiusPx)
+// => fov_deg = (720/π) * atan(...)
+export function planetResolveFovDeg(angularRadiusDeg, dotRadiusPx, minDimPx, scale = 1, span = 1, margin = 2) {
+  const tanHalfQuarter = (minDimPx * angularRadiusDeg * (Math.PI / 180) * scale * span) / (4 * margin * dotRadiusPx);
+  return (720 / Math.PI) * Math.atan(tanHalfQuarter);
+}

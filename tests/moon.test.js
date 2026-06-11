@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nudgedToward, screenAngleCWFromUp, bodyScreenOrientation, altazSepDeg, discObscuration, frameFovDeg } from '../js/core/moon.js';
-import { vec } from '../js/core/projection.js';
+import { nudgedToward, screenAngleCWFromUp, bodyScreenOrientation, altazSepDeg, discObscuration, frameFovDeg, planetResolveFovDeg } from '../js/core/moon.js';
+import { vec, focalPx } from '../js/core/projection.js';
 
 const near = (a, b, tol = 1e-6) => Math.abs(a - b) <= tol;
 const d3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -61,4 +61,22 @@ test('frameFovDeg frames a planet+moon pair: 4x separation, clamped to [0.15, 2]
   assert.equal(frameFovDeg(0.006), 0.15);    // Phobos-like -> bottoms out
   assert.equal(frameFovDeg(0), 0.15);        // missing/zero separation -> floor, never 0
   assert.equal(frameFovDeg(3), 2);           // never wider than 2 deg
+});
+
+test('planetResolveFovDeg: at the returned FOV the disc pixels equal margin×dotR', () => {
+  // Generic case: verify the round-trip via real focalPx
+  const angRad = 1e-3;   // 0.001 deg angular radius (a mid-sized planet)
+  const dotR = 4;
+  const minDim = 800;
+  const scale = 1, span = 1, margin = 2;
+  const fov = planetResolveFovDeg(angRad, dotR, minDim, scale, span, margin);
+  const focal = focalPx(fov, minDim, minDim); // square canvas — shorter dim == minDim
+  const discPx = angRad * (Math.PI / 180) * focal * scale * span;
+  assert.ok(Math.abs(discPx - margin * dotR) < 1e-6, `disc px (${discPx}) should equal margin*dotR (${margin * dotR})`);
+});
+
+test('planetResolveFovDeg: Neptune-like case returns FOV below 0.15 (old clamp was wrong)', () => {
+  // Neptune angular radius ~3.15e-4 deg, typical dot 2.5 px, 1000px min dimension
+  const fov = planetResolveFovDeg(3.15e-4, 2.5, 1000);
+  assert.ok(fov < 0.15, `Neptune FOV (${fov}) should be below 0.15 deg`);
 });
