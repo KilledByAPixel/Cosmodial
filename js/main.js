@@ -1011,7 +1011,15 @@ async function boot() {
       splash.classList.add('done');
       setTimeout(() => splash.remove(), 500);
     }
-    if (sharedEntry) onSearchSelect(sharedEntry);
+    if (sharedEntry) {
+      onSearchSelect(sharedEntry);
+      // Consume the param: the address bar goes back to the clean app URL (other params, e.g.
+      // ?nogl, survive), and a reload/bookmark doesn't keep re-focusing the shared object.
+      const params = new URLSearchParams(window.location.search);
+      params.delete('obj');
+      const qs = params.toString();
+      history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : '') + window.location.hash);
+    }
   }));
 }
 
