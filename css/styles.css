@@ -89,7 +89,7 @@ input, textarea { -webkit-user-select: text; user-select: text; }
   background: rgba(12, 16, 26, 0.96); border: 1px solid #2a3550; color: #dce3f0;
   font: 14px/1.45 system-ui, sans-serif; box-shadow: 0 6px 24px rgba(0,0,0,0.5);
 }
-.card-title { margin: 0 100px 8px 0; font-size: 18px; }
+.card-title { margin: 0 144px 8px 0; font-size: 18px; } /* clears the ×/★/👁/🔗 button row */
 .card-line { margin: 4px 0; }
 .card-line b { color: #aebbd6; font-weight: 600; }
 .card-close { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; padding: 0;
@@ -102,6 +102,16 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 .card-eye { position: absolute; top: 8px; right: 80px; width: 28px; height: 28px; padding: 0;
   font-size: 15px; line-height: 1; color: #cdd6e6; background: #1b2336; border: 1px solid #2a3550; border-radius: 6px; cursor: pointer; }
 .card-eye:hover { background: #243049; }
+.card-share { position: absolute; top: 8px; right: 116px; width: 28px; height: 28px; padding: 0;
+  font-size: 14px; line-height: 1; color: #cdd6e6; background: #1b2336; border: 1px solid #2a3550; border-radius: 6px; cursor: pointer; }
+.card-share:hover { background: #243049; }
+
+/* "Link copied" confirmation: floats above the card host, fades out on .gone, then is removed. */
+.copy-toast { position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%); z-index: 8;
+  padding: 6px 12px; border-radius: 8px; background: rgba(12, 16, 26, 0.96);
+  border: 1px solid #2a3550; color: #dce3f0; font: 13px system-ui, sans-serif;
+  pointer-events: none; transition: opacity 0.5s; }
+.copy-toast.gone { opacity: 0; }
 
 .fav-panel { position: fixed; top: 8px; left: 8px; z-index: 6; width: min(320px, calc(100vw - 16px));
   font: 13px/1.4 system-ui, sans-serif; color: #dce3f0; }

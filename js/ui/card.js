@@ -1,6 +1,18 @@
 import { NAMES } from '../core/constellation-names.js';
 import { bodyDistanceAu, moonPhaseInfo } from '../core/astro.js';
 import { azToCompass } from '../render/hud.js';
+import { shareUrlFor } from './share.js';
+
+// A small transient confirmation, parented to body so the card's per-recompute re-render (which
+// replaces #card-host's children wholesale) can't wipe it mid-fade.
+function showToast(text) {
+  const t = document.createElement('div');
+  t.className = 'copy-toast';
+  t.textContent = text;
+  document.body.append(t);
+  setTimeout(() => t.classList.add('gone'), 900);
+  setTimeout(() => t.remove(), 1500);
+}
 
 const PC_TO_LY = 3.26156;
 
@@ -199,6 +211,17 @@ export function openCard(obj, ctx) {
       // Eye: zoom way in (size-aware). focusObject re-renders the card itself.
       if (e.target.closest('.card-eye') && current && current.ctx.inspect) {
         current.ctx.inspect(current.obj);
+        return;
+      }
+      // Share: copy a link that reopens the app focused on this object (?obj=kind:id).
+      if (e.target.closest('.card-share') && current) {
+        const url = shareUrlFor(current.obj);
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url).then(() => showToast('Link copied'),
+            () => window.prompt('Copy this link:', url)); // clipboard blocked: hand it over manually
+        } else {
+          window.prompt('Copy this link:', url);
+        }
       }
     });
   }
@@ -226,10 +249,16 @@ export function openCard(obj, ctx) {
     eye.setAttribute('aria-label', 'Zoom in close');
     eye.textContent = '👁';
   }
+  const share = document.createElement('button');
+  share.className = 'card-share';
+  share.type = 'button';
+  share.setAttribute('aria-label', 'Copy a link to this object');
+  share.title = 'Copy link';
+  share.textContent = '🔗';
   const h = document.createElement('h2');
   h.className = 'card-title';
   h.textContent = titleOf(obj);
-  card.append(close, ...(star ? [star] : []), ...(eye ? [eye] : []), h, ...bodyLines(obj, ctx),
+  card.append(close, ...(star ? [star] : []), ...(eye ? [eye] : []), share, h, ...bodyLines(obj, ctx),
     ...(obj.altaz ? [whereLine(obj.altaz)] : []));
   if (host.firstChild && host.firstChild.innerHTML === card.innerHTML) return; // unchanged: keep the live DOM
   host.innerHTML = '';

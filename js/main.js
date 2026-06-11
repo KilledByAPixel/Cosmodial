@@ -22,6 +22,7 @@ import { altazToWhere } from './guide/ranking.js';
 import { createFavorites, displayName } from './core/favorites.js';
 import { buildFavoritesPanel } from './ui/favorites.js';
 import { buildSearch, buildSearchIndex } from './ui/search.js';
+import { parseShareParam } from './ui/share.js';
 import { animateSlew } from './ui/slew.js';
 import { findEclipseContext, umbralVisibility, solarVisibility } from './guide/eclipses.js';
 import { activeShower } from './guide/showers.js';
@@ -1000,14 +1001,18 @@ async function boot() {
   const favHost = document.getElementById('favorites-host');
   if (favHost) favHost.append(favPanel.el);
   requestRender();
-  // Boot splash: linger one frame past the first render, then fade out (CSS transition) and detach.
+  // One frame past the first render (live arrays populated): lift the boot splash, and honor a
+  // shared ?obj=kind:id link by replaying it through the search-select path — the link lands on
+  // the object exactly as if it had been searched for.
   const splash = document.getElementById('boot-splash');
-  if (splash) {
-    requestAnimationFrame(() => requestAnimationFrame(() => {
+  const sharedEntry = parseShareParam(new URLSearchParams(window.location.search).get('obj'));
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (splash) {
       splash.classList.add('done');
       setTimeout(() => splash.remove(), 500);
-    }));
-  }
+    }
+    if (sharedEntry) onSearchSelect(sharedEntry);
+  }));
 }
 
 boot();
