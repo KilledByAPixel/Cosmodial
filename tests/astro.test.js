@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeObserver, altAzOfStar, altAzOfBody, precessToDate, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, makeStarAltAz, nightWindow, bodyDistanceAu, moonPhaseName, moonPhaseInfo, searchLunarEclipse, nextLunarEclipse } from '../js/core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, precessToDate, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, makeStarAltAz, nightWindow, bodyDistanceAu, moonPhaseName, moonPhaseInfo, searchLunarEclipse, nextLunarEclipse, nextSunEvent } from '../js/core/astro.js';
 
 // Angular separation (deg) between two equatorial points given in degrees.
 function sepDeg(ra1, dec1, ra2, dec2) {
@@ -127,4 +127,17 @@ test('nextLunarEclipse returns the following eclipse (later peak)', () => {
   const first = searchLunarEclipse(new Date('2025-03-01T00:00:00Z'));
   const second = nextLunarEclipse(first.peak);
   assert.ok(second.peak.getTime() > first.peak.getTime(), 'next eclipse is later');
+});
+
+test('nextSunEvent returns whichever of sunset/sunrise comes first', () => {
+  const obs = makeObserver(30.27, -97.74); // Austin (UTC-5 in June)
+  const at1am = new Date('2026-06-08T06:00:00Z');  // 1 AM local: sunrise comes next
+  const at3pm = new Date('2026-06-08T20:00:00Z');  // 3 PM local: sunset comes next
+  const night = nextSunEvent(obs, at1am);
+  const afternoon = nextSunEvent(obs, at3pm);
+  assert.equal(night.kind, 'sunrise');
+  assert.equal(afternoon.kind, 'sunset');
+  assert.ok(night.date instanceof Date && afternoon.date instanceof Date, 'both carry Dates');
+  assert.ok(night.date.getTime() > at1am.getTime(), 'sunrise is strictly after the reference time');
+  assert.ok(afternoon.date.getTime() > at3pm.getTime(), 'sunset is strictly after the reference time');
 });

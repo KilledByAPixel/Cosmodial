@@ -169,6 +169,19 @@ export function nightWindow(observer, refDate) {
   return { sunset: set ? set.date : null, sunrise: rise ? rise.date : null };
 }
 
+// The NEXT sun event from refDate — sunset or sunrise, whichever comes first — for the panel's
+// "what's coming up" readout. (nightWindow above answers a different question: it anchors at local
+// noon to describe tonight.) Returns { kind: 'sunset'|'sunrise', date } or null when neither
+// occurs within 2 days (polar day/night).
+export function nextSunEvent(observer, refDate) {
+  const t = Astronomy.MakeTime(refDate);
+  const set = Astronomy.SearchRiseSet(Body.Sun, observer, -1, t, 2);
+  const rise = Astronomy.SearchRiseSet(Body.Sun, observer, +1, t, 2);
+  if (!set && !rise) return null;
+  if (set && (!rise || set.date <= rise.date)) return { kind: 'sunset', date: set.date };
+  return { kind: 'sunrise', date: rise.date };
+}
+
 // Distance to a body (AU) at the given time (topocentric apparent).
 export function bodyDistanceAu(body, observer, time) {
   return Astronomy.Equator(body, time, observer, true, true).dist;

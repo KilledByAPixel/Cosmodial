@@ -17,6 +17,12 @@ export function rowWhere(altaz) {
   return altaz.alt < 0 ? 'below the horizon' : altazToWhere(altaz, azToCompass);
 }
 
+// "🌇 Sunset 8:24 PM" / "🌅 Sunrise 5:42 AM" — the next-sun-event readout. PURE — unit-tested.
+export function sunRowText(ev) {
+  const t = ev.date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return ev.kind === 'sunset' ? `🌇 Sunset ${t}` : `🌅 Sunrise ${t}`;
+}
+
 // Build the collapsible Favorites panel. onGoTo(rec) fires when a row is clicked; onRemove(rec)
 // when a row's × is clicked. Returns { el, setRows(rows), setEvent(event) } where each row is
 // { rec, name, altaz }.
@@ -26,6 +32,7 @@ export function buildFavoritesPanel({ onGoTo, onRemove }) {
   el.innerHTML = `
     <button type="button" class="fav-toggle" data-toggle>★ Favorites</button>
     <div class="fav-body">
+      <div class="fav-sun" data-sun hidden></div>
       <div class="fav-event" data-event hidden></div>
       <ul class="fav-list" data-list></ul>
       <p class="fav-empty" data-empty hidden>Star objects from their card to add them here.</p>
@@ -35,6 +42,7 @@ export function buildFavoritesPanel({ onGoTo, onRemove }) {
   const listEl = el.querySelector('[data-list]');
   const emptyEl = el.querySelector('[data-empty]');
   const eventEl = el.querySelector('[data-event]');
+  const sunEl = el.querySelector('[data-sun]');
 
   toggle.addEventListener('click', () => el.classList.toggle('collapsed'));
 
@@ -86,5 +94,11 @@ export function buildFavoritesPanel({ onGoTo, onRemove }) {
     eventEl.append(span, btn);
   }
 
-  return { el, setRows, setEvent };
+  // ev = { kind: 'sunset'|'sunrise', date } | null (hidden when null, e.g. polar day/night).
+  function setSunEvent(ev) {
+    sunEl.hidden = !ev;
+    sunEl.textContent = ev ? sunRowText(ev) : '';
+  }
+
+  return { el, setRows, setEvent, setSunEvent };
 }

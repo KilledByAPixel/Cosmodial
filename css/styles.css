@@ -101,6 +101,8 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
   color: #8fa0c0; background: none; border: 0; border-radius: 6px; cursor: pointer; }
 .fav-remove:hover { color: #dce3f0; background: #243049; }
 .fav-empty { margin: 0; color: #9fb0cc; }
+.fav-sun { margin: 0 0 6px; padding-bottom: 6px; border-bottom: 1px solid #1d2740; color: #9fb0cc; }
+.fav-sun[hidden] { display: none; }
 
 /* Night mode: a single multiply-red overlay tints the whole app (canvas + panels) red-on-black. */
 #night-overlay { position: fixed; inset: 0; background: #ff0000; mix-blend-mode: multiply;

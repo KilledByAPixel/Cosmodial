@@ -1,5 +1,5 @@
 import { createState } from './core/state.js';
-import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, planetMoonsAltAz, moonLibrationDeg } from './core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, planetMoonsAltAz, moonLibrationDeg, nextSunEvent } from './core/astro.js';
 import { makeStarAltAz, horToEqjRotation, eqjToGalRotation } from './core/astro.js';
 import { eqjToEnuMatrix } from './render/star-transform.js';
 import { bodyScreenOrientation } from './core/moon.js';
@@ -185,6 +185,7 @@ function computeSky(full) {
       moonAltAt: (d) => altAzOfBody(Body.Moon, observer, makeTime(d)).alt,
     });
     if (favPanel) {
+      favPanel.setSunEvent(nextSunEvent(observer, eclipseAt));
       favPanel.setRows(buildFavoriteRows());
       favPanel.setEvent(buildTonightEvent());
     }
