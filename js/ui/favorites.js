@@ -8,7 +8,7 @@ export function chipLabel(event) {
   if (!event || !event.text) return '★ Favorites';
   const cps = [...event.text.trim()];
   if (!cps.length) return '★ Favorites';
-  const emoji = cps[1] === '️' ? cps[0] + cps[1] : cps[0];
+  const emoji = cps[1] === '\uFE0F' ? cps[0] + cps[1] : cps[0];
   return `★ Favorites · ${emoji}`;
 }
 
