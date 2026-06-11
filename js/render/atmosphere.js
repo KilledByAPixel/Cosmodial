@@ -195,6 +195,6 @@ export function enuToGalMatrix(rotHorEqj, rotEqjGal) {
 // Fade the painted Milky Way out as the user zooms in (narrow FOV), so crisp catalog stars take over
 // up close and the photographic band only shows at wide naked-eye views. 1 at/above `wide`, 0 at/below
 // `narrow`, smoothly eased between.
-export function milkyWayZoomFade(fovDeg, { wide = 40, narrow = 20 } = {}) {
+export function milkyWayZoomFade(fovDeg, { wide = 30, narrow = 10 } = {}) {
   return smoothstep(narrow, wide, fovDeg);
 }
