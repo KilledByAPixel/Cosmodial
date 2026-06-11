@@ -31,3 +31,12 @@ test('body-sphere fragment shader adds the atmosphere veil over every output pat
   const outputs = (src.match(/fragColor = /g) || []).length;
   assert.equal(veiledOutputs, outputs, `every output path adds the veil (${veiledOutputs}/${outputs})`);
 });
+
+// Lunar-eclipse shading: Earth's shadow darkens/reddens the disc per-pixel. The uniform packs the
+// umbra centre in disc coordinates (xy), the umbra radius (z) and penumbra radius (w), with w <= 0
+// meaning "no eclipse" so every non-eclipse frame skips the math.
+test('body-sphere fragment shader carries the lunar-eclipse shadow uniform, gated on the penumbra', () => {
+  const src = fragmentShaderSource();
+  assert.ok(src.includes('uniform vec4 uLunarShadow'), 'shadow uniform declared');
+  assert.ok(src.includes('uLunarShadow.w > 0.0'), 'shading skipped when the penumbra radius is <= 0');
+});

@@ -53,6 +53,8 @@ uniform vec2 uRingRadii;     // ring inner/outer radii in globe radii; (0,0) = n
 uniform sampler2D uRingTex;  // radial strip: u = (r - inner) / (outer - inner), with alpha
 uniform float uFade;         // 0..1 global fade (below-horizon bodies ride belowFade like the markers)
 uniform vec3 uVeil;          // atmosphere foreground colour at the body (skyVeil in atmosphere.js)
+uniform vec4 uLunarShadow;   // lunar eclipse: umbra centre in disc coords (xy, globe radii, y up),
+                             // umbra radius (z), penumbra radius (w); w <= 0 = no eclipse
 out vec4 fragColor;
 const float PI = 3.14159265358979;
 vec2 dirFromUp(float a) { return vec2(sin(a), cos(a)); }
@@ -104,6 +106,16 @@ void main() {
   float lon = atan(P.x, P.z) + uSubLon;
   vec2 uv = vec2(0.5 + lon / (2.0 * PI), 0.5 - lat / PI);
   vec3 surf = texture(uTex, uv).rgb;
+  // Lunar eclipse: Earth's shadow projected onto the disc. The penumbra dims gently toward the
+  // umbra's edge; inside the umbra only sunlight refracted through Earth's atmosphere remains —
+  // dim and strongly reddened (the coppery "blood Moon"). The umbra edge is soft in life too.
+  if (uLunarShadow.w > 0.0) {
+    float du = distance(d, uLunarShadow.xy);
+    float pen = 1.0 - smoothstep(uLunarShadow.z, uLunarShadow.w, du);
+    float umb = 1.0 - smoothstep(uLunarShadow.z - 0.08, uLunarShadow.z + 0.08, du);
+    vec3 shade = mix(vec3(1.0), vec3(0.55, 0.50, 0.46), pen);
+    surf *= mix(shade, vec3(0.30, 0.10, 0.05), umb);
+  }
   float sphA = 1.0 - smoothstep(1.0 - ${EDGE_AA.toFixed(3)}, 1.0, sqrt(r2)); // rim AA
   vec3 sph = surf * lit * sphA;     // premultiplied sphere layer
   vec3 ring = ringC * ringA;        // premultiplied ring layer
@@ -189,7 +201,7 @@ export function createBodySphere(gl) {
       console.error('[cosmodial] body-sphere link failed:', gl.getProgramInfoLog(program)); return false;
     }
     vao = gl.createVertexArray();
-    const names = ['uRight','uUp','uFwd','uFocal','uViewport','uBodyDir','uRadiusPx','uTex','uPhaseAngle','uLimbAngle','uNorthAngle','uSubLat','uSubLon','uQuadScale','uRingTilt','uRingRadii','uRingTex','uFade','uVeil'];
+    const names = ['uRight','uUp','uFwd','uFocal','uViewport','uBodyDir','uRadiusPx','uTex','uPhaseAngle','uLimbAngle','uNorthAngle','uSubLat','uSubLon','uQuadScale','uRingTilt','uRingRadii','uRingTex','uFade','uVeil','uLunarShadow'];
     loc = Object.fromEntries(names.map((n) => [n, gl.getUniformLocation(program, n)]));
     return true;
   }
@@ -243,6 +255,7 @@ export function createBodySphere(gl) {
       gl.uniform1f(loc.uSubLon, (b.subLonDeg || 0) * D2R);
       gl.uniform1f(loc.uFade, b.fade == null ? 1 : b.fade);
       gl.uniform3fv(loc.uVeil, b.veil || [0, 0, 0]);
+      gl.uniform4fv(loc.uLunarShadow, b.lunarShadow || [0, 0, 0, 0]);
       gl.uniform1f(loc.uQuadScale, b.quadScale || 1);
       gl.uniform1f(loc.uRingTilt, b.ringTilt || 0);
       gl.uniform2f(loc.uRingRadii, b.ringRadii ? b.ringRadii[0] : 0, b.ringRadii ? b.ringRadii[1] : 0);

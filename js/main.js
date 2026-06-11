@@ -1,5 +1,5 @@
 import { createState } from './core/state.js';
-import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, searchSolarEclipse, nextSolarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, planetMoonsAltAz, moonLibrationDeg, nextSunEvent, cometsAltAz, PLANET_MOONS } from './core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, searchSolarEclipse, nextSolarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, planetMoonsAltAz, moonLibrationDeg, nextSunEvent, cometsAltAz, PLANET_MOONS, lunarShadow } from './core/astro.js';
 import { makeStarAltAz, horToEqjRotation, eqjToGalRotation } from './core/astro.js';
 import { eqjToEnuMatrix } from './render/star-transform.js';
 import { bodyScreenOrientation, altazSepDeg, discObscuration, frameFovDeg, planetResolveFovDeg } from './core/moon.js';
@@ -200,6 +200,14 @@ function computeSky(full) {
     // shadow, so the disc reads as a true black silhouette instead of sky-coloured, then recovers.
     addBody('Moon', Body.Moon, 'moon', [232, 232, 232], null, moonLibrationDeg(time), 1 - eclipseDeep);
     for (const p of PLANETS) addBody(p.name, p.body, p.tex || null, rgb255(p.color), p.rings ? SATURN_RING : null);
+    // Lunar eclipse: attach Earth's shadow to the Moon's body input whenever the penumbra could
+    // touch the disc; render() maps it into disc coordinates and the sphere shader does the rest.
+    const moonBi = bodyInputs.find((b) => b.label === 'Moon');
+    const moonMk = markers.find((m) => m.label === 'Moon');
+    if (moonBi && moonMk) {
+      const sh = lunarShadow(observer, time);
+      if (altazSepDeg(sh.altaz, moonMk.altaz) <= sh.penumbraDeg + moonBi.angularRadiusDeg) moonBi.shadow = sh;
+    }
   } else {
     bodyInputs = [];
   }
@@ -314,8 +322,21 @@ function render() {
       // (sub-observer latitude = asin of the pole's component toward us — Saturn's globe matches its rings).
       const subLatDeg = bi.libration ? bi.libration.latDeg
         : (Math.asin(Math.max(-1, Math.min(1, ringOpening(bi.bodyDir, bi.poleDir)))) * 180) / Math.PI;
+      // Lunar eclipse: Earth's shadow into the shader's disc frame — centre offset in globe radii
+      // (x right, y up; canvas y points down, hence the flip), radii as multiples of the Moon's.
+      let lunShadow = null;
+      if (bi.shadow) {
+        const proj = createProjector(cam);
+        const pm = proj(m.altaz.az, m.altaz.alt);
+        const ps = proj(bi.shadow.altaz.az, bi.shadow.altaz.alt);
+        if (pm.visible && ps.visible) {
+          lunShadow = [(ps.x - pm.x) / radiusPx, (pm.y - ps.y) / radiusPx,
+            bi.shadow.umbraDeg / bi.angularRadiusDeg, bi.shadow.penumbraDeg / bi.angularRadiusDeg];
+        }
+      }
       bodyList.push({
         texKey: bi.texKey, tint: bi.tint, dir: bi.bodyDir, radiusPx, fade: bodyFade, veilScale: bi.veilScale,
+        lunarShadow: lunShadow,
         phaseAngleDeg: bi.phaseAngleDeg, brightLimbAngle: o.brightLimbAngle, northAngle: o.northAngle,
         subLatDeg, subLonDeg: bi.libration ? bi.libration.lonDeg : 0,
         quadScale: span,

@@ -68,6 +68,31 @@ const BODY_RADIUS_AU = {
   Pluto: 7.943e-6,
 };
 
+// Earth's shadow at the Moon's distance, as the observer sees it: the umbra/penumbra centre (the
+// anti-solar point, sampled at the Moon's distance and given the same topocentric parallax as the
+// Moon) plus the shadow's angular radii by Danjon's rule (the 1.02 covers Earth's atmosphere).
+// Drives the lunar-eclipse shading on the Moon's rendered disc.
+const EARTH_RADIUS_AU = 4.26352e-5;
+export function lunarShadow(observer, time) {
+  const sv = Astronomy.GeoVector(Body.Sun, time, /*aberration*/ true);
+  const mv = Astronomy.GeoVector(Body.Moon, time, /*aberration*/ true);
+  const ov = Astronomy.ObserverVector(time, observer, /*ofdate*/ false);
+  const dMoon = Math.hypot(mv.x, mv.y, mv.z);
+  const dSun = Math.hypot(sv.x, sv.y, sv.z);
+  const k = -dMoon / dSun; // anti-solar direction, scaled to the Moon's geocentric distance
+  const tv = new Astronomy.Vector(sv.x * k - ov.x, sv.y * k - ov.y, sv.z * k - ov.z, time);
+  const eq = Astronomy.EquatorFromVector(tv);
+  const moonPar = Math.asin(EARTH_RADIUS_AU / dMoon); // horizontal parallaxes + solar semidiameter,
+  const sunPar = Math.asin(EARTH_RADIUS_AU / dSun);   // the classical shadow-cone ingredients
+  const sunSd = Math.asin(BODY_RADIUS_AU.Sun / dSun);
+  const R2D = 180 / Math.PI;
+  return {
+    altaz: altAzOfStar(eq.ra * 15, eq.dec, observer, time),
+    umbraDeg: 1.02 * (moonPar + sunPar - sunSd) * R2D,
+    penumbraDeg: 1.02 * (moonPar + sunPar + sunSd) * R2D,
+  };
+}
+
 // Sun-body-Earth phase angle in degrees (0 = full, 180 = new). Drives where the terminator sits.
 export function bodyPhaseAngleDeg(body, time) {
   return Astronomy.Illumination(body, time).phase_angle;
