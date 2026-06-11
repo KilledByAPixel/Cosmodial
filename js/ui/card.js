@@ -23,6 +23,14 @@ export function easeTag(mag) {
   return 'telescope';
 }
 
+// Visibility phrase for a comet. easeTag's "telescope" is honest to ~mag 14; beyond that no
+// amateur instrument will show it, so say so instead.
+export function cometSeeLine(mag) {
+  if (mag == null || !Number.isFinite(mag)) return null;
+  if (mag > 14) return 'not visible right now — too faint even for large telescopes';
+  return `${easeTag(mag)} (magnitude ${mag.toFixed(1)})`;
+}
+
 // Parsecs -> light-years (null-safe).
 export function distanceLy(distPc) {
   if (distPc == null || !Number.isFinite(distPc) || distPc <= 0) return null;
@@ -115,6 +123,14 @@ function bodyLines(obj, ctx) {
     }
     if (obj.seen) lines.push(row(`<b>What you'll see:</b> ${obj.seen}`));
     lines.push(row(`<b>How to see it:</b> ${easeTag(obj.mag)} (magnitude ${obj.mag})`));
+  } else if (obj.kind === 'comet') {
+    lines.push(row(obj.blurb || `${obj.name} — a comet.`));
+    if (obj.altaz) {
+      lines.push(row(`<b>Distance:</b> ${obj.deltaAu.toFixed(2)} AU from Earth · ${obj.rAu.toFixed(2)} AU from the Sun`));
+      lines.push(row(`<b>How to see it:</b> ${cometSeeLine(obj.mag)}`));
+    } else {
+      lines.push(row(`<b>No position for this date</b> — orbit data covers ${obj.coverage}.`));
+    }
   } else { // planet
     const au = bodyDistanceAu(obj.body, ctx.observer, ctx.time);
     lines.push(row(`${obj.label} — a ${obj.label === 'Pluto' ? 'dwarf planet' : 'planet'}.`));
@@ -130,6 +146,7 @@ function titleOf(obj) {
   if (obj.kind === 'moon') return 'Moon';
   if (obj.kind === 'sun') return 'Sun';
   if (obj.kind === 'dso') return obj.name;
+  if (obj.kind === 'comet') return obj.name;
   return obj.label;
 }
 
@@ -186,7 +203,8 @@ export function openCard(obj, ctx) {
   const h = document.createElement('h2');
   h.className = 'card-title';
   h.textContent = titleOf(obj);
-  card.append(close, ...(star ? [star] : []), ...(eye ? [eye] : []), h, ...bodyLines(obj, ctx), whereLine(obj.altaz));
+  card.append(close, ...(star ? [star] : []), ...(eye ? [eye] : []), h, ...bodyLines(obj, ctx),
+    ...(obj.altaz ? [whereLine(obj.altaz)] : []));
   if (host.firstChild && host.firstChild.innerHTML === card.innerHTML) return; // unchanged: keep the live DOM
   host.innerHTML = '';
   host.append(card);

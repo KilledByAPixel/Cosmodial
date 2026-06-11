@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { colorWord, easeTag, distanceLy, constellationName, eclipseContacts, visWord, lightYears } from '../js/ui/card.js';
+import { colorWord, easeTag, distanceLy, constellationName, eclipseContacts, visWord, lightYears, cometSeeLine } from '../js/ui/card.js';
 
 test('colorWord buckets B-V into plain colors', () => {
   assert.equal(colorWord(-0.1), 'blue-white');
@@ -55,4 +55,12 @@ test('lightYears formats with thousand/million units', () => {
   assert.equal(lightYears(25000), '25 thousand light-years');
   assert.equal(lightYears(2500000), '2.5 million light-years');
   assert.equal(lightYears(null), null);
+});
+
+test('cometSeeLine: ease tag with magnitude, honest about invisibly faint comets', () => {
+  assert.equal(cometSeeLine(3.2), 'naked eye (magnitude 3.2)');
+  assert.equal(cometSeeLine(8), 'binoculars (magnitude 8.0)');
+  assert.equal(cometSeeLine(12.4), 'telescope (magnitude 12.4)');
+  assert.equal(cometSeeLine(25.1), 'not visible right now — too faint even for large telescopes');
+  assert.equal(cometSeeLine(null), null);
 });
