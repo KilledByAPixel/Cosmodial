@@ -239,6 +239,10 @@ export function nextLunarEclipse(afterPeakDate) {
   return normalizeLunarEclipse(Astronomy.NextLunarEclipse(makeTime(afterPeakDate)));
 }
 
+// Coverage strings are constant per comet — resolved once here, not per recompute (cometsAltAz
+// runs on the frequent path, per frame in live mode).
+const COMET_COVERAGE = new Map(COMETS.map((c) => [c.id, cometCoverage(c)]));
+
 // All comets as sky objects at one instant: [{ id, name, color, blurb, coverage, altaz, mag,
 // rAu (Sun distance), deltaAu (observer distance) }]. Position is two-body propagation from the
 // element set whose epoch is nearest the viewed date; altaz/mag/distances are null outside every
@@ -249,7 +253,7 @@ export function cometsAltAz(observer, time) {
   const ev = Astronomy.HelioVector(Body.Earth, time);
   const ov = Astronomy.ObserverVector(time, observer, /*ofdate*/ false);
   return COMETS.map((c) => {
-    const base = { id: c.id, name: c.name, color: c.color, blurb: c.blurb, coverage: cometCoverage(c) };
+    const base = { id: c.id, name: c.name, color: c.color, blurb: c.blurb, coverage: COMET_COVERAGE.get(c.id) };
     const set = activeCometSet(c, jdTT);
     if (!set) return { ...base, altaz: null, mag: null, rAu: null, deltaAu: null };
     const h = cometHelioEqjAu(set, jdTT);

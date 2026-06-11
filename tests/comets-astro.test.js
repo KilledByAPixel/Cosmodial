@@ -26,10 +26,16 @@ test('cometsAltAz returns every comet, with null positions outside coverage', ()
   const observer = makeObserver(40, -100);
   const medieval = cometsAltAz(observer, makeTime(new Date('1500-01-01T00:00:00Z')));
   assert.equal(medieval.length, 7);
-  assert.ok(medieval.every((c) => c.altaz === null && c.mag === null), 'no positions in 1500');
-  assert.ok(medieval.every((c) => /\d{4}–\d{4}/.test(c.coverage)), 'coverage string present');
+  for (const c of medieval) {
+    assert.equal(c.altaz, null, `${c.id} altaz in 1500`);
+    assert.equal(c.mag, null, `${c.id} mag in 1500`);
+    assert.equal(c.rAu, null, `${c.id} rAu in 1500`);
+    assert.equal(c.deltaAu, null, `${c.id} deltaAu in 1500`);
+    assert.match(c.coverage, /\d{4}–\d{4}/, `${c.id} coverage string`);
+  }
   const now = cometsAltAz(observer, makeTime(new Date('2026-06-11T00:00:00Z')));
   const halley = now.find((c) => c.id === '1P');
+  assert.ok(halley, 'Halley present in the result');
   assert.ok(halley.altaz && Number.isFinite(halley.mag), 'Halley has a position today');
   assert.ok(halley.rAu > 25 && halley.rAu < 40, `Halley is out past Neptune-ish today: ${halley.rAu}`);
   assert.ok(halley.mag > 20, `and far too faint to see: ${halley.mag}`);
