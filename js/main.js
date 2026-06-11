@@ -67,7 +67,7 @@ let eclipseCtx = { inProgress: null, next: null }; // recomputed each computeSky
 let tonightShower = null;   // the meteor shower peaking tonight (+ radiant alt/az), or null
 let conjunctions = [];      // close Moon/planet pairs tonight, closest-first
 let skyDirty = true;  // next render runs the FREQUENT recompute (markers/spheres/lines/labels/DSOs)
-let fullDirty = true; // next recompute also runs the FULL pass (62k pick array, eclipse, guide)
+let fullDirty = true; // next recompute also runs the FULL pass (62k pick array, eclipse, favorites/events)
 let selected = null;        // first star picked in edit mode (a skyObjects entry)
 let highlighted = null;     // object whose card is currently open (gets a ring on canvas)
 let followTarget = null;    // object kept centred as time changes (set by Find/search; cleared on drag/tap)
@@ -97,8 +97,8 @@ function loadSavedFigures(currentFile) {
 // Recompute the sky from the current time + location. Two tiers: the FREQUENT pass (every skyDirty
 // render — per frame in live mode) refreshes everything cheap that's on screen: markers, lit-sphere
 // inputs, constellation lines, named-star label positions, DSOs, sky colours. The FULL pass adds the
-// 62k skyObjects remap (now only the picking/guide data source — the GL stars transform on the GPU)
-// plus the eclipse/guide work. The 2D fallback always runs full (its stars draw from skyObjects).
+// 62k skyObjects remap (now only the picking/favorites data source — the GL stars transform on the
+// GPU) plus the eclipse/events work. The 2D fallback always runs full (its stars draw from skyObjects).
 function computeSky(full) {
   const st = store.getState();
   const observer = makeObserver(st.location.lat, st.location.lng);
@@ -268,7 +268,7 @@ function render() {
     }
     starfield.setBodies(bodyList);
     // Planetary moons: labeled glow dots, only once their planet has resolved into a disc.
-    // Render-local pseudo-markers (NOT in the module markers array) so picking/guide/conjunctions
+    // Render-local pseudo-markers (NOT in the module markers array) so picking/favorites/conjunctions
     // never see them; occulted moons (behind the disc) are hidden, transiting ones stay drawn.
     const moonMarkers = st.flags.edit ? [] : planetMoons
       .filter((m) => sphereLabels.has(m.planet) && !m.behind)
@@ -701,10 +701,10 @@ async function boot() {
       prevTime = tk;
       requestRecompute(); // frequent only -> scrubbing stays smooth (~2 ms per tick)
       clearTimeout(settleTimer);
-      settleTimer = setTimeout(requestFullRecompute, 350); // events/guide/pick array once the scrub settles
+      settleTimer = setTimeout(requestFullRecompute, 350); // events/favorites/pick array once the scrub settles
     }
   });
-  setInterval(() => { if (store.getState().time.live) requestFullRecompute(); }, 30000); // events/guide/pick array (and the 2D fallback's whole live refresh)
+  setInterval(() => { if (store.getState().time.live) requestFullRecompute(); }, 30000); // events/favorites/pick array (and the 2D fallback's whole live refresh)
   store.subscribe(onEditToggle);
   window.addEventListener('resize', requestRender);
   attachInput(canvas, store, { onTap, onAction: onEditAction, onViewDrag: () => { followTarget = null; } });
