@@ -48,6 +48,8 @@ test('eclipseContacts lists only the phases that occur, in order', () => {
   assert.deepEqual(total, ['partial begins', 'totality begins', 'peak', 'totality ends', 'partial ends']);
   const partial = eclipseContacts(mk(60, 0)).map(([label]) => label);
   assert.deepEqual(partial, ['partial begins', 'peak', 'partial ends']);
+  const annular = eclipseContacts(mk(90, 30), 'annularity').map(([label]) => label);
+  assert.deepEqual(annular, ['partial begins', 'annularity begins', 'peak', 'annularity ends', 'partial ends']);
 });
 
 test('lightYears formats with thousand/million units', () => {

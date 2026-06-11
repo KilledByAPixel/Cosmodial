@@ -239,6 +239,46 @@ export function nextLunarEclipse(afterPeakDate) {
   return normalizeLunarEclipse(Astronomy.NextLunarEclipse(makeTime(afterPeakDate)));
 }
 
+// Normalize a vendor LocalSolarEclipseInfo into the lunar shape (Date contacts + totalityMinutes)
+// plus two solar-only fields: `obscuration` (0..1 fraction of the Sun covered at peak) and
+// `altDeg` (the Sun's altitude at the partial contacts and peak — the local search reports
+// eclipses even when the Sun is below the horizon for part of them; solarVisibility reads these).
+// For an annular eclipse, totalBegin/totalEnd/totalityMinutes describe the annular phase.
+function normalizeSolarEclipse(info) {
+  const at = (ev) => (ev ? ev.time.date : null); // EclipseEvent -> JS Date (or null when no phase)
+  return {
+    kind: info.kind, // 'partial' | 'annular' | 'total'
+    obscuration: info.obscuration,
+    peak: info.peak.time.date,
+    contacts: {
+      partialBegin: at(info.partial_begin),
+      totalBegin: at(info.total_begin),
+      peak: info.peak.time.date,
+      totalEnd: at(info.total_end),
+      partialEnd: at(info.partial_end),
+    },
+    altDeg: {
+      partialBegin: info.partial_begin.altitude,
+      peak: info.peak.altitude,
+      partialEnd: info.partial_end.altitude,
+    },
+    totalityMinutes: info.total_begin && info.total_end
+      ? (info.total_end.time.date - info.total_begin.time.date) / MIN_MS
+      : null,
+  };
+}
+
+// First solar eclipse at/after `afterDate` with any part of the Moon's shadow touching the
+// observer's location (normalized). Observer-specific by nature — solar eclipses are local.
+export function searchSolarEclipse(afterDate, observer) {
+  return normalizeSolarEclipse(Astronomy.SearchLocalSolarEclipse(makeTime(afterDate), observer));
+}
+
+// The solar eclipse at this location after the one peaking at `afterPeakDate` (normalized).
+export function nextSolarEclipse(afterPeakDate, observer) {
+  return normalizeSolarEclipse(Astronomy.NextLocalSolarEclipse(makeTime(afterPeakDate), observer));
+}
+
 // Coverage strings are constant per comet — resolved once here, not per recompute (cometsAltAz
 // runs on the frequent path, per frame in live mode).
 const COMET_COVERAGE = new Map(COMETS.map((c) => [c.id, cometCoverage(c)]));

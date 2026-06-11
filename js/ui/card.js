@@ -56,13 +56,14 @@ export function visWord(visibility) {
 }
 
 // Ordered [label, Date] contact pairs that actually occur for this eclipse (peak always present).
-export function eclipseContacts(e) {
+// `totalWord` names the central phase: 'totality' (default), or 'annularity' for an annular solar.
+export function eclipseContacts(e, totalWord = 'totality') {
   const c = e.contacts;
   const out = [];
   if (c.partialBegin) out.push(['partial begins', c.partialBegin]);
-  if (c.totalBegin) out.push(['totality begins', c.totalBegin]);
+  if (c.totalBegin) out.push([`${totalWord} begins`, c.totalBegin]);
   out.push(['peak', c.peak]);
-  if (c.totalEnd) out.push(['totality ends', c.totalEnd]);
+  if (c.totalEnd) out.push([`${totalWord} ends`, c.totalEnd]);
   if (c.partialEnd) out.push(['partial ends', c.partialEnd]);
   return out;
 }
@@ -113,6 +114,25 @@ function bodyLines(obj, ctx) {
     }
   } else if (obj.kind === 'sun') {
     lines.push(row(`The Sun.`));
+    if (ctx.eclipse) {
+      const e = ctx.eclipse;
+      const kindWord = e.kind === 'total' ? 'Total' : e.kind === 'annular' ? 'Annular' : 'Partial';
+      const pct = Math.round(e.obscuration * 100);
+      if (e.live) {
+        const phaseWord = e.kind === 'annular' ? 'annularity' : 'totality';
+        const note = e.visibility === 'partial' ? ' (partly visible from here)' : '';
+        const fmt = (d) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        lines.push(row(`🌞 <b>${kindWord} solar eclipse${note}.</b> The Moon covers ${pct}% of the Sun at peak.`));
+        lines.push(row(`<b>Times:</b> ${eclipseContacts(e, phaseWord).map(([label, d]) => `${label} ${fmt(d)}`).join(' · ')}`));
+        if (e.totalityMinutes) {
+          const phaseName = e.kind === 'annular' ? 'Annularity' : 'Totality';
+          lines.push(row(`<b>${phaseName}:</b> ${Math.round(e.totalityMinutes)} min`));
+        }
+      } else {
+        const when = e.peak.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+        lines.push(row(`<b>Next solar eclipse from here:</b> ${when} (${e.kind}, ${pct}% covered), ${visWord(e.visibility)}.`));
+      }
+    }
     lines.push(row(`⚠️ <b>Never look at the Sun</b> through binoculars or a telescope without a proper solar filter.`));
   } else if (obj.kind === 'dso') {
     const cn = constellationName(obj.con);

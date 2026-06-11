@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { umbralVisibility, findEclipseContext } from '../js/guide/eclipses.js';
+import { umbralVisibility, solarVisibility, findEclipseContext } from '../js/guide/eclipses.js';
+
+// The lunar visibilityOf adapter (matches the main.js call site): penumbral -> 'none', otherwise
+// umbral visibility sampled from the injected Moon-altitude function.
+const lunarVisibility = (moonAltAt) => (e) =>
+  (e.kind === 'penumbral' ? 'none' : umbralVisibility(e, moonAltAt));
 
 const MIN = 60 * 1000;
 
@@ -46,7 +51,7 @@ test('findEclipseContext skips penumbral and picks the next visible eclipse', ()
   ];
   const { getFirst, getNextAfter } = iterator(list);
   const ctx = findEclipseContext({
-    at: new Date('2026-06-01T00:00:00Z'), getFirst, getNextAfter, moonAltAt: () => 50,
+    at: new Date('2026-06-01T00:00:00Z'), getFirst, getNextAfter, visibilityOf: lunarVisibility(() => 50),
   });
   assert.equal(ctx.inProgress, null);
   assert.ok(ctx.next, 'has a next');
@@ -59,7 +64,7 @@ test('findEclipseContext flags an eclipse in progress at the set time', () => {
   const { getFirst, getNextAfter } = iterator([total]);
   // set time = peak (inside the partial window)
   const ctx = findEclipseContext({
-    at: new Date('2026-07-01T05:00:00Z'), getFirst, getNextAfter, moonAltAt: () => 50,
+    at: new Date('2026-07-01T05:00:00Z'), getFirst, getNextAfter, visibilityOf: lunarVisibility(() => 50),
   });
   assert.ok(ctx.inProgress, 'in progress at peak');
   assert.equal(ctx.inProgress.visibility, 'full');
@@ -74,7 +79,7 @@ test('findEclipseContext skips eclipses not visible from here', () => {
   const { getFirst, getNextAfter } = iterator(list);
   const downFirst = (d) => (d < new Date('2026-09-01T00:00:00Z') ? -30 : 40);
   const ctx = findEclipseContext({
-    at: new Date('2026-06-01T00:00:00Z'), getFirst, getNextAfter, moonAltAt: downFirst,
+    at: new Date('2026-06-01T00:00:00Z'), getFirst, getNextAfter, visibilityOf: lunarVisibility(downFirst),
   });
   assert.equal(ctx.next.peak.toISOString(), '2026-12-01T00:00:00.000Z');
 });
@@ -93,8 +98,37 @@ test('findEclipseContext stops searching once the next visible eclipse is found'
   const getFirst = (d) => sorted.find((e) => e.peak >= d) || null;
   const getNextAfter = (peak) => { nextCalls++; return sorted.find((e) => e.peak > peak) || null; };
   const ctx = findEclipseContext({
-    at: new Date('2026-06-01T00:00:00Z'), getFirst, getNextAfter, moonAltAt: () => 50,
+    at: new Date('2026-06-01T00:00:00Z'), getFirst, getNextAfter, visibilityOf: lunarVisibility(() => 50),
   });
   assert.equal(ctx.next.peak.toISOString(), '2026-07-01T00:00:00.000Z');
   assert.ok(nextCalls <= 1, `should stop early, made ${nextCalls} getNextAfter calls`);
+});
+
+test('solarVisibility classifies from the baked contact altitudes', () => {
+  const mk = (a, p, b) => ({ altDeg: { partialBegin: a, peak: p, partialEnd: b } });
+  assert.equal(solarVisibility(mk(30, 40, 20)), 'full');     // Sun up throughout
+  assert.equal(solarVisibility(mk(-5, 10, 25)), 'partial');  // rises during the eclipse
+  assert.equal(solarVisibility(mk(5, 2, -3)), 'partial');    // sets during it
+  assert.equal(solarVisibility(mk(-10, -5, -2)), 'none');    // below the horizon the whole time
+  assert.equal(solarVisibility(mk(-2, 1, -1)), 'partial');   // only the peak clears the horizon
+});
+
+test('findEclipseContext works with solar-shaped eclipses (altitudes baked in)', () => {
+  const peak = new Date('2026-08-12T18:00:00Z');
+  const solar = {
+    kind: 'partial', obscuration: 0.9, peak,
+    contacts: { partialBegin: new Date(peak.getTime() - 60 * MIN), totalBegin: null, peak, totalEnd: null, partialEnd: new Date(peak.getTime() + 60 * MIN) },
+    altDeg: { partialBegin: 15, peak: 8, partialEnd: 1 },
+  };
+  const { getFirst, getNextAfter } = iterator([solar]);
+  const upcoming = findEclipseContext({
+    at: new Date('2026-08-01T00:00:00Z'), getFirst, getNextAfter, visibilityOf: solarVisibility,
+  });
+  assert.equal(upcoming.inProgress, null);
+  assert.equal(upcoming.next.visibility, 'full');
+  const during = findEclipseContext({
+    at: peak, getFirst, getNextAfter, visibilityOf: solarVisibility,
+  });
+  assert.ok(during.inProgress, 'in progress at peak');
+  assert.equal(during.inProgress.obscuration, 0.9, 'annotation preserves solar fields');
 });

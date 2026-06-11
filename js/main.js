@@ -1,5 +1,5 @@
 import { createState } from './core/state.js';
-import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, planetMoonsAltAz, moonLibrationDeg, nextSunEvent, cometsAltAz } from './core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, searchSolarEclipse, nextSolarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, planetMoonsAltAz, moonLibrationDeg, nextSunEvent, cometsAltAz } from './core/astro.js';
 import { makeStarAltAz, horToEqjRotation, eqjToGalRotation } from './core/astro.js';
 import { eqjToEnuMatrix } from './render/star-transform.js';
 import { bodyScreenOrientation } from './core/moon.js';
@@ -23,7 +23,7 @@ import { createFavorites, displayName } from './core/favorites.js';
 import { buildFavoritesPanel } from './ui/favorites.js';
 import { buildSearch, buildSearchIndex } from './ui/search.js';
 import { animateSlew } from './ui/slew.js';
-import { findEclipseContext } from './guide/eclipses.js';
+import { findEclipseContext, umbralVisibility, solarVisibility } from './guide/eclipses.js';
 import { activeShower } from './guide/showers.js';
 import { findConjunctions, midpointAltAz } from './guide/conjunctions.js';
 
@@ -69,7 +69,8 @@ let originalFigures = [];   // pristine split from the file, for reset
 let loadedRaw = [];   // the raw constellations.json array as loaded (basis for localStorage validity)
 let favPanel = null;
 const favorites = createFavorites();
-let eclipseCtx = { inProgress: null, next: null }; // recomputed each computeSky from the set time
+let eclipseCtx = { inProgress: null, next: null }; // lunar; recomputed each full computeSky from the set time
+let solarEclipseCtx = { inProgress: null, next: null }; // solar, observer-local; same cadence as eclipseCtx
 let tonightShower = null;   // the meteor shower peaking tonight (+ radiant alt/az), or null
 let conjunctions = [];      // close Moon/planet pairs tonight, closest-first
 let skyDirty = true;  // next render runs the FREQUENT recompute (markers/spheres/lines/labels/DSOs)
@@ -189,7 +190,15 @@ function computeSky(full) {
       at: eclipseAt,
       getFirst: (d) => searchLunarEclipse(d),
       getNextAfter: (peak) => nextLunarEclipse(peak),
-      moonAltAt: (d) => altAzOfBody(Body.Moon, observer, makeTime(d)).alt,
+      // Penumbral eclipses map to 'none': barely perceptible, never worth a banner or card line.
+      visibilityOf: (e) => (e.kind === 'penumbral' ? 'none'
+        : umbralVisibility(e, (d) => altAzOfBody(Body.Moon, observer, makeTime(d)).alt)),
+    });
+    solarEclipseCtx = findEclipseContext({
+      at: eclipseAt,
+      getFirst: (d) => searchSolarEclipse(d, observer),
+      getNextAfter: (peak) => nextSolarEclipse(peak, observer),
+      visibilityOf: solarVisibility,
     });
     if (favPanel) {
       favPanel.setSunEvent(nextSunEvent(observer, eclipseAt));
@@ -401,7 +410,7 @@ function onIdentifyTap(x, y) {
   const hit = pickNearest(projected, x, y, 18);
   if (hit) {
     highlighted = hit;
-    openCard(hit, cardCtx(observer, time, eclipseForMoon(hit.kind)));
+    openCard(hit, cardCtx(observer, time, eclipseForCard(hit.kind)));
     requestRender();
   }
   else { highlighted = null; closeCard(); requestRender(); }
@@ -414,6 +423,19 @@ function eclipseForMoon(kind) {
   if (eclipseCtx.inProgress) return { ...eclipseCtx.inProgress, live: true };
   if (eclipseCtx.next) return { ...eclipseCtx.next, live: false };
   return null;
+}
+
+// Same idea for the Sun card: the local solar eclipse in progress, else the next one from here.
+function eclipseForSun(kind) {
+  if (kind !== 'sun') return null;
+  if (solarEclipseCtx.inProgress) return { ...solarEclipseCtx.inProgress, live: true };
+  if (solarEclipseCtx.next) return { ...solarEclipseCtx.next, live: false };
+  return null;
+}
+
+// The eclipse context a card should carry, by the picked object's kind (null for everything else).
+function eclipseForCard(kind) {
+  return kind === 'sun' ? eclipseForSun(kind) : eclipseForMoon(kind);
 }
 
 // Current alt/az for the selected object, re-resolved from the freshly recomputed arrays so the
@@ -483,13 +505,18 @@ function syncSelection() {
   const st = store.getState();
   const observer = makeObserver(st.location.lat, st.location.lng);
   const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
-  openCard(highlighted, cardCtx(observer, time, eclipseForMoon(highlighted.kind)));
+  openCard(highlighted, cardCtx(observer, time, eclipseForCard(highlighted.kind)));
 }
 
-// The single most notable thing happening tonight, for the always-visible banner. Tonight-only:
-// in-progress eclipse > shower at peak > closest conjunction > nothing. (The "next eclipse" readout
-// lives on the Moon card, not here.)
+// How far ahead a coming solar eclipse earns the banner. Solar eclipses are daytime events that a
+// night-time stargazer would otherwise never see coming, and rare enough to outrank a shower.
+const SOLAR_ECLIPSE_NOTICE_MS = 2 * 86400000;
+
+// The single most notable thing happening, for the always-visible banner. Priority: in-progress
+// solar eclipse > in-progress lunar eclipse > solar eclipse within 2 days > shower at peak >
+// closest conjunction > nothing. (The "next eclipse" readouts live on the Sun/Moon cards.)
 function buildTonightEvent() {
+  if (solarEclipseCtx.inProgress) return solarEclipseEvent(solarEclipseCtx.inProgress, true);
   if (eclipseCtx.inProgress) {
     const e = eclipseCtx.inProgress;
     const kindWord = e.kind === 'total' ? 'Total' : 'Partial';
@@ -499,9 +526,25 @@ function buildTonightEvent() {
       onAction: () => onJumpToEclipse(e),
     };
   }
+  const soon = solarEclipseCtx.next;
+  if (soon) {
+    const st = store.getState();
+    const at = st.time.instant ? new Date(st.time.instant) : new Date();
+    if (soon.peak.getTime() - at.getTime() <= SOLAR_ECLIPSE_NOTICE_MS) return solarEclipseEvent(soon, false);
+  }
   if (tonightShower) return showerEvent(tonightShower);
   if (conjunctions.length) return conjunctionEvent(conjunctions[0]);
   return null;
+}
+
+// Banner for a solar eclipse, live ("happening now") or imminent (peak within the notice window).
+function solarEclipseEvent(e, live) {
+  const kindWord = e.kind === 'total' ? 'Total' : e.kind === 'annular' ? 'Annular' : 'Partial';
+  const pct = Math.round(e.obscuration * 100);
+  const text = live
+    ? `🌞 ${kindWord} solar eclipse — happening now. The Moon is covering ${pct}% of the Sun.`
+    : `🌞 ${kindWord} solar eclipse from here ${e.peak.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} at ${e.peak.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} — ${pct}% of the Sun covered.`;
+  return { text, actionLabel: 'Find', onAction: () => onJumpToSolarEclipse(e) };
 }
 
 // Banner for a meteor shower at peak: rate + radiant + a moonlight heads-up when the Moon's bright.
@@ -526,6 +569,20 @@ function conjunctionEvent(pair) {
   const where = altazToWhere(midpointAltAz(pair.a.altaz, pair.b.altaz), azToCompass);
   const text = `🌗 ${first.label} and ${second.label} are close — ${sepStr}° apart, ${where}.`;
   return { text, actionLabel: 'Find', onAction: () => onFindConjunction(pair) };
+}
+
+// Jump to a solar eclipse: set time to its peak, center the Sun, open the Sun card with the
+// timeline. Zoomed close enough that the true-scale Moon disc visibly covers the Sun's.
+function onJumpToSolarEclipse(e) {
+  const st = store.getState();
+  const observer = makeObserver(st.location.lat, st.location.lng);
+  const time = makeTime(e.peak);
+  const altaz = altAzOfBody(Body.Sun, observer, time);
+  const pick = { kind: 'sun', label: 'Sun', body: Body.Sun, altaz };
+  store.setTime(e.peak, false);              // jump the clock to peak (triggers recompute)
+  highlighted = pick;
+  openCard(pick, cardCtx(observer, time, { ...e, live: true }));
+  animateSlew(store, { az: altaz.az, alt: altaz.alt, fov: Math.max(2, Math.min(st.fov, 8)) });
 }
 
 // Jump to an eclipse: set time to its peak, center the Moon, open the Moon card with the timeline.
@@ -591,7 +648,7 @@ function focusObject(pick, targetFov) {
   const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
   highlighted = pick;
   followTarget = followIdentity(pick); // lock on: keep it centred as the clock changes
-  openCard(pick, cardCtx(observer, time, eclipseForMoon(pick.kind)));
+  openCard(pick, cardCtx(observer, time, eclipseForCard(pick.kind)));
   animateSlew(store, { az: pick.altaz.az, alt: pick.altaz.alt, fov: targetFov });
 }
 
