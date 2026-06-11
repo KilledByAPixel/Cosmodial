@@ -62,6 +62,7 @@ export function eclipseContacts(e) {
 const AU_TO_KM = 1.495978707e8;
 
 let onCloseCb = null;
+let current = null; // { obj, ctx } of the open card, for the delegated star toggle
 
 function row(html) { const p = document.createElement('p'); p.className = 'card-line'; p.innerHTML = html; return p; }
 
@@ -141,9 +142,17 @@ export function openCard(obj, ctx) {
   const host = document.getElementById('card-host');
   if (!host) return;
   onCloseCb = (ctx && ctx.onClose) || null;
+  current = { obj, ctx };
   if (!host.dataset.closeWired) {
     host.dataset.closeWired = '1';
-    host.addEventListener('click', (e) => { if (e.target.closest('.card-close')) closeCard(); });
+    host.addEventListener('click', (e) => {
+      if (e.target.closest('.card-close')) { closeCard(); return; }
+      // Star toggle: flip the favorite, then re-render so the button reflects the new state.
+      if (e.target.closest('.card-fav') && current && current.ctx.fav) {
+        current.ctx.fav.toggle(current.obj);
+        openCard(current.obj, current.ctx);
+      }
+    });
   }
   const card = document.createElement('div');
   card.className = 'card';
@@ -152,10 +161,19 @@ export function openCard(obj, ctx) {
   close.type = 'button';
   close.setAttribute('aria-label', 'Close');
   close.textContent = '×';
+  let star = null;
+  if (ctx && ctx.fav) {
+    const isFav = ctx.fav.has(obj);
+    star = document.createElement('button');
+    star.className = 'card-fav' + (isFav ? ' on' : '');
+    star.type = 'button';
+    star.setAttribute('aria-label', isFav ? 'Remove from favorites' : 'Add to favorites');
+    star.textContent = isFav ? '★' : '☆';
+  }
   const h = document.createElement('h2');
   h.className = 'card-title';
   h.textContent = titleOf(obj);
-  card.append(close, h, ...bodyLines(obj, ctx), whereLine(obj.altaz));
+  card.append(close, ...(star ? [star] : []), h, ...bodyLines(obj, ctx), whereLine(obj.altaz));
   if (host.firstChild && host.firstChild.innerHTML === card.innerHTML) return; // unchanged: keep the live DOM
   host.innerHTML = '';
   host.append(card);
@@ -164,7 +182,7 @@ export function openCard(obj, ctx) {
 export function closeCard() {
   const host = document.getElementById('card-host');
   if (host) host.innerHTML = '';
-  const cb = onCloseCb; onCloseCb = null;
+  const cb = onCloseCb; onCloseCb = null; current = null;
   if (cb) cb();
 }
 
