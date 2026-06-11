@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeObserver, altAzOfStar, altAzOfBody, precessToDate, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, makeStarAltAz, nightWindow, bodyDistanceAu, moonPhaseName, moonPhaseInfo, searchLunarEclipse, nextLunarEclipse, nextSunEvent } from '../js/core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, precessToDate, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, makeStarAltAz, nightWindow, bodyDistanceAu, moonPhaseName, moonPhaseInfo, searchLunarEclipse, nextLunarEclipse, nextSunEvent, PLANET_MOONS } from '../js/core/astro.js';
 
 // Angular separation (deg) between two equatorial points given in degrees.
 function sepDeg(ra1, dec1, ra2, dec2) {
@@ -140,4 +140,11 @@ test('nextSunEvent returns whichever of sunset/sunrise comes first', () => {
   assert.ok(night.date instanceof Date && afternoon.date instanceof Date, 'both carry Dates');
   assert.ok(night.date.getTime() > at1am.getTime(), 'sunrise is strictly after the reference time');
   assert.ok(afternoon.date.getTime() > at3pm.getTime(), 'sunset is strictly after the reference time');
+});
+
+test('PLANET_MOONS lists all 16 rendered moons with unique names', () => {
+  assert.equal(PLANET_MOONS.length, 16);
+  assert.equal(new Set(PLANET_MOONS.map((m) => m.name)).size, 16, 'names are unique');
+  assert.deepEqual(PLANET_MOONS.find((m) => m.name === 'Io'), { planet: 'Jupiter', name: 'Io' });
+  assert.deepEqual(PLANET_MOONS.find((m) => m.name === 'Titan'), { planet: 'Saturn', name: 'Titan' });
 });

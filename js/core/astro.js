@@ -98,6 +98,14 @@ export function bodyAngularRadiusDeg(body, observer, time) {
 
 // Mean visual magnitudes of the Galilean moons (they vary by a few tenths; fine for dot sizing).
 const GALILEAN_MAGS = { Io: 5.0, Europa: 5.3, Ganymede: 4.6, Callisto: 5.7 };
+const GALILEAN_NAMES = ['Io', 'Europa', 'Ganymede', 'Callisto'];
+
+// Every rendered moon as a static { planet, name } pair — the search index is built once at
+// startup, before any live planetMoonsAltAz() pass has run.
+export const PLANET_MOONS = [
+  ...GALILEAN_NAMES.map((name) => ({ planet: 'Jupiter', name })),
+  ...MOON_ELEMENTS.map((r) => ({ planet: r.planet, name: r.name })),
+];
 
 // All planetary moons as sky positions: [{ planet, name, altaz:{alt,az}, mag, behind }].
 // Jupiter's four use the vendored L1.2 theory; the rest come from the Kepler element table in
@@ -132,7 +140,7 @@ export function planetMoonsAltAz(observer, time) {
   };
   system('Jupiter', Body.Jupiter, (emit) => {
     const jm = Astronomy.JupiterMoons(emit);
-    return ['Io', 'Europa', 'Ganymede', 'Callisto'].map((name) => {
+    return GALILEAN_NAMES.map((name) => {
       const sv = jm[name.toLowerCase()];
       return { name, mag: GALILEAN_MAGS[name], offset: [sv.x, sv.y, sv.z] };
     });
