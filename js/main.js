@@ -1,5 +1,5 @@
 import { createState } from './core/state.js';
-import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, planetMoonsAltAz, moonLibrationDeg, nextSunEvent } from './core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, planetMoonsAltAz, moonLibrationDeg, nextSunEvent, cometsAltAz } from './core/astro.js';
 import { makeStarAltAz, horToEqjRotation, eqjToGalRotation } from './core/astro.js';
 import { eqjToEnuMatrix } from './render/star-transform.js';
 import { bodyScreenOrientation } from './core/moon.js';
@@ -7,6 +7,7 @@ import { buildTimeControls } from './ui/time-controls.js';
 import { buildMenu, buildSkyToggles } from './ui/menu.js';
 import { screenshotName, saveComposite } from './ui/screenshot.js';
 import { PLANETS, planetRadius } from './render/planets.js';
+import { COMETS } from './core/comets.js';
 import { SATURN_RING, ringOpening } from './render/ring-math.js';
 import { drawScene, drawStarLabels, markerRadius, resizeCanvas } from './render/sky.js';
 import { createStarfield, hexToRgb01 } from './render/starfield-gl.js';
@@ -31,6 +32,10 @@ import { findConjunctions, midpointAltAz } from './guide/conjunctions.js';
 // dot, and from there the disc and Saturn's rings are 1:1. (Moon positions are always true-scale, so a
 // value != 1 would inflate discs relative to the moons around them.)
 const PLANET_SCALE = 1;
+
+// Comets draw as markers only when at least binocular-bright; fainter ones stay searchable
+// (highlight ring + card) without littering the sky with labels for invisible objects.
+const COMET_MARKER_MAG = 9;
 
 const canvas = document.getElementById('sky');
 const ctx = canvas.getContext('2d');
@@ -59,6 +64,7 @@ let figures = [];        // editable source: [{name, abbr, lines:[[[ra,dec],[ra,
 let constellations = []; // derived render data: [{name, label:{alt,az}, lines:[[{alt,az},...]]}]
 let dsos = [];          // raw catalogue from dso.json
 let dsoObjects = [];    // { ...dso, kind:'dso', altaz } for the current time/location
+let cometObjects = [];  // [{ kind:'comet', id, name, altaz|null, mag, ... }] for the current time/location
 let originalFigures = [];   // pristine split from the file, for reset
 let loadedRaw = [];   // the raw constellations.json array as loaded (basis for localStorage validity)
 let favPanel = null;
@@ -131,6 +137,7 @@ function computeSky(full) {
     ...planetMarkers,
   ];
   planetMoons = planetMoonsAltAz(observer, time);
+  cometObjects = cometsAltAz(observer, time).map((c) => ({ ...c, kind: 'comet' }));
   if (useGL) {
     // Sky background: atmosphere colour + star wash-out are driven by the Sun's altitude; the warm
     // glow lobe needs its direction, and the Milky Way texture its ENU->galactic sampling matrix.
@@ -227,7 +234,12 @@ function render() {
   const visibleCons = st.flags.edit
     ? (constellations[editIndex] ? [constellations[editIndex]] : [])
     : (st.flags.lines ? constellations : []);
-  let drawList = st.flags.edit ? [] : markers; // markers (+ planetary moons when their planet resolves)
+  // Comets bright enough to draw, as plain glow-dot markers (kept out of the module `markers`
+  // array so conjunctions/body code never see them).
+  const cometMarkers = st.flags.edit ? [] : cometObjects
+    .filter((c) => c.altaz && c.mag <= COMET_MARKER_MAG)
+    .map((c) => ({ altaz: c.altaz, label: c.name, color: c.color, mag: c.mag, alpha: markerAlpha(c.mag), radius: planetRadius(c.mag) }));
+  let drawList = st.flags.edit ? [] : markers.concat(cometMarkers); // markers (+ moons/comets variants below)
   // One EQJ->ENU rotation per frame, shared by the GPU star transform and the equatorial grid:
   // stars sweep smoothly in live/play/scrub at zero per-star CPU cost, and the grid stays glued
   // to them because both use the SAME rotation.
@@ -281,7 +293,7 @@ function render() {
         altaz: m.altaz, label: m.name, color: '#d8cfc0',
         mag: m.mag, alpha: markerAlpha(m.mag), radius: planetRadius(m.mag),
       }));
-    drawList = st.flags.edit ? [] : markers.concat(moonMarkers);
+    drawList = st.flags.edit ? [] : markers.concat(moonMarkers, cometMarkers);
     starfield.draw(cam, { belowFade, edit: st.flags.edit });
     // Sun/Moon/planets as glowing discs: size from markerRadius (angular for Sun/Moon, disk for
     // planets), tint from the body's colour, brightness from magnitude. Hidden in edit mode.
@@ -383,6 +395,7 @@ function onIdentifyTap(x, y) {
     ...skyObjects.map((s) => ({ kind: 'star', id: s.id, name: s.name, mag: s.mag, bv: s.bv, con: s.con, dist: s.dist, altaz: s.altaz })),
     ...markers.map((m) => ({ kind: m.label === 'Moon' ? 'moon' : m.label === 'Sun' ? 'sun' : 'planet', label: m.label, body: m.body, mag: m.mag, altaz: m.altaz })),
     ...dsoObjects,
+    ...cometObjects.filter((c) => c.altaz && c.mag <= COMET_MARKER_MAG),
   ].filter((o) => o.altaz.alt >= 0 || belowHorizonFade(st.aim.alt) > 0.05); // faded-in below-horizon objects are pickable too
   const projected = candidates.map((o) => { const p = projector(o.altaz.az, o.altaz.alt); return { x: p.x, y: p.y, visible: p.visible, ref: o }; });
   const hit = pickNearest(projected, x, y, 18);
@@ -421,6 +434,10 @@ function resolveFavorite(rec) {
     return s ? { kind: 'star', id: s.id, name: s.name, mag: s.mag, bv: s.bv, con: s.con, dist: s.dist, altaz: s.altaz } : null;
   }
   if (rec.kind === 'dso') return dsoObjects.find((o) => o.id === rec.id) || null;
+  if (rec.kind === 'comet') {
+    const c = cometObjects.find((o) => o.id === rec.id);
+    return c && c.altaz ? c : null; // out-of-coverage comets drop from rows/go-to but stay stored
+  }
   const m = markers.find((o) => o.label === rec.label);
   if (!m) return null;
   const kind = m.label === 'Moon' ? 'moon' : m.label === 'Sun' ? 'sun' : 'planet';
@@ -453,8 +470,15 @@ function selectionStars() {
 // midpoint) have no `kind` and stay put — they're transient and barely drift.
 function syncSelection() {
   if (!highlighted || !highlighted.kind) return;
-  const altaz = liveAltAzFor(highlighted);
-  if (altaz) highlighted.altaz = altaz;            // ring follows the object
+  if (highlighted.kind === 'comet') {
+    // Comets refresh the whole pick: mag/distances change with the viewed time, and altaz can
+    // legitimately become null (scrubbed outside coverage) — the card copes with both.
+    const c = cometObjects.find((o) => o.id === highlighted.id);
+    if (c) Object.assign(highlighted, c);
+  } else {
+    const altaz = liveAltAzFor(highlighted);
+    if (altaz) highlighted.altaz = altaz;          // ring follows the object
+  }
   if (!isCardOpen()) return;                       // refresh the card's where-now / distance / phase readouts
   const st = store.getState();
   const observer = makeObserver(st.location.lat, st.location.lng);
@@ -543,6 +567,7 @@ function followIdentity(pick) {
   if (!pick || !pick.kind) return null;
   if (pick.kind === 'star') return { kind: 'star', id: pick.id };
   if (pick.kind === 'dso') return { kind: 'dso', id: pick.id };
+  if (pick.kind === 'comet') return { kind: 'comet', id: pick.id };
   if (pick.kind === 'moon' || pick.kind === 'sun' || pick.kind === 'planet') return { kind: 'body', label: pick.label };
   return null;
 }
@@ -553,6 +578,7 @@ function resolveFollowAltAz() {
   if (followTarget.kind === 'star') { const s = skyObjects.find((o) => o.id === followTarget.id); return s ? s.altaz : null; }
   if (followTarget.kind === 'body') { const m = markers.find((o) => o.label === followTarget.label); return m ? m.altaz : null; }
   if (followTarget.kind === 'dso') { const d = dsoObjects.find((o) => o.id === followTarget.id); return d ? d.altaz : null; }
+  if (followTarget.kind === 'comet') { const c = cometObjects.find((o) => o.id === followTarget.id); return c && c.altaz ? c.altaz : null; }
   if (followTarget.kind === 'constellation') { const c = constellations.find((o) => o.name === followTarget.name); return c ? c.label : null; }
   return null;
 }
@@ -575,7 +601,7 @@ function onFindObject(pick) {
 
 // Go-to zoom per kind: planets close enough that their moons resolve; Moon/Sun framed; stars and
 // DSOs wider. Tuned by eye.
-const GOTO_FOV = { planet: 0.5, moon: 1.5, sun: 1.5, star: 2, dso: 4 };
+const GOTO_FOV = { planet: 0.5, moon: 1.5, sun: 1.5, star: 2, dso: 4, comet: 4 };
 
 // A favorites row was clicked: same as Find, but zoomed to the kind's close-up FOV.
 function onGoToFavorite(rec) {
@@ -589,7 +615,7 @@ function onGoToFavorite(rec) {
 // kinds get a fixed deep zoom. setFov clamps to MIN_FOV, so small planets just bottom out fully
 // zoomed. Tuned by eye.
 const INSPECT_FILL = { planet: 0.6, moon: 0.5, sun: 0.5 }; // fraction of the view the disc spans
-const INSPECT_FOV = { star: 1, dso: 1.5 };                   // no disc: fixed deep zoom
+const INSPECT_FOV = { star: 1, dso: 1.5, comet: 1.5 };       // no disc: fixed deep zoom
 
 function inspectFov(kind, radiusDeg) {
   const fill = INSPECT_FILL[kind];
@@ -621,7 +647,20 @@ function onSearchSelect(entry) {
   }
   const rec = entry.type === 'body' ? { kind: 'body', label: entry.ref } : { kind: entry.type, id: entry.ref };
   const obj = resolveFavorite(rec);
-  if (obj) onFindObject(obj);
+  if (obj) { onFindObject(obj); return; }
+  // A comet outside its orbit-data coverage has no position: open its card (which explains the
+  // data range) without slewing or locking on.
+  if (entry.type === 'comet') {
+    const c = cometObjects.find((o) => o.id === entry.ref);
+    if (!c) return;
+    const st = store.getState();
+    const observer = makeObserver(st.location.lat, st.location.lng);
+    const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
+    highlighted = c;
+    followTarget = null;
+    openCard(c, cardCtx(observer, time));
+    requestRender();
+  }
 }
 
 function onTap(x, y) {
@@ -688,7 +727,7 @@ function drawEditOverlay(ctx, cam) {
 }
 
 function drawHighlight(ctx, cam) {
-  if (!highlighted) return;
+  if (!highlighted || !highlighted.altaz) return;
   const p = createProjector(cam)(highlighted.altaz.az, highlighted.altaz.alt);
   if (!p.visible) return;
   ctx.strokeStyle = 'rgba(255, 220, 130, 0.9)';
@@ -747,7 +786,7 @@ async function boot() {
   attachInput(canvas, store, { onTap, onAction: onEditAction, onViewDrag: () => { followTarget = null; } });
   const controls = document.getElementById('controls');
   const bodyLabels = ['Moon', 'Sun', ...PLANETS.map((p) => p.name)];
-  const search = buildSearch(buildSearchIndex(stars, figures, bodyLabels, dsos), { onSelect: onSearchSelect });
+  const search = buildSearch(buildSearchIndex(stars, figures, bodyLabels, dsos, COMETS), { onSelect: onSearchSelect });
   // Screenshot: re-render synchronously, then composite GL sky + 2D overlay in the SAME task —
   // the GL context has no preserveDrawingBuffer, so its pixels only survive until the task ends.
   const onScreenshot = () => {
