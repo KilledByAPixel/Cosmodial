@@ -1,4 +1,5 @@
 import { createProjector } from '../core/projection.js';
+import { LINE_STYLES } from './line-styles.js';
 
 const CARDINALS = [
   { az: 0, label: 'N' }, { az: 45, label: 'NE' }, { az: 90, label: 'E' }, { az: 135, label: 'SE' },
@@ -37,8 +38,8 @@ export function compassMarks(centerAz, width, spanDeg = STRIP_SPAN_DEG) {
 // The horizon line + cardinal labels, drawn only where alt=0 is actually within the view.
 function drawHorizon(ctx, cam) {
   const projector = createProjector(cam);
-  ctx.strokeStyle = 'rgba(120, 160, 200, 0.35)';
-  ctx.lineWidth = 1;
+  ctx.strokeStyle = LINE_STYLES.horizon.color;
+  ctx.lineWidth = LINE_STYLES.horizon.width;
   ctx.beginPath();
   // Sample the horizon across the full ±180° of azimuth: zoomed out near the zenith/nadir the
   // entire horizon is a closed on-screen ring (the headline stereographic view). At narrower FOVs
@@ -107,7 +108,7 @@ function drawCompass(ctx, cam) {
   ctx.textAlign = 'left';
 }
 
-export function drawHud(ctx, cam) {
-  drawHorizon(ctx, cam);
+export function drawHud(ctx, cam, { horizon = true } = {}) {
+  if (horizon) drawHorizon(ctx, cam);
   drawCompass(ctx, cam);
 }

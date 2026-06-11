@@ -368,7 +368,11 @@ function render() {
   // constellation lines (so labels sit on top), matching the old single-canvas order.
   if (useGL) drawStarLabels(ctx, skyObjects, createProjector(cam), cam, st.flags.labels, belowFade);
   if (!st.flags.edit) drawCorona(ctx, cam);
-  drawHud(ctx, cam);
+  // With every overlay toggle off the sky reads as a deliberate clean view, so the horizon line
+  // and its cardinal letters hide too (edit mode keeps them as a framing reference).
+  const overlaysOn = st.flags.lines || st.flags.labels || st.flags.grid || st.flags.eqgrid
+    || st.flags.deepsky || st.flags.edit;
+  drawHud(ctx, cam, { horizon: overlaysOn });
   if (st.flags.edit) drawEditOverlay(ctx, cam);
   drawHighlight(ctx, cam);
   // Live mode: self-sustaining render loop (one render per animation frame) so the sky moves smoothly —
