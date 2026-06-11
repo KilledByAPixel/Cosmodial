@@ -1,9 +1,9 @@
-// Keplerian ephemerides for famous comets. Same pattern as planet-moons.js (per-row mean elements,
-// pure math, no vendor import) with two differences: elements are HELIOCENTRIC ecliptic-J2000
-// (JPL's comet convention) parameterized by perihelion distance + time (works for both elliptic and
-// hyperbolic orbits), and the Kepler solver is robust at the high eccentricities comets live at
-// (Halley e≈0.967, C/2023 A3 slightly hyperbolic). Oracle-tested against JPL Horizons in
-// tests/comets.test.js.
+// Keplerian ephemerides for famous comets and the interstellar visitors. Same pattern as
+// planet-moons.js (per-row mean elements, pure math, no vendor import) with two differences:
+// elements are HELIOCENTRIC ecliptic-J2000 (JPL's comet convention) parameterized by perihelion
+// distance + time (works for both elliptic and hyperbolic orbits), and the Kepler solver is robust
+// at the eccentricities these objects live at (Halley e≈0.967 up to 3I/ATLAS e≈6.14, the most
+// hyperbolic orbit ever measured). Oracle-tested against JPL Horizons in tests/comets.test.js.
 //
 // Comets get one element set PER APPARITION: two-body propagation from a single fit degrades across
 // perihelion passages (planetary tugs + outgassing thrust), so each set carries a validity window
@@ -14,7 +14,13 @@
 //
 // Sourcing (all JPL Horizons, fetched 2026-06-11 via scripts/fetch-comet-data.mjs):
 // osculating elements at the listed epochs (EPHEM_TYPE=ELEMENTS, CENTER='500@10',
-// REF_PLANE=ECLIPTIC, OUT_UNITS=AU-D); M1/K1 total-magnitude parameters from the same outputs.
+// REF_PLANE=ECLIPTIC, OUT_UNITS=AU-D); M1/K1 total-magnitude parameters from the same outputs,
+// EXCEPT the three great comets (Hale–Bopp, NEOWISE, Tsuchinshan–ATLAS), which carry
+// per-apparition light-curve fits instead: JPL's whole-arc M1/K1 average over the entire orbit
+// and undersell the famous peaks by 4-5 magnitudes (Hale–Bopp would show mag 5.3 in April 1997
+// vs the observed -0.5). The substituted values are noted per row with the JPL originals.
+// 1I/'Oumuamua has no coma, hence no M1/K1 — its asteroid absolute magnitude H stands in as M1
+// with K1=5 (the plain 5·log10(r) distance law, no activity brightening).
 import { degToRad } from './angles.js';
 
 const K_GAUSS = 0.01720209894846; // Gaussian gravitational constant (rad/day at 1 AU)
@@ -71,7 +77,7 @@ export const COMETS = [
   {
     id: 'C/1995 O1', name: 'Comet Hale–Bopp', aliases: ['Hale-Bopp'], color: '#bfe8d4',
     blurb: 'The great comet of 1997 — naked-eye for a record 18 months, with twin blue-and-white tails.',
-    M1: 4.8, K1: 4,
+    M1: -0.7, K1: 7.8, // 1997-apparition light-curve fit (~obs -0.5 at peak); JPL whole-arc 4.8/4 gives 5.3
     sets: [
       { epochJd: 2450539.5, tpJd: 2450539.633099367842, q_au: 9.141695067003724E-01, e: 9.951314746156615E-01, i_deg: 8.943017155012492E+01, node_deg: 2.824706028668530E+02, peri_deg: 1.305872524854533E+02,
         validFromJd: 2433282.5, validToJd: 2488069.5 },  // 1950 -> 2100
@@ -80,7 +86,7 @@ export const COMETS = [
   {
     id: 'C/2020 F3', name: 'Comet NEOWISE', aliases: ['NEOWISE'], color: '#bfe8d4',
     blurb: 'The surprise comet of July 2020, hanging over dawn and dusk skies worldwide.',
-    M1: 12.1, K1: 12.25,
+    M1: 6.5, K1: 9, // 2020-apparition light-curve fit (~obs mag 2 at peak); JPL whole-arc 12.1/12.25 gives 6.9
     sets: [
       { epochJd: 2459036.5, tpJd: 2459034.178898043931, q_au: 2.946512493809076E-01, e: 9.991780262529000E-01, i_deg: 1.289375027594809E+02, node_deg: 6.101042818536988E+01, peri_deg: 3.727865844812243E+01,
         validFromJd: 2447892.5, validToJd: 2488069.5 },  // 1990 -> 2100
@@ -89,9 +95,39 @@ export const COMETS = [
   {
     id: 'C/2023 A3', name: 'Comet Tsuchinshan–ATLAS', aliases: ['Tsuchinshan-ATLAS'], color: '#bfe8d4',
     blurb: 'The bright comet of October 2024 — a once-in-80,000-years visitor that posed for photos worldwide.',
-    M1: 8.9, K1: 5.5,
+    M1: 5.5, K1: 7.5, // 2024-apparition light-curve fit (~obs mag 2, excl. forward-scatter spike); JPL whole-arc 8.9/5.5 gives 6.1
     sets: [
       { epochJd: 2460588.5, tpJd: 2460581.241736884229, q_au: 3.914206168828384E-01, e: 1.000040116532910E+00, i_deg: 1.391105312851733E+02, node_deg: 2.155947224467289E+01, peri_deg: 3.084891449925868E+02,
+        validFromJd: 2451544.5, validToJd: 2488069.5 },  // 2000 -> 2100
+    ],
+  },
+  // Interstellar visitors: one hyperbolic pass each, so a single element set covers everything —
+  // there is no second perihelion for the timing error to explode across. All three peaked far
+  // below naked-eye, so they never auto-draw; they live in search ("where is it now / where was it").
+  {
+    id: '1I', name: 'ʻOumuamua', aliases: ["1I/'Oumuamua", 'Oumuamua', 'A/2017 U1'], color: '#bfe8d4',
+    blurb: 'The first interstellar object ever detected (2017) — a strange elongated sliver from another star system, seen for a few weeks on its way back out.',
+    M1: 22.08, K1: 5, // asteroid absolute magnitude H (no coma) with the plain 5·log r distance law
+    sets: [
+      { epochJd: 2458059.5, tpJd: 2458006.003709242214, q_au: 2.559154766034523E-01, e: 1.201066769339995E+00, i_deg: 1.227411027177286E+02, node_deg: 2.459683079454678E+01, peri_deg: 2.418080164316551E+02,
+        validFromJd: 2451544.5, validToJd: 2488069.5 },  // 2000 -> 2100
+    ],
+  },
+  {
+    id: '2I', name: 'Comet Borisov', aliases: ['2I/Borisov', 'Borisov'], color: '#bfe8d4',
+    blurb: 'The second interstellar visitor (2019) and the first unmistakable interstellar comet — it looked like one of ours, but came from another star.',
+    M1: 13.8, K1: 4.5,
+    sets: [
+      { epochJd: 2458826.5, tpJd: 2458826.053606673609, q_au: 2.006523259294792E+00, e: 3.356479162140137E+00, i_deg: 4.405261711862342E+01, node_deg: 3.081477020789225E+02, peri_deg: 2.091242611347487E+02,
+        validFromJd: 2451544.5, validToJd: 2488069.5 },  // 2000 -> 2100
+    ],
+  },
+  {
+    id: '3I', name: '3I/ATLAS', aliases: ['Comet ATLAS (interstellar)', 'C/2025 N1'], color: '#bfe8d4',
+    blurb: 'The third interstellar object (2025), on the most extreme orbit ever measured — it swung past the Sun in October 2025 and will never return.',
+    M1: 12.5, K1: 4.5,
+    sets: [
+      { epochJd: 2460978.5, tpJd: 2460977.982230809983, q_au: 1.356447826433169E+00, e: 6.139315171788360E+00, i_deg: 1.751131353249842E+02, node_deg: 3.221554717103919E+02, peri_deg: 1.280070467997686E+02,
         validFromJd: 2451544.5, validToJd: 2488069.5 },  // 2000 -> 2100
     ],
   },

@@ -29,20 +29,31 @@ const FIXTURES = [
   { id: 'C/2020 F3', setIndex: 0, jdTdb: 2459156.5, xyzAu: [-1.108356607708764E+00, -2.043658038319095E+00, -7.682484295975281E-01], tol: TOL_DRIFT },
   { id: 'C/2023 A3', setIndex: 0, jdTdb: 2460588.5, xyzAu: [3.689186827738107E-01, 2.350270484849886E-01, 3.006952743560795E-02], tol: TOL_EPOCH },
   { id: 'C/2023 A3', setIndex: 0, jdTdb: 2460708.5, xyzAu: [1.015129406387468E+00, -2.071605833009110E+00, 8.317879324181028E-01], tol: TOL_DRIFT },
+  { id: '1I', setIndex: 0, jdTdb: 2458059.5, xyzAu: [1.429214878711522E+00, 5.095679218458040E-01, 3.153756575533933E-01], tol: TOL_EPOCH },
+  { id: '1I', setIndex: 0, jdTdb: 2458179.5, xyzAu: [3.774407875780946E+00, 5.123908500652280E-01, 1.339409660007642E+00], tol: TOL_DRIFT },
+  { id: '2I', setIndex: 0, jdTdb: 2458826.5, xyzAu: [-1.636854720100353E+00, 1.131785452980355E+00, -2.569095956224782E-01], tol: TOL_EPOCH },
+  { id: '2I', setIndex: 0, jdTdb: 2458946.5, xyzAu: [-1.875969309554346E+00, -4.307412154391843E-01, -2.699154840575518E+00], tol: TOL_DRIFT },
+  { id: '3I', setIndex: 0, jdTdb: 2460978.5, xyzAu: [-1.317919208541847E+00, -3.190279625848774E-01, -4.024762615527163E-02], tol: TOL_EPOCH },
+  { id: '3I', setIndex: 0, jdTdb: 2461098.5, xyzAu: [-1.905394832880574E+00, 3.822312101035846E+00, 1.465194655516428E+00], tol: TOL_DRIFT },
 ];
 
-test('catalogue covers the 7 comets with sane fields', () => {
-  assert.equal(COMETS.length, 7);
+// The interstellar visitors get looser sanity bounds: hyperbolic e (Borisov 3.36, 3I/ATLAS 6.14),
+// Borisov's q of 2.0 AU, and 'Oumuamua's asteroid-H standing in as M1 (22.08 — no coma).
+const INTERSTELLAR = new Set(['1I', '2I', '3I']);
+
+test('catalogue covers the 7 comets + 3 interstellar visitors with sane fields', () => {
+  assert.equal(COMETS.length, 10);
   const ids = new Set(COMETS.map((c) => c.id));
-  assert.equal(ids.size, 7, 'unique ids');
+  assert.equal(ids.size, 10, 'unique ids');
   for (const c of COMETS) {
+    const iso = INTERSTELLAR.has(c.id);
     assert.ok(c.name && c.blurb && c.color, c.id);
-    assert.ok(Number.isFinite(c.M1) && c.M1 > -3 && c.M1 < 16, `${c.id} M1`);
+    assert.ok(Number.isFinite(c.M1) && c.M1 > -3 && c.M1 < (iso ? 23 : 16), `${c.id} M1`);
     assert.ok(Number.isFinite(c.K1) && c.K1 >= 2 && c.K1 <= 25, `${c.id} K1`);
     assert.ok(c.sets.length >= 1, c.id);
     for (const s of c.sets) {
-      assert.ok(s.q_au > 0.1 && s.q_au < 1.2, `${c.id} q`);
-      assert.ok(s.e > 0.5 && s.e < 1.05, `${c.id} e`);
+      assert.ok(s.q_au > 0.1 && s.q_au < (iso ? 2.5 : 1.2), `${c.id} q`);
+      assert.ok(s.e > 0.5 && s.e < (iso ? 7 : 1.05), `${c.id} e`);
       assert.notEqual(s.e, 1, `${c.id} e: exactly-parabolic rows hit the hyperbolic branch's a=q/(1-e) singularity`);
       assert.ok(s.validFromJd < s.validToJd, `${c.id} window ordered`);
       assert.ok(Number.isFinite(s.tpJd) && Number.isFinite(s.i_deg) && Number.isFinite(s.node_deg) && Number.isFinite(s.peri_deg), c.id);

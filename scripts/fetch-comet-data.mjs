@@ -22,6 +22,10 @@ const TARGETS = [
   { file: 'C1995O1', command: 'DES=C/1995 O1; CAP;', epochJd: 2450539.5 },
   { file: 'C2020F3', command: 'DES=C/2020 F3; CAP;', epochJd: 2459036.5 },
   { file: 'C2023A3', command: 'DES=C/2023 A3; CAP;', epochJd: 2460588.5 },
+  // Interstellar visitors: single hyperbolic pass each, one record, no CAP needed.
+  { file: '1I', command: 'DES=1I;', epochJd: 2458059.5 },   // 'Oumuamua, discovery era (peri 2017-09-09)
+  { file: '2I', command: 'DES=2I;', epochJd: 2458826.5 },   // Borisov, near perihelion 2019-12-08
+  { file: '3I', command: 'DES=3I;', epochJd: 2460978.5 },   // ATLAS, near perihelion 2025-10-29
 ];
 
 // Topocentric az/el fixtures: one night each for two comets near their bright apparitions.
