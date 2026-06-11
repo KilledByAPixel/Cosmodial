@@ -2,7 +2,7 @@
 
 - **Star data:** HYG Database v4.1 (astronexus/HYG-Database,
   https://github.com/astronexus/HYG-Database — `hyg/CURRENT/hygdata_v41.csv`),
-  licensed **CC-BY-SA 4.0**. Cosmodial ships a magnitude-limited (mag <= 8.5), field-trimmed
+  licensed **CC-BY-SA 4.0**. Cosmodial ships a magnitude-limited (mag <= 9.6), field-trimmed
   subset in `data/stars.json`; that subset is likewise CC-BY-SA 4.0.
 - **Astronomy calculations:** Astronomy Engine v2.1.19 (cosinekitty/astronomy,
   https://github.com/cosinekitty/astronomy), **MIT** — vendored at `js/vendor/astronomy.js`

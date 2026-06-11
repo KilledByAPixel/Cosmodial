@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { starSize, bvToRGB, zoomScale, colorBrightness } from '../js/render/starstyle.js';
+import { starSize, bvToRGB, zoomScale, colorBrightness, faintMagLimit } from '../js/render/starstyle.js';
 
 test('brighter stars (smaller mag) are larger', () => {
   assert.ok(starSize(0, 1).radius > starSize(5, 1).radius);
@@ -50,6 +50,22 @@ test('starSize: faint stars are clamped small and dimmed via alpha', () => {
   assert.ok(faint.radius <= mid.radius, 'faint stars are small');
   assert.ok(faint.alpha < 0.5, 'faint stars fade via alpha');
   assert.ok(faint.radius > 0, 'but never zero-size');
+});
+
+test('faintMagLimit is the exact inverse of the starSize alpha fade', () => {
+  for (const zoom of [1, 2, 4]) {
+    const lim = faintMagLimit(zoom);
+    // At the limit the drawn alpha equals the cull floor; just past it, below.
+    assert.ok(Math.abs(starSize(lim, zoom).alpha - 0.05) < 1e-9, `alpha at the limit is CULL_ALPHA (zoom ${zoom})`);
+    assert.ok(starSize(lim + 0.1, zoom).alpha < 0.05, `fainter than the limit -> culled (zoom ${zoom})`);
+    assert.ok(starSize(lim - 0.1, zoom).alpha > 0.05, `brighter than the limit -> drawn (zoom ${zoom})`);
+  }
+});
+
+test('faintMagLimit: zooming in admits fainter stars; a stricter floor admits fewer', () => {
+  assert.ok(faintMagLimit(4) > faintMagLimit(1), 'deep zoom keeps fainter stars');
+  assert.ok(faintMagLimit(1) > 8, 'at base zoom the limit sits past naked-eye depth');
+  assert.ok(faintMagLimit(1, 0.2) < faintMagLimit(1, 0.05), 'higher alpha floor culls more');
 });
 
 test('starSize: radius is capped, and zooming reveals faint stars', () => {

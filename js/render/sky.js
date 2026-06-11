@@ -1,5 +1,5 @@
 import { createProjector, focalPx } from '../core/projection.js';
-import { starSize, bvToRGB, zoomScale, colorBrightness } from './starstyle.js';
+import { starSize, bvToRGB, zoomScale, colorBrightness, faintMagLimit } from './starstyle.js';
 import { drawConstellations } from './constellations.js';
 import { drawGrid } from './grid.js';
 import { drawEqGrid } from './eqgrid.js';
@@ -36,30 +36,49 @@ function clear(ctx, width, height, transparent = false) {
   }
 }
 
-// stars: array of { altaz: {alt, az}, mag, bv, name }
-function drawStars(ctx, stars, projector, cam, edit, labels = true, belowFade = 0) {
+function drawStarPoint(ctx, s, projector, cam, zs, fade, labels) {
+  const below = s.altaz.alt < 0;
+  if (below && fade <= 0) return; // below horizon, fully faded out
+  const p = projector(s.altaz.az, s.altaz.alt);
+  if (!p.visible ||
+      p.x < -STAR_MARGIN || p.x > cam.width + STAR_MARGIN ||
+      p.y < -STAR_MARGIN || p.y > cam.height + STAR_MARGIN) return;
+  const c = bvToRGB(s.bv);
+  const { radius, alpha } = starSize(s.mag, zs);
+  ctx.globalAlpha = alpha * colorBrightness(c) * (below ? fade : 1);
+  ctx.fillStyle = `rgb(${c.r}, ${c.g}, ${c.b})`;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+  ctx.fill();
+  // Label only the brightest named stars so they can be matched against a sky chart.
+  if (labels && s.name && s.mag <= STAR_LABEL_MAG) {
+    ctx.globalAlpha = below ? fade : 1;
+    ctx.fillStyle = STAR_LABEL_COLOR;
+    ctx.fillText(s.name, p.x + 6, p.y - 6);
+  }
+}
+
+// stars: array of { altaz: {alt, az}, mag, bv, name }, sorted brightest-first (build-stars.mjs
+// sorts the catalog by mag and skyObjects preserves that order) — the early break relies on it.
+function drawStars(ctx, stars, projector, cam, edit, labels = true, belowFade = 0, selectedStarId = null) {
   ctx.font = LABEL_FONT;
   const zs = zoomScale(cam.fov);
   const fade = edit ? 1 : belowFade; // edit mode always shows the whole sphere
-  for (const s of stars) {
-    const below = s.altaz.alt < 0;
-    if (below && fade <= 0) continue; // below horizon, fully faded out
-    const p = projector(s.altaz.az, s.altaz.alt);
-    if (!p.visible ||
-        p.x < -STAR_MARGIN || p.x > cam.width + STAR_MARGIN ||
-        p.y < -STAR_MARGIN || p.y > cam.height + STAR_MARGIN) continue;
-    const c = bvToRGB(s.bv);
-    const { radius, alpha } = starSize(s.mag, zs);
-    ctx.globalAlpha = alpha * colorBrightness(c) * (below ? fade : 1);
-    ctx.fillStyle = `rgb(${c.r}, ${c.g}, ${c.b})`;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
-    ctx.fill();
-    // Label only the brightest named stars so they can be matched against a sky chart.
-    if (labels && s.name && s.mag <= STAR_LABEL_MAG) {
-      ctx.globalAlpha = below ? fade : 1;
-      ctx.fillStyle = STAR_LABEL_COLOR;
-      ctx.fillText(s.name, p.x + 6, p.y - 6);
+  // Stop at the first star past the cull limit: everything after it would draw below CULL_ALPHA,
+  // an invisible sub-pixel speck. (WebGL mode draws the whole catalog instead — the shader's
+  // identical alpha fade hides the same stars at no CPU cost.)
+  const magLimit = faintMagLimit(zs);
+  let i = 0;
+  for (; i < stars.length && stars[i].mag <= magLimit; i++) {
+    drawStarPoint(ctx, stars[i], projector, cam, zs, fade, labels);
+  }
+  // A selected faint star (reachable via search) still draws past the cull, so its highlight
+  // ring doesn't circle empty sky.
+  if (selectedStarId != null) {
+    for (; i < stars.length; i++) {
+      if (stars[i].id !== selectedStarId) continue;
+      drawStarPoint(ctx, stars[i], projector, cam, zs, fade, labels);
+      break;
     }
   }
   ctx.globalAlpha = 1;
@@ -134,7 +153,7 @@ function drawMarkers(ctx, markers, projector, cam, labels = true, belowFade = 0,
 // drawStarPoints=false (WebGL mode): the GL canvas draws the star discs, so skip them here and clear
 // transparent; star labels are drawn separately via drawStarLabels(). Default true keeps the
 // standalone 2D path (and tests) unchanged.
-export function drawScene(ctx, { stars, markers, constellations = [], cam, edit = false, labels = true, grid = false, eqGrid = null, belowFade = 0, drawStarPoints = true, drawMarkerDiscs = true, dsos = [], deepsky = false, selectedDsoId = null }) {
+export function drawScene(ctx, { stars, markers, constellations = [], cam, edit = false, labels = true, grid = false, eqGrid = null, belowFade = 0, drawStarPoints = true, drawMarkerDiscs = true, dsos = [], deepsky = false, selectedDsoId = null, selectedStarId = null }) {
   const projector = createProjector(cam);
   const fade = edit ? 1 : belowFade; // edit mode always shows the whole sphere
   clear(ctx, cam.width, cam.height, !drawStarPoints);
@@ -142,7 +161,7 @@ export function drawScene(ctx, { stars, markers, constellations = [], cam, edit 
   if (eqGrid) drawEqGrid(ctx, cam, eqGrid, fade); // eqGrid = the EQJ->ENU matrix when the toggle is on
   if (!edit) drawDsoGlow(ctx, dsos, projector, cam, fade);   // realistic glow, behind the stars
   drawConstellations(ctx, projector, constellations, cam, edit, labels, fade);
-  if (drawStarPoints) drawStars(ctx, stars, projector, cam, edit, labels, fade);
+  if (drawStarPoints) drawStars(ctx, stars, projector, cam, edit, labels, fade, selectedStarId);
   drawMarkers(ctx, markers, projector, cam, labels, fade, drawMarkerDiscs);
   // Symbols/labels on top: all when the toggle is on, else just the selected one. Hidden in edit mode.
   if (!edit && (deepsky || selectedDsoId)) {

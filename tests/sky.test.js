@@ -75,6 +75,37 @@ test('belowFade reveals objects below the horizon; 0 (default) hides them', () =
   assert.ok(half.calls.alphas.some((a) => a > 0 && a <= 0.5), 'below-horizon alpha is scaled by the fade');
 });
 
+test('faint stars past the cull limit are skipped wide out, drawn at deep zoom', () => {
+  // Both stars hug the aim so they stay on-screen even at the telescopic FOV.
+  const stars = [
+    { id: 1, altaz: { alt: 45.2, az: 180 }, mag: 1.0, bv: 0.0 },
+    { id: 2, altaz: { alt: 44.8, az: 180 }, mag: 9.4, bv: 0.5 }, // past the zoom-1 cull (~8.3)
+  ];
+  const wide = stubCtx();
+  drawScene(wide, { stars, markers: [], cam: { az: 180, alt: 45, fov: 60, width: 800, height: 600 } });
+  assert.equal(wide.calls.arc, 1, 'only the bright star draws at the widest FOV');
+
+  const deep = stubCtx();
+  drawScene(deep, { stars, markers: [], cam: { az: 180, alt: 45, fov: 2, width: 800, height: 600 } });
+  assert.equal(deep.calls.arc, 2, 'deep zoom raises the limit and reveals the faint star');
+});
+
+test('a selected faint star draws even past the cull limit', () => {
+  const cam = { az: 180, alt: 45, fov: 60, width: 800, height: 600 };
+  const stars = [
+    { id: 1, altaz: { alt: 50, az: 180 }, mag: 1.0, bv: 0.0 },
+    { id: 2, altaz: { alt: 50, az: 181 }, mag: 9.4, bv: 0.5 },
+    { id: 3, altaz: { alt: 50, az: 182 }, mag: 9.5, bv: 0.5 },
+  ];
+  const sel = stubCtx();
+  drawScene(sel, { stars, markers: [], cam, selectedStarId: 3 });
+  assert.equal(sel.calls.arc, 2, 'the bright star plus the selected faint star (not the other faint one)');
+
+  const none = stubCtx();
+  drawScene(none, { stars, markers: [], cam, selectedStarId: null });
+  assert.equal(none.calls.arc, 1, 'no selection: only the bright star');
+});
+
 test('drawStarPoints:false (WebGL mode) skips star discs + labels, clears transparent', () => {
   const ctx = stubCtx();
   const cam = { az: 180, alt: 45, fov: 60, width: 800, height: 600 };

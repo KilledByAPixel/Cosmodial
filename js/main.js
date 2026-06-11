@@ -80,7 +80,7 @@ let eclipseObscuration = 0; // fraction of the Sun's disc the Moon covers right 
 let tonightShower = null;   // the meteor shower peaking tonight (+ radiant alt/az), or null
 let conjunctions = [];      // close Moon/planet pairs tonight, closest-first
 let skyDirty = true;  // next render runs the FREQUENT recompute (markers/spheres/lines/labels/DSOs)
-let fullDirty = true; // next recompute also runs the FULL pass (62k pick array, eclipse, favorites/events)
+let fullDirty = true; // next recompute also runs the FULL pass (100k pick array, eclipse, favorites/events)
 let selected = null;        // first star picked in edit mode (a skyObjects entry)
 let highlighted = null;     // object whose card is currently open (gets a ring on canvas)
 let followTarget = null;    // object kept centred as time changes (set by Find/search; cleared on drag/tap)
@@ -122,7 +122,7 @@ function loadSavedFigures(currentFile) {
 // Recompute the sky from the current time + location. Two tiers: the FREQUENT pass (every skyDirty
 // render — per frame in live mode) refreshes everything cheap that's on screen: markers, lit-sphere
 // inputs, constellation lines, named-star label positions, DSOs, sky colours. The FULL pass adds the
-// 62k skyObjects remap (now only the picking/favorites data source — the GL stars transform on the
+// 100k skyObjects remap (now only the picking/favorites data source — the GL stars transform on the
 // GPU) plus the eclipse/events work. The 2D fallback always runs full (its stars draw from skyObjects).
 function computeSky(full) {
   const st = store.getState();
@@ -392,6 +392,7 @@ function render() {
     dsos: st.flags.edit ? [] : dsoObjects,   // deep-sky glow/symbols (hidden in edit mode)
     deepsky: st.flags.deepsky,
     selectedDsoId: highlighted && highlighted.kind === 'dso' ? highlighted.id : null,
+    selectedStarId: highlighted && highlighted.kind === 'star' ? highlighted.id : null,
   });
   // In GL mode the star discs live on the GL canvas, so their labels are drawn here, after the
   // constellation lines (so labels sit on top), matching the old single-canvas order.

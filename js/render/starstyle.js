@@ -9,6 +9,7 @@ const STAR_MAG_SHRINK = 0.6; // radius multiplier per +1 magnitude (each fainter
 const STAR_MAX_R = 5;         // cap radius (px, at base zoom) so the brightest stars pop, not bloat
 const STAR_MIN_R = 1.0;       // below this, stop shrinking and fade via alpha instead
 const STAR_DIM_EXP = 1.5;     // how steeply sub-pixel (faint) stars fade out
+const CULL_ALPHA = 0.05;      // 2D fallback skips stars whose alpha would land below this
 
 // Mirror of the size tunables for the WebGL starfield shader (js/render/starfield-gl.js), which
 // can't import runtime values into GLSL. A test (tests/starfield-gl.test.js) asserts the shader
@@ -37,6 +38,15 @@ export function starSize(mag, zoom = 1) {
     radius = STAR_MIN_R;
   }
   return { radius, alpha };
+}
+
+// Faintest magnitude worth drawing at this zoom: the inverse of starSize(), solved for the mag
+// whose alpha is `eps`. Used by the canvas 2D fallback to stop iterating its (brightest-first)
+// star list early — every culled star would have drawn as a near-invisible sub-pixel speck. The
+// WebGL path skips this and lets the shader's identical alpha fade do the work for free.
+export function faintMagLimit(zoom = 1, eps = CULL_ALPHA) {
+  const radius = STAR_MIN_R * Math.pow(eps, 1 / STAR_DIM_EXP);
+  return Math.log(radius / (STAR_BASE_R * zoom)) / Math.log(STAR_MAG_SHRINK);
 }
 
 // Opacity multiplier from a star's RGB colour: white stars brightest, saturated stars a touch

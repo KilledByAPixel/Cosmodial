@@ -1,13 +1,13 @@
 // One-off data prep (NOT part of the runtime). Requires Node >=18 and internet (once).
 // Run: node tools/build-stars.mjs
-// Downloads the HYG v4.1 catalog, keeps stars with mag <= 8.5, trims fields, writes data/stars.json.
+// Downloads the HYG v4.1 catalog, keeps stars with mag <= 9.6, trims fields, writes data/stars.json.
 import { writeFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 // HYG v4.1 (current full release) in astronexus/HYG-Database, default branch "main".
 const HYG_URL = 'https://raw.githubusercontent.com/astronexus/HYG-Database/main/hyg/CURRENT/hygdata_v41.csv';
-const MAG_LIMIT = 8.5;
+const MAG_LIMIT = 9.6;
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const OUT = join(__dir, '..', 'data', 'stars.json');
