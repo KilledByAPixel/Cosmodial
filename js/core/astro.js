@@ -2,6 +2,7 @@
 // Inputs/outputs are in DEGREES. RA stored in degrees; converted to hours where the library needs hours.
 import * as Astronomy from '../vendor/astronomy.js';
 import { MOON_ELEMENTS, moonOffsetEqjAu } from './planet-moons.js';
+import { COMETS, activeCometSet, cometHelioEqjAu, cometMagnitude, cometCoverage } from './comets.js';
 
 // Re-export the body enum so the rest of the app never imports the vendor directly.
 export const Body = Astronomy.Body;
@@ -236,4 +237,30 @@ export function searchLunarEclipse(afterDate) {
 // The lunar eclipse after the one peaking at `afterPeakDate` (normalized).
 export function nextLunarEclipse(afterPeakDate) {
   return normalizeLunarEclipse(Astronomy.NextLunarEclipse(makeTime(afterPeakDate)));
+}
+
+// All comets as sky objects at one instant: [{ id, name, color, blurb, coverage, altaz, mag,
+// rAu (Sun distance), deltaAu (observer distance) }]. Position is two-body propagation from the
+// element set whose epoch is nearest the viewed date; altaz/mag/distances are null outside every
+// set's validity window (no position beats a wrong one — see comets.js). Topocentric like the
+// planets; light-time and aberration are skipped (≲1 arcmin at comet distances, below marker scale).
+export function cometsAltAz(observer, time) {
+  const jdTT = 2451545.0 + time.tt;
+  const ev = Astronomy.HelioVector(Body.Earth, time);
+  const ov = Astronomy.ObserverVector(time, observer, /*ofdate*/ false);
+  return COMETS.map((c) => {
+    const base = { id: c.id, name: c.name, color: c.color, blurb: c.blurb, coverage: cometCoverage(c) };
+    const set = activeCometSet(c, jdTT);
+    if (!set) return { ...base, altaz: null, mag: null, rAu: null, deltaAu: null };
+    const h = cometHelioEqjAu(set, jdTT);
+    const g = [h[0] - ev.x - ov.x, h[1] - ev.y - ov.y, h[2] - ev.z - ov.z]; // observer -> comet (EQJ)
+    const eq = Astronomy.EquatorFromVector(new Astronomy.Vector(g[0], g[1], g[2], time));
+    const rAu = Math.hypot(h[0], h[1], h[2]);
+    const deltaAu = Math.hypot(g[0], g[1], g[2]);
+    return {
+      ...base,
+      altaz: altAzOfStar(eq.ra * 15, eq.dec, observer, time),
+      mag: cometMagnitude(c.M1, c.K1, rAu, deltaAu), rAu, deltaAu,
+    };
+  });
 }
