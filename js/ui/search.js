@@ -1,15 +1,17 @@
 // Object search: type a name (or constellation abbreviation) and jump to it. The index is built
 // once from the loaded catalogues; resolving a pick back to live alt/az happens in main.js.
 
-// Flat search index. Entries: { label, type: 'star'|'constellation'|'body'|'dso'|'comet', ref, aliases? }.
-// ref is the star id, the constellation name, or the body label — whatever main.js needs to resolve.
-export function buildSearchIndex(stars, figures, bodyLabels, dsos = [], comets = []) {
+// Flat search index. Entries: { label, type: 'star'|'constellation'|'body'|'dso'|'comet'|'planet-moon',
+// ref, aliases?, hint? }. ref is the star id, the constellation name, or the body/moon label —
+// whatever main.js needs to resolve. hint overrides the per-type result hint.
+export function buildSearchIndex(stars, figures, bodyLabels, dsos = [], comets = [], moons = []) {
   const index = [];
   for (const s of stars) if (s.name) index.push({ label: s.name, type: 'star', ref: s.id });
   for (const f of figures) index.push({ label: f.name, type: 'constellation', ref: f.name, aliases: f.abbr ? [f.abbr] : [] });
   for (const b of bodyLabels) index.push({ label: b, type: 'body', ref: b });
   for (const d of dsos) index.push({ label: d.name, type: 'dso', ref: d.id, aliases: [d.id] });
   for (const c of comets) index.push({ label: c.name, type: 'comet', ref: c.id, aliases: [c.id, ...(c.aliases || [])] });
+  for (const m of moons) index.push({ label: m.name, type: 'planet-moon', ref: m.name, hint: `moon of ${m.planet}` });
   return index;
 }
 
@@ -56,7 +58,7 @@ export function buildSearch(index, { onSelect }) {
     results.forEach((r, i) => {
       const li = document.createElement('li');
       li.className = 'search-item' + (i === active ? ' active' : '');
-      const hint = TYPE_HINT[r.type];
+      const hint = r.hint || TYPE_HINT[r.type];
       li.innerHTML = `<span class="search-name">${r.label}</span>${hint ? `<span class="search-type">${hint}</span>` : ''}`;
       // mousedown (not click) so it fires before the input's blur clears the list.
       li.addEventListener('mousedown', (e) => { e.preventDefault(); choose(r); });

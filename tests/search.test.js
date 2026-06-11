@@ -49,3 +49,19 @@ test('buildSearchIndex includes comets, findable by name, id, and alias', () => 
   assert.deepEqual(index, [{ label: "Halley's Comet", type: 'comet', ref: '1P', aliases: ['1P', '1P/Halley', 'Halley'] }]);
   assert.ok(searchIndex(index, 'halley').some((e) => e.ref === '1P'), 'found by alias substring');
 });
+
+test('buildSearchIndex includes planetary moons with a per-entry hint', () => {
+  const moons = [{ planet: 'Saturn', name: 'Titan' }, { planet: 'Jupiter', name: 'Io' }];
+  const index = buildSearchIndex([], [], [], [], [], moons);
+  assert.deepEqual(index, [
+    { label: 'Titan', type: 'planet-moon', ref: 'Titan', hint: 'moon of Saturn' },
+    { label: 'Io', type: 'planet-moon', ref: 'Io', hint: 'moon of Jupiter' },
+  ]);
+  assert.ok(searchIndex(index, 'tit').some((e) => e.ref === 'Titan'), 'findable by prefix');
+});
+
+test('searchIndex ranks Titan ahead of Titania for the query "titan"', () => {
+  const moons = [{ planet: 'Uranus', name: 'Titania' }, { planet: 'Saturn', name: 'Titan' }];
+  const index = buildSearchIndex([], [], [], [], [], moons);
+  assert.deepEqual(searchIndex(index, 'titan').map((e) => e.label), ['Titan', 'Titania']);
+});
