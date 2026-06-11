@@ -542,7 +542,7 @@ function solarEclipseEvent(e, live) {
   const kindWord = e.kind === 'total' ? 'Total' : e.kind === 'annular' ? 'Annular' : 'Partial';
   const pct = Math.round(e.obscuration * 100);
   const text = live
-    ? `🌞 ${kindWord} solar eclipse — happening now. The Moon is covering ${pct}% of the Sun.`
+    ? `🌞 ${kindWord} solar eclipse — happening now. The Moon covers ${pct}% of the Sun at peak.`
     : `🌞 ${kindWord} solar eclipse from here ${e.peak.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} at ${e.peak.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} — ${pct}% of the Sun covered.`;
   return { text, actionLabel: 'Find', onAction: () => onJumpToSolarEclipse(e) };
 }
