@@ -82,8 +82,8 @@ let followTarget = null;    // object kept centred as time changes (set by Find/
 let bodyInputs = [];   // per-recompute lit-sphere inputs (Moon + planets); see computeSky()
 let planetMoons = [];       // all systems, flat [{planet, name, altaz, mag, behind}]; drawn when planet resolves
 let resolvedPlanets = new Set(); // sphere-pass planets from the LAST frame; gates moon picks like moon draws
-// NOTE: the 2D (non-GL) fallback path never assigns resolvedPlanets, so moons stay unsearchable-on-screen
-// and untappable there by construction.
+// NOTE: the 2D (non-GL) fallback path never assigns resolvedPlanets, so moons never draw and stay
+// untappable there by construction (search can still slew to one).
 
 // Live pick object for a planetary moon — search, tap, follow, and favorites all converge here.
 // planetBody lets the card read the planet's distance without importing Body itself.
