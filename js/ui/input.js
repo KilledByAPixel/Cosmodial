@@ -41,6 +41,23 @@ export function dampedGrabAz(currentAz, solvedAz, grabAltDeg, zone = 20) {
   return (((currentAz + delta * f) % 360) + 360) % 360;
 }
 
+// How quickly the aim chases the drag target (seconds). Slow drags lag by velocity·tau —
+// imperceptible — while a fast flick becomes a very quick glide instead of a jerk. Tune to taste;
+// 0 would restore the old instant-snap feel.
+const DRAG_TAU = 0.05;
+
+// Exponential approach of the aim toward the drag target: factor 1 - exp(-dt/tau) per step, so the
+// motion is frame-rate independent (two half-steps equal one full step). Shortest-path azimuth.
+// PURE — unit-tested.
+export function aimApproach(current, target, dt, tau) {
+  const k = 1 - Math.exp(-dt / tau);
+  const dAz = ((target.az - current.az + 540) % 360) - 180;
+  return {
+    az: (((current.az + dAz * k) % 360) + 360) % 360,
+    alt: current.alt + (target.alt - current.alt) * k,
+  };
+}
+
 // Attach pointer/wheel input to the canvas. Mouse + single-finger touch drag the sky
 // (grab-the-sky); the wheel and two-finger pinch zoom toward the view center. Returns a detach()
 // function that removes all listeners.
@@ -49,6 +66,37 @@ export function attachInput(canvas, store, opts = {}) {
   let pinch = null;           // { startDist, startFov } while two fingers are down
   let downAt = null; // { x, y, moved } for tap-vs-drag detection
   let grabDir = null; // ENU direction grabbed at pointer-down; the drag pins it under the cursor
+  let dragTarget = null; // aim the lerp loop is chasing; null = no chase running
+  let lerpRaf = 0;
+  let lastT = 0;
+
+  // The chase loop: ease the aim toward dragTarget each frame; after the pointer lifts, keep
+  // gliding until the remaining offset is sub-pixel at the current zoom, then snap and stop.
+  const stopChase = () => {
+    dragTarget = null;
+    if (lerpRaf) { cancelAnimationFrame(lerpRaf); lerpRaf = 0; }
+  };
+  const chaseTick = (t) => {
+    lerpRaf = 0;
+    if (!dragTarget || !dragAimEnabled(store.getState().flags)) { stopChase(); return; }
+    const dt = Math.min(0.1, Math.max(0.001, (t - lastT) / 1000)); // clamp tab-hidden gaps
+    lastT = t;
+    const st = store.getState();
+    const next = aimApproach(st.aim, dragTarget, dt, DRAG_TAU);
+    const remAz = Math.abs(((dragTarget.az - next.az + 540) % 360) - 180);
+    const rem = Math.hypot(remAz, dragTarget.alt - next.alt);
+    if (rem < st.fov * 0.0005 && pointers.size === 0) { // settled after release (< ~⅓ px)
+      store.setAim(dragTarget.az, dragTarget.alt);
+      stopChase();
+      return;
+    }
+    store.setAim(next.az, next.alt);
+    lerpRaf = requestAnimationFrame(chaseTick);
+  };
+  const chase = (az, alt) => {
+    dragTarget = { az, alt };
+    if (!lerpRaf) { lastT = performance.now(); lerpRaf = requestAnimationFrame(chaseTick); }
+  };
 
   const camNow = () => {
     const { aim, fov } = store.getState();
@@ -64,10 +112,11 @@ export function attachInput(canvas, store, opts = {}) {
     if (e.pointerType === 'mouse' && e.button !== 0) return; // ignore right/middle mouse buttons
     canvas.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 1) stopChase(); // grabbing the sky stops any residual glide, mid-flight
     if (pointers.size === 1) downAt = { x: e.clientX, y: e.clientY, moved: false };
     if (pointers.size === 1) grabDir = unproject(e.clientX, e.clientY, camNow());
     // pointerdown always fires before the next pointermove, so the pointer map is consistent here.
-    if (pointers.size === 2) pinch = { startDist: twoPointerDist(), startFov: store.getState().fov };
+    if (pointers.size === 2) { pinch = { startDist: twoPointerDist(), startFov: store.getState().fov }; stopChase(); }
   };
 
   const onMove = (e) => {
@@ -87,7 +136,7 @@ export function attachInput(canvas, store, opts = {}) {
     const cam = camNow();
     const { az, alt } = grabAim(grabDir, e.clientX, e.clientY, cam);
     const grabAlt = (Math.asin(Math.max(-1, Math.min(1, grabDir[2]))) * 180) / Math.PI;
-    store.setAim(dampedGrabAz(cam.az, az, grabAlt), alt);
+    chase(dampedGrabAz(cam.az, az, grabAlt), alt); // ease toward the solve instead of snapping
     if (opts.onViewDrag) opts.onViewDrag(); // user moved the view -> exit any lock-on follow
   };
 

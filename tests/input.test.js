@@ -1,6 +1,22 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { wheelToFov, pinchToFov, toggleKeyAction, dragAimEnabled, dampedGrabAz } from '../js/ui/input.js';
+import { wheelToFov, pinchToFov, toggleKeyAction, dragAimEnabled, dampedGrabAz, aimApproach } from '../js/ui/input.js';
+
+test('aimApproach eases toward the target: shortest-path azimuth, frame-rate independent', () => {
+  // dt == tau -> factor 1 - 1/e ~= 0.632; az 350 -> 10 goes the short way THROUGH north
+  const a = aimApproach({ az: 350, alt: 10 }, { az: 10, alt: 20 }, 0.05, 0.05);
+  assert.ok(Math.abs(a.az - 2.64) < 0.05, `az crossed north: ${a.az}`);
+  assert.ok(Math.abs(a.alt - 16.32) < 0.05, `alt eased: ${a.alt}`);
+  // two half-steps land exactly where one full step does (exponential composition)
+  const half = aimApproach(aimApproach({ az: 100, alt: 30 }, { az: 140, alt: 50 }, 0.025, 0.05),
+    { az: 140, alt: 50 }, 0.025, 0.05);
+  const full = aimApproach({ az: 100, alt: 30 }, { az: 140, alt: 50 }, 0.05, 0.05);
+  assert.ok(Math.abs(half.az - full.az) < 1e-9 && Math.abs(half.alt - full.alt) < 1e-9, 'rate-independent');
+  // converges: many steps land on the target
+  let cur = { az: 0, alt: 0 };
+  for (let i = 0; i < 60; i++) cur = aimApproach(cur, { az: 90, alt: 45 }, 0.016, 0.05);
+  assert.ok(Math.abs(cur.az - 90) < 0.01 && Math.abs(cur.alt - 45) < 0.01, 'converges to the target');
+});
 
 test('wheel up zooms in (FOV shrinks); wheel down zooms out', () => {
   assert.ok(wheelToFov(60, -100) < 60, 'scroll up -> smaller FOV');
