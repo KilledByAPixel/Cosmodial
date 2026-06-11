@@ -151,6 +151,12 @@ function bodyLines(obj, ctx) {
     } else {
       lines.push(row(`<b>No position for this date</b> — orbit data covers ${obj.coverage}.`));
     }
+  } else if (obj.kind === 'planet-moon') {
+    const au = bodyDistanceAu(obj.planetBody, ctx.observer, ctx.time);
+    lines.push(row(`${obj.label} — a moon of ${obj.planet}.`));
+    lines.push(row(`<b>Distance:</b> ${au.toFixed(2)} AU`));
+    lines.push(row(`<b>How to see it:</b> ${easeTag(obj.mag)} (magnitude ${obj.mag.toFixed(1)})`));
+    if (obj.behind) lines.push(row(`Currently hidden behind ${obj.planet}.`));
   } else { // planet
     const au = bodyDistanceAu(obj.body, ctx.observer, ctx.time);
     lines.push(row(`${obj.label} — a ${obj.label === 'Pluto' ? 'dwarf planet' : 'planet'}.`));
