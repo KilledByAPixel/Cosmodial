@@ -216,6 +216,39 @@ export function nextSunEvent(observer, refDate) {
   return { kind: 'sunrise', date: rise.date };
 }
 
+// The next moment the Sun DESCENDS through altDeg (apparent, with refraction) after refDate
+// (e.g. -6 = end of civil twilight) — the screensaver's skip-the-daytime search. Null when
+// it doesn't happen within limitDays (polar summer).
+export function nextSunBelowAlt(observer, refDate, altDeg, limitDays = 4) {
+  const startTime = Astronomy.MakeTime(refDate);
+  // altdiff > 0 while descending means we want the sign flip from positive to negative.
+  // direction = -1 in Search finds where altdiff crosses zero going negative -> positive,
+  // so we define altdiff such that it's positive above altDeg (apparent alt > altDeg).
+  function altdiff(time) {
+    const eq = Astronomy.Equator(Body.Sun, time, observer, /*ofdate*/ true, /*aberration*/ true);
+    const hor = Astronomy.Horizon(time, observer, eq.ra, eq.dec, 'normal');
+    return hor.altitude - altDeg;
+  }
+  // Step size: 10-minute intervals to bracket the crossing. Sun moves ~2.5°/hr in altitude
+  // near the horizon so 10 min (~0.4°) is well within the Nyquist-safe limit.
+  const STEP_DAYS = 10 / 1440;
+  const limit = startTime.AddDays(limitDays);
+  let t1 = startTime;
+  let a1 = altdiff(t1);
+  while (t1.date < limit.date) {
+    const t2 = t1.AddDays(STEP_DAYS);
+    const a2 = altdiff(t2);
+    // Looking for a descent: a1 > 0 and a2 <= 0 (crossing from above to below).
+    if (a1 > 0 && a2 <= 0) {
+      const found = Astronomy.Search(altdiff, t1, t2, { dt_tolerance_seconds: 0.5, init_f1: a1, init_f2: a2 });
+      return found ? found.date : null;
+    }
+    t1 = t2;
+    a1 = a2;
+  }
+  return null;
+}
+
 // Distance to a body (AU) at the given time (topocentric apparent).
 export function bodyDistanceAu(body, observer, time) {
   return Astronomy.Equator(body, time, observer, true, true).dist;

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeObserver, altAzOfStar, altAzOfBody, precessToDate, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, makeStarAltAz, nightWindow, bodyDistanceAu, moonPhaseName, moonPhaseInfo, searchLunarEclipse, nextLunarEclipse, nextSunEvent, PLANET_MOONS } from '../js/core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, precessToDate, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, makeStarAltAz, nightWindow, bodyDistanceAu, moonPhaseName, moonPhaseInfo, searchLunarEclipse, nextLunarEclipse, nextSunEvent, PLANET_MOONS, nextSunBelowAlt } from '../js/core/astro.js';
 
 // Angular separation (deg) between two equatorial points given in degrees.
 function sepDeg(ra1, dec1, ra2, dec2) {
@@ -147,4 +147,14 @@ test('PLANET_MOONS lists all 16 rendered moons with unique names', () => {
   assert.equal(new Set(PLANET_MOONS.map((m) => m.name)).size, 16, 'names are unique');
   assert.deepEqual(PLANET_MOONS.find((m) => m.name === 'Io'), { planet: 'Jupiter', name: 'Io' });
   assert.deepEqual(PLANET_MOONS.find((m) => m.name === 'Titan'), { planet: 'Saturn', name: 'Titan' });
+});
+
+test('nextSunBelowAlt finds the Sun descending through -6° within a day', () => {
+  const obs = makeObserver(29.76, -95.37);              // Houston
+  const from = new Date('2026-06-11T18:00:00Z');        // ~local noon (UTC-5)
+  const when = nextSunBelowAlt(obs, from, -6);
+  assert.ok(when instanceof Date && when > from, 'returns a future Date');
+  assert.ok(when - from < 24 * 3.6e6, 'within a day');
+  const alt = altAzOfBody(Body.Sun, obs, makeTime(when)).alt;
+  assert.ok(Math.abs(alt + 6) < 0.1, `sun alt ${alt} should be ~-6`);
 });
