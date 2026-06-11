@@ -585,6 +585,7 @@ function resolveFollowAltAz() {
 
 // Focus an object: open the card, lock on (keep it centred as time changes), slew to it.
 function focusObject(pick, targetFov) {
+  if (!pick.altaz) return; // position-less pick (comet outside its orbit-data coverage): nothing to aim at
   const st = store.getState();
   const observer = makeObserver(st.location.lat, st.location.lng);
   const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());

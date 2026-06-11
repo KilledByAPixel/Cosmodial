@@ -193,7 +193,7 @@ export function openCard(obj, ctx) {
     star.textContent = isFav ? '★' : '☆';
   }
   let eye = null;
-  if (ctx && ctx.inspect) {
+  if (ctx && ctx.inspect && obj.altaz) { // no zoom-to for a position-less pick (comet outside coverage)
     eye = document.createElement('button');
     eye.className = 'card-eye';
     eye.type = 'button';
