@@ -9,7 +9,7 @@ import { screenshotName, saveComposite } from './ui/screenshot.js';
 import { PLANETS, planetRadius } from './render/planets.js';
 import { COMETS } from './core/comets.js';
 import { SATURN_RING, ringOpening } from './render/ring-math.js';
-import { drawScene, drawStarLabels, markerRadius, resizeCanvas } from './render/sky.js';
+import { drawScene, drawStarLabels, markerRadius, resizeCanvas, SUN_SCALE } from './render/sky.js';
 import { createStarfield, hexToRgb01 } from './render/starfield-gl.js';
 import { drawHud, azToCompass } from './render/hud.js';
 import { createRenderScheduler } from './core/scheduler.js';
@@ -146,6 +146,10 @@ function computeSky(full) {
     const [moonMk, sunMk] = markers;
     eclipseObscuration = discObscuration(altazSepDeg(sunMk.altaz, moonMk.altaz), sunMk.angularRadiusDeg, moonMk.angularRadiusDeg);
     sunMk.alpha = 1 - eclipseObscuration;
+    // The Sun's glow disc is normally drawn oversized (SUN_SCALE represents brightness, not
+    // geometry). During an eclipse the geometry IS the point, so the glow shrinks to true scale
+    // as coverage grows — by mid-partial the disc matches the Moon and the alignment reads right.
+    sunMk.radiusScale = SUN_SCALE - (SUN_SCALE - 1) * Math.min(1, eclipseObscuration / 0.4);
   }
   planetMoons = planetMoonsAltAz(observer, time);
   cometObjects = cometsAltAz(observer, time).map((c) => ({ ...c, kind: 'comet' }));
@@ -265,19 +269,7 @@ function render() {
   const cometMarkers = st.flags.edit ? [] : cometObjects
     .filter((c) => c.altaz && c.mag <= COMET_MARKER_MAG)
     .map((c) => ({ altaz: c.altaz, label: c.name, color: c.color, mag: c.mag, alpha: markerAlpha(c.mag), radius: planetRadius(c.mag) }));
-  // Totality corona: a pale halo at the Sun, fading in across the last ~1.5% of coverage — exactly
-  // as the Sun's own glow (alpha = 1 - obscuration) fades out. True-scale (~2.4 Sun radii), so it
-  // rings the Moon's black disc when zoomed in. Empty label: no text, never pickable.
-  const corona = [];
-  if (!st.flags.edit && eclipseObscuration > 0.985) {
-    const sun = markers.find((m) => m.label === 'Sun');
-    if (sun) corona.push({
-      altaz: sun.altaz, label: '', color: '#dfe5f0',
-      alpha: 0.65 * Math.min(1, (eclipseObscuration - 0.985) / 0.015),
-      angularRadiusDeg: sun.angularRadiusDeg * 2.6,
-    });
-  }
-  let drawList = st.flags.edit ? [] : markers.concat(cometMarkers, corona); // markers (+ moons/comets variants below)
+  let drawList = st.flags.edit ? [] : markers.concat(cometMarkers); // markers (+ moons/comets variants below)
   // One EQJ->ENU rotation per frame, shared by the GPU star transform and the equatorial grid:
   // stars sweep smoothly in live/play/scrub at zero per-star CPU cost, and the grid stays glued
   // to them because both use the SAME rotation.
@@ -331,7 +323,7 @@ function render() {
         altaz: m.altaz, label: m.name, color: '#d8cfc0',
         mag: m.mag, alpha: markerAlpha(m.mag), radius: planetRadius(m.mag),
       }));
-    drawList = st.flags.edit ? [] : markers.concat(moonMarkers, cometMarkers, corona);
+    drawList = st.flags.edit ? [] : markers.concat(moonMarkers, cometMarkers);
     starfield.draw(cam, { belowFade, edit: st.flags.edit });
     // Sun/Moon/planets as glowing discs: size from markerRadius (angular for Sun/Moon, disk for
     // planets), tint from the body's colour, brightness from magnitude. Hidden in edit mode.
@@ -362,6 +354,7 @@ function render() {
   // In GL mode the star discs live on the GL canvas, so their labels are drawn here, after the
   // constellation lines (so labels sit on top), matching the old single-canvas order.
   if (useGL) drawStarLabels(ctx, skyObjects, createProjector(cam), cam, st.flags.labels, belowFade);
+  if (!st.flags.edit) drawCorona(ctx, cam);
   drawHud(ctx, cam);
   if (st.flags.edit) drawEditOverlay(ctx, cam);
   drawHighlight(ctx, cam);
@@ -811,6 +804,31 @@ function drawEditOverlay(ctx, cam) {
       ctx.stroke();
     }
   }
+}
+
+// Totality corona: a soft RING hugging the Sun's limb, drawn on the 2D overlay (which sits above
+// the GL canvas) with a transparent centre — the Moon's black disc shows through the hole. Fades
+// in across the last ~1.5% of coverage, exactly as the Sun's own glow (alpha = 1 - obscuration)
+// fades out. A filled additive GL marker can't do this: it would paint glow OVER the silhouette.
+function drawCorona(ctx, cam) {
+  if (eclipseObscuration <= 0.985) return;
+  const sun = markers.find((m) => m.label === 'Sun');
+  if (!sun) return;
+  const p = createProjector(cam)(sun.altaz.az, sun.altaz.alt);
+  if (!p.visible) return;
+  const limb = markerRadius({ angularRadiusDeg: sun.angularRadiusDeg, label: '' }, cam); // TRUE disc radius (px)
+  const outer = Math.max(limb * 3.2, 14); // keep totality legible even zoomed way out
+  const a = 0.85 * Math.min(1, (eclipseObscuration - 0.985) / 0.015);
+  const stop = Math.min(limb / outer, 0.95); // where the ring peaks: the limb
+  const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, outer);
+  g.addColorStop(Math.max(0, stop - 0.05), 'rgba(228, 233, 245, 0)'); // transparent centre
+  g.addColorStop(stop, `rgba(228, 233, 245, ${a})`);
+  g.addColorStop(Math.min(1, stop + 0.12), `rgba(228, 233, 245, ${a * 0.35})`);
+  g.addColorStop(1, 'rgba(228, 233, 245, 0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, outer, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function drawHighlight(ctx, cam) {

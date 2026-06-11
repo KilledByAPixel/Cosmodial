@@ -262,7 +262,7 @@ test('milkyWayZoomFade: full at wide FOV, gone when zoomed in', () => {
 test('eclipseDarkenedSunAlt: bright partials leave the sky alone, totality reaches twilight, never brightens', () => {
   assert.equal(eclipseDarkenedSunAlt(65, 0), 65, 'no eclipse');
   assert.equal(eclipseDarkenedSunAlt(65, 0.5), 65, 'shallow partial: sky stays deceptively bright');
-  assert.equal(eclipseDarkenedSunAlt(65, 0.7), 65, 'ramp starts above 70%');
+  assert.equal(eclipseDarkenedSunAlt(65, 0.65), 65, 'ramp starts above 65%');
   assert.equal(eclipseDarkenedSunAlt(65, 1), -9, 'totality renders as civil twilight');
   const deep = eclipseDarkenedSunAlt(65, 0.95), deeper = eclipseDarkenedSunAlt(65, 0.99);
   assert.ok(deep < 65 && deeper < deep && deeper > -9, `monotonic ramp: ${deep} -> ${deeper}`);
@@ -271,7 +271,7 @@ test('eclipseDarkenedSunAlt: bright partials leave the sky alone, totality reach
 
 test('eclipseDeepFraction: zero through bright partials, one at totality, monotonic ramp', () => {
   assert.equal(eclipseDeepFraction(0), 0);
-  assert.equal(eclipseDeepFraction(0.7), 0);
+  assert.equal(eclipseDeepFraction(0.65), 0);
   assert.equal(eclipseDeepFraction(1), 1);
   let prev = -1;
   for (const o of [0.7, 0.8, 0.9, 0.95, 0.99, 1]) {

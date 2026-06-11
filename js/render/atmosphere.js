@@ -74,11 +74,12 @@ export function skyParams(sunAltDeg) {
   };
 }
 
-// How "deep" a solar eclipse is for sky purposes: 0 below 70% obscuration (a real partial eclipse
-// leaves the sky deceptively bright), ramping steeply to 1 at totality. One curve drives all the
-// eclipse sky effects (darkening, dusk-lobe suppression, the Moon's veil) so they stay in step.
+// How "deep" a solar eclipse is for sky purposes: 0 below 65% obscuration (a real partial eclipse
+// leaves the sky deceptively bright), ramping to 1 at totality. One curve drives all the eclipse
+// sky effects (darkening, dusk-lobe suppression, the Moon's veil) so they stay in step. The 2.5
+// exponent keeps the onset gentle when scrubbing — the visible plunge still lands near totality.
 export function eclipseDeepFraction(obscuration) {
-  return Math.pow(clamp((obscuration - 0.7) / 0.3, 0, 1), 3);
+  return Math.pow(clamp((obscuration - 0.65) / 0.35, 0, 1), 2.5);
 }
 
 // During a deep solar eclipse the sky itself darkens. Maps the TRUE Sun altitude to the EFFECTIVE

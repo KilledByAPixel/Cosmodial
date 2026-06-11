@@ -90,15 +90,17 @@ export function drawStarLabels(ctx, stars, projector, cam, labels = true, belowF
 // every zoom (the Sun/Moon are only ~0.5° across, so they read small wide out — that's real life).
 // The Sun keeps its own knob for taste-tweaking independently of the true-scale Moon.
 const MOON_SCALE = 1;
-const SUN_SCALE = 4;
+export const SUN_SCALE = 4; // exported: main.js shrinks the Sun toward true scale during an eclipse
 
 // Disk radius (px) for a marker. Sun/Moon carry angularRadiusDeg -> projected to their on-screen size
-// for the current FOV (grows as you zoom in), times their scale knob. Others use a fixed dot radius.
-// Exported so the WebGL marker pass (starfield-gl.js, via main.js) sizes discs identically.
+// for the current FOV (grows as you zoom in), times their scale knob — or a marker-supplied
+// `radiusScale` override (the eclipsing Sun shrinks from its brightness-sized glow to true scale).
+// Others use a fixed dot radius. Exported so the WebGL marker pass (via main.js) sizes discs identically.
 export function markerRadius(m, cam) {
   if (m.angularRadiusDeg != null) {
     const focal = focalPx(cam.fov, cam.width, cam.height);
-    return focal * Math.tan(degToRad(m.angularRadiusDeg)) * (m.label === 'Sun' ? SUN_SCALE : MOON_SCALE);
+    const scale = m.radiusScale != null ? m.radiusScale : (m.label === 'Sun' ? SUN_SCALE : MOON_SCALE);
+    return focal * Math.tan(degToRad(m.angularRadiusDeg)) * scale;
   }
   return m.radius || 4;
 }
