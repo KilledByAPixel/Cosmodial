@@ -11,9 +11,9 @@ export function openAbout() {
     <div class="about-card" role="dialog" aria-label="About Cosmodial">
       <button type="button" class="about-close" aria-label="Close">×</button>
       <h2>Cosmodial Sky Atlas</h2>
-      <p>A free stargazing web app — the whole night sky, live from where you stand.</p>
-      <p>Made by <a href="https://frankforce.com" target="_blank" rel="noopener">Frank Force</a>.</p>
-      <p><a href="${GITHUB_URL}" target="_blank" rel="noopener">Source on GitHub</a> — open source, MIT licensed.</p>
+      <p>The whole night sky, live from your web browser.</p>
+      <p>Copyright 2026 <a href="https://frankforce.com" target="_blank" rel="noopener">Frank Force</a></p>
+      <p><a href="${GITHUB_URL}" target="_blank" rel="noopener">Open source on GitHub</a> — MIT license</p>
     </div>`;
   const onKey = (e) => { if (e.key === 'Escape') close(); };
   const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };

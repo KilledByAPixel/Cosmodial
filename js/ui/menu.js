@@ -113,7 +113,7 @@ export function buildMenu(store, opts = {}) {
   if (opts.onScreenshot) {
     panel.append(section('Capture', makeAction('📷 Screenshot', 'Save the current view as a PNG', opts.onScreenshot)));
   }
-  panel.append(section('Info', makeAction('ℹ️ About Cosmodial', 'About this app', openAbout)));
+  panel.append(section('Info', makeAction('✨ About Cosmodial', 'About this app', openAbout)));
   el.append(btn, panel);
   attachPopover(btn, panel);
   return { el };
