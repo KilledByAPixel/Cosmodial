@@ -56,6 +56,15 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 #controls .icon-toggle { font-size: 15px; line-height: 1; padding: 5px 8px; }
 #controls .icon-toggle:not(.on) { opacity: 0.65; }
 @media (max-width: 640px) { #controls { font-size: 12px; gap: 6px; } }
+/* Mobile browsers auto-zoom the page when a focused text field's font is under 16px, and the
+   zoom sticks after the keyboard closes (whole UI cropped until the device rotates). 16px on
+   touch devices keeps focus from ever triggering it; maximum-scale=1 in the viewport meta is
+   the backstop. */
+@media (pointer: coarse) {
+  #controls input[type="search"],
+  #controls input[type="text"],
+  #controls input[type="datetime-local"] { font-size: 16px; }
+}
 
 /* View toggles (Constellations / Labels / Grid / Night): lit when active. */
 #controls .view-toggle.on { color: #9fd0ff; border-color: #2d5b8a; background: #16263c; }
