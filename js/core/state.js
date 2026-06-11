@@ -13,8 +13,8 @@ const STORE_KEY_FLAGS = 'cosmodial.flags'; // remembered view toggles (see PERSI
 // silently ignored (the full-sphere toggle was replaced by the aim-driven below-horizon fade).
 const PERSISTED_FLAGS = ['labels', 'grid', 'eqgrid', 'deepsky', 'night', 'atmo'];
 
-// Default location (used until the user sets one): Austin, TX.
-const DEFAULT_LOCATION = { lat: 30.27, lng: -97.74, label: 'Austin, TX' };
+// Default location (used until the user sets one): New York, NY.
+const DEFAULT_LOCATION = { lat: 40.71, lng: -74.01, label: 'New York, NY' };
 const DEFAULT_AIM = { az: 180, alt: 45 };
 
 // Lowest altitude the camera may aim at: near the nadir. Aiming below the horizon is always
