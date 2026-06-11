@@ -7,6 +7,7 @@ test('chipLabel appends the active event\'s leading emoji to the collapsed chip'
   assert.equal(chipLabel({ text: '☄️ Perseids peak tonight — up to ~100/hr.' }), '★ Favorites · ☄️',
     'keeps the emoji-style variation selector');
   assert.equal(chipLabel({ text: '🌑 Total lunar eclipse — happening now.' }), '★ Favorites · 🌑');
+  assert.equal(chipLabel({ text: '🌗 Moon and Saturn are close.' }), '★ Favorites · 🌗');
   assert.equal(chipLabel({ text: '' }), '★ Favorites', 'empty text falls back to the plain chip');
 });
 

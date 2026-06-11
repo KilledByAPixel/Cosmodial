@@ -47,7 +47,15 @@ export function buildFavoritesPanel({ onGoTo, onRemove }) {
       const go = document.createElement('button');
       go.type = 'button';
       go.className = 'fav-go';
-      go.innerHTML = `<span class="fav-name">${r.name}</span><br><span class="fav-where">${rowWhere(r.altaz)}</span>`;
+      // textContent (not an innerHTML template): names round-trip through localStorage, so don't
+      // trust them as markup.
+      const name = document.createElement('span');
+      name.className = 'fav-name';
+      name.textContent = r.name;
+      const where = document.createElement('span');
+      where.className = 'fav-where';
+      where.textContent = rowWhere(r.altaz);
+      go.append(name, document.createElement('br'), where);
       go.addEventListener('click', () => onGoTo(r.rec));
       const remove = document.createElement('button');
       remove.type = 'button';
