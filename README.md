@@ -33,6 +33,7 @@ Cosmodial knows. Tell it where you are and it paints the actual sky above your h
 - 🪐 The Sun, Moon, 7 planets + Pluto - computed live, fully textured
 - 🌕 16 planetary moons -positions checked against NASA's numbers
 - 🌌 30 deep-sky objects - galaxies, nebulae, and clusters
+- ☄️ 7 famous comets + all 3 interstellar visitors - orbits checked against JPL Horizons
 
 ## Credits
 
