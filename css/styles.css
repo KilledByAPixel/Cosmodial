@@ -1,6 +1,16 @@
 :root { color-scheme: dark; }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+html, body { margin: 0; height: 100%; background: #000; overflow: hidden;
+  /* App, not document: kill the native touch reading/editing affordances — long-press text
+     magnifier, select-the-canvas + copy bubble, grey tap flash, double-tap page zoom. The sky
+     owns its gestures (see #sky touch-action: none); `manipulation` still lets panels scroll. */
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+/* Typing fields still need a caret and selection inside the field itself. */
+input, textarea { -webkit-user-select: text; user-select: text; }
 /* Two stacked full-screen canvases at the SAME z-index: tree order puts #sky-gl (WebGL stars,
    first in the DOM) behind #sky (the 2D overlay: grid/lines/labels/markers/HUD). Equal z-index +
    DOM order — NOT negative z-index, which would hide #sky-gl behind the body background (it paints
