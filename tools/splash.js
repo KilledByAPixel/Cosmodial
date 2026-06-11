@@ -49,6 +49,11 @@ const MOON = {
   ambient: 0.04, // how visible the night side stays against the sky
   gamma: 0.85,   // <1 softens the terminator a touch
 };
+// Video mode: fullscreen seamless loop for screen capture. Over one cycle the moon runs
+// moonCycles full lunations (new -> full -> new) and the sky makes skyTurns whole revolutions
+// (negative spins the other way); keep both integers and a capture of exactly cycleSec loops
+// without a seam.
+const VIDEO = { cycleSec: 60, skyTurns: 1, moonCycles: 2 };
 
 // Google Fonts loaded by splash.html (plus Georgia, the local default). Webfonts need a beat
 // to arrive before canvas text uses them; the font handler re-renders once they're in.
@@ -71,6 +76,7 @@ const state = {
   backdrop: 'moon', ringScale: 0.42, phase: 0.65, rotate: 0,
 };
 let data = null; // { stars, mwTex, moonTex: ImageData }
+let video = null; // video-mode running state: { ctx, w, h, sky, grad, moon, t0, raf }
 
 // Settings persist across refreshes — handy while iterating on the design constants above.
 const STORE_KEY = 'cosmodial-splash-settings';
@@ -121,8 +127,9 @@ async function loadData() {
 
 // Plane <-> pixel mapping. The stereographic plane radius covering half the horizontal FOV
 // is 2*tan(FOV_X/4); x is mirrored so larger RA appears on the LEFT, like the real sky.
-function makeMapping(w, h) {
-  const S = (w / 2) / (2 * Math.tan((FOV_X / 2) * Math.PI / 180 / 2));
+// refW lets an oversized canvas (video mode's rotation square) keep another frame's FOV scale.
+function makeMapping(w, h, refW = w) {
+  const S = (refW / 2) / (2 * Math.tan((FOV_X / 2) * Math.PI / 180 / 2));
   return {
     S,
     toPx: (p) => ({ x: w / 2 - p.x * S, y: h / 2 - p.y * S }),
@@ -132,13 +139,15 @@ function makeMapping(w, h) {
 
 // Layer 1+2: deep-blue background with the Milky Way texture sampled per pixel through the
 // inverse projection (one-shot render; a CPU pixel loop is fine here, ~2M px worst case).
-function paintSky(ctx, w, h, center, mwIntensity, mwTex) {
-  const { toPlane } = makeMapping(w, h);
+// opts.refW: see makeMapping. opts.flatBg renders over black instead of the gradient —
+// video mode draws the gradient stationary each frame and adds this on top with 'lighter'.
+function paintSky(ctx, w, h, center, mwIntensity, mwTex, opts = {}) {
+  const { toPlane } = makeMapping(w, h, opts.refW);
   const out = ctx.createImageData(w, h);
   const d = out.data, t = mwTex.data, tw = mwTex.width, th = mwTex.height;
   for (let py = 0; py < h; py++) {
     const f = py / h; // a whisper of vertical depth: #07101e up top -> #02050c at the bottom
-    const bg = [7 - 5 * f, 16 - 11 * f, 30 - 18 * f];
+    const bg = opts.flatBg ? [0, 0, 0] : [7 - 5 * f, 16 - 11 * f, 30 - 18 * f];
     for (let px = 0; px < w; px++) {
       const i = (py * w + px) * 4;
       let [r, g, b] = bg;
@@ -159,9 +168,10 @@ function paintSky(ctx, w, h, center, mwIntensity, mwTex) {
 
 // Layer 3: real stars. Size and alpha scale with magnitude, tint from B-V, soft halo on the
 // brightest few. `s` keeps proportions identical across presets (designed at 640px short side).
-function paintStars(ctx, w, h, center, stars) {
-  const { toPx } = makeMapping(w, h);
-  const s = Math.min(w, h) / 640;
+// opts.refW/refMin: see makeMapping — video mode sizes stars for the screen, not the square.
+function paintStars(ctx, w, h, center, stars, opts = {}) {
+  const { toPx } = makeMapping(w, h, opts.refW);
+  const s = (opts.refMin ?? Math.min(w, h)) / 640;
   for (const st of stars) {
     if (st.mag > MAG_LIMIT) continue;
     const p = project(st.ra, st.dec, center);
@@ -258,6 +268,68 @@ function paintMoon(ctx, w, h, scale, phase, rotDeg, tex) {
   ctx.putImageData(box, x0, y0);
 }
 
+// One-time bake of everything about the moon disc that doesn't change with phase: per-pixel
+// albedo from the surface map, view-rotated normal (nx, nz) for the lambert term, rim alpha,
+// and a pow() LUT — so paintMoonFrame is just shade-and-write, fast enough to run per frame.
+function bakeMoon(w, h, scale, rotDeg, tex) {
+  const cx = w / 2, cy = h / 2;
+  const Rm = scale * Math.min(w, h);
+  const x0 = Math.max(0, Math.floor(cx - Rm - 1)), x1 = Math.min(w, Math.ceil(cx + Rm + 1));
+  const y0 = Math.max(0, Math.floor(cy - Rm - 1)), y1 = Math.min(h, Math.ceil(cy + Rm + 1));
+  if (x1 <= x0 || y1 <= y0) return null;
+  const bw = x1 - x0, bh = y1 - y0, n = bw * bh;
+  const albedo = new Uint8ClampedArray(n * 3);
+  const nrm = new Float32Array(n * 2);
+  const alpha = new Uint8ClampedArray(n);
+  const t = tex.data, tw = tex.width, th = tex.height;
+  const rot = (rotDeg * Math.PI) / 180;
+  const cr = Math.cos(rot), sr = Math.sin(rot);
+  for (let py = y0; py < y1; py++) {
+    for (let px = x0; px < x1; px++) {
+      const nx0 = (px + 0.5 - cx) / Rm, ny0 = -(py + 0.5 - cy) / Rm;
+      const d2 = nx0 * nx0 + ny0 * ny0;
+      if (d2 >= 1) continue;
+      const nx = nx0 * cr + ny0 * sr, ny = ny0 * cr - nx0 * sr;
+      const nz = Math.sqrt(1 - d2);
+      const lon = Math.atan2(nx, nz), lat = Math.asin(Math.max(-1, Math.min(1, ny)));
+      const u = 0.5 + lon / (2 * Math.PI), v = 0.5 - lat / Math.PI;
+      const ti = (((v * (th - 1)) | 0) * tw + ((u * (tw - 1)) | 0)) * 4;
+      const i = (py - y0) * bw + (px - x0);
+      albedo[i * 3] = t[ti]; albedo[i * 3 + 1] = t[ti + 1]; albedo[i * 3 + 2] = t[ti + 2];
+      nrm[i * 2] = nx; nrm[i * 2 + 1] = nz;
+      alpha[i] = Math.min(1, (1 - Math.sqrt(d2)) * Rm * 0.8) * 255;
+    }
+  }
+  const lut = new Float32Array(1024);
+  for (let i = 0; i < 1024; i++) lut[i] = MOON.ambient + (1 - MOON.ambient) * Math.pow(i / 1023, MOON.gamma);
+  const canvas = document.createElement('canvas');
+  canvas.width = bw; canvas.height = bh;
+  const cctx = canvas.getContext('2d');
+  return { x0, y0, bw, bh, albedo, nrm, alpha, lut, canvas, cctx, img: cctx.createImageData(bw, bh) };
+}
+
+// Shade the baked disc for this phase and composite it over the sky. Drawing through the
+// moon's own alpha canvas reproduces paintMoon's rim blend without reading the live canvas.
+function paintMoonFrame(ctx, baked, phase) {
+  if (!baked) return;
+  const theta = Math.PI * (2 * phase - 1);
+  const Lx = Math.sin(theta), Lz = Math.cos(theta);
+  const { albedo, nrm, alpha, lut, img, bw, bh } = baked;
+  const d = img.data;
+  for (let i = 0, n = bw * bh; i < n; i++) {
+    const a = alpha[i];
+    if (!a) continue; // outside the disc; img alpha stays 0 from creation
+    const lam = nrm[i * 2] * Lx + nrm[i * 2 + 1] * Lz;
+    const shade = lut[lam > 0 ? (lam * 1023) | 0 : 0];
+    d[i * 4] = albedo[i * 3] * shade;
+    d[i * 4 + 1] = albedo[i * 3 + 1] * shade;
+    d[i * 4 + 2] = albedo[i * 3 + 2] * shade;
+    d[i * 4 + 3] = a;
+  }
+  baked.cctx.putImageData(img, 0, 0);
+  ctx.drawImage(baked.canvas, baked.x0, baked.y0);
+}
+
 // Layer 5: the name (design constants in TITLE up top, overall size from the Title slider).
 // Canvas letterSpacing adds a trailing space after the last glyph, so each line is nudged
 // right by half its spacing to stay optically centered.
@@ -322,6 +394,11 @@ function buildControls() {
     document.fonts.load(`16px "${state.font}"`).then(render, render);
   };
   el('save').onclick = download;
+  el('video').onclick = () => startVideo().catch((e) => setStatus(`Video mode failed: ${e.message}`));
+  // Esc (the native fullscreen exit) is also how video mode ends
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement) stopVideo();
+  });
 }
 
 function download() {
@@ -335,6 +412,64 @@ function download() {
     a.click();
     URL.revokeObjectURL(a.href);
   }, 'image/png');
+}
+
+async function startVideo() {
+  if (!data || video) return;
+  const canvas = document.getElementById('out');
+  try {
+    await canvas.requestFullscreen(); // first thing — must happen inside the user gesture
+  } catch (e) {
+    setStatus(`Fullscreen failed: ${e.message}`);
+    return;
+  }
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.round(screen.width * dpr), h = Math.round(screen.height * dpr);
+  // Pre-render sky+stars once into a square covering the screen diagonal so the spin never
+  // exposes a corner. This blocks for a few seconds (the old splash stays on screen);
+  // refW/refMin keep the FOV and star sizes framed for the screen, not the bigger square.
+  const side = Math.ceil(Math.hypot(w, h));
+  const sky = document.createElement('canvas');
+  sky.width = sky.height = side;
+  const sctx = sky.getContext('2d');
+  const center = SKY_CENTERS[state.center];
+  paintSky(sctx, side, side, center, state.mw, data.mwTex, { refW: w, flatBg: true });
+  paintStars(sctx, side, side, center, data.stars, { refW: w, refMin: Math.min(w, h) });
+  const moon = state.backdrop === 'moon' ? bakeMoon(w, h, state.ringScale, state.rotate, data.moonTex) : null;
+  if (document.fullscreenElement !== canvas) { render(); return; } // user bailed during the pre-render
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, 'rgb(7, 16, 30)'); // paintSky's gradient endpoints, kept stationary
+  grad.addColorStop(1, 'rgb(2, 5, 12)');
+  video = { ctx, w, h, sky, grad, moon, t0: performance.now(), raf: 0 };
+  video.raf = requestAnimationFrame(videoFrame);
+}
+
+function videoFrame(now) {
+  const v = video;
+  if (!v) return;
+  const t = ((now - v.t0) / (VIDEO.cycleSec * 1000)) % 1; // cycle fraction: phase AND spin
+  const { ctx, w, h } = v;
+  ctx.fillStyle = v.grad;
+  ctx.fillRect(0, 0, w, h);
+  ctx.globalCompositeOperation = 'lighter'; // sky was rendered over black, so adding == layering
+  ctx.translate(w / 2, h / 2);
+  ctx.rotate(t * VIDEO.skyTurns * 2 * Math.PI);
+  ctx.drawImage(v.sky, -v.sky.width / 2, -v.sky.height / 2);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalCompositeOperation = 'source-over';
+  if (v.moon) paintMoonFrame(ctx, v.moon, (t * VIDEO.moonCycles) % 1);
+  else paintDial(ctx, w, h, state.ringScale); // dial backdrop: only the sky turns
+  paintTitle(ctx, w, h);
+  v.raf = requestAnimationFrame(videoFrame);
+}
+
+function stopVideo() {
+  if (!video) return;
+  cancelAnimationFrame(video.raf);
+  video = null;
+  render(); // back to the static preset render (and its status line)
 }
 
 function render() {
