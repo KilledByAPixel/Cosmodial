@@ -5,11 +5,12 @@ import { azToCompass } from '../render/hud.js';
 // event stays discoverable while the panel is closed. PURE — unit-tested. Keeps a U+FE0F variation
 // selector attached so emoji-style glyphs don't degrade to text-style.
 export function chipLabel(event) {
-  if (!event || !event.text) return '★ Highlights';
+  const base = '🌟 Highlights';
+  if (!event || !event.text) return base;
   const cps = [...event.text.trim()];
-  if (!cps.length) return '★ Highlights';
+  if (!cps.length) return base;
   const emoji = cps[1] === '\uFE0F' ? cps[0] + cps[1] : cps[0];
-  return `★ Highlights · ${emoji}`;
+  return `${base} · ${emoji}`;
 }
 
 // Live-position phrase for a row. PURE — unit-tested.
