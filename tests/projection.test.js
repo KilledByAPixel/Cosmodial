@@ -159,3 +159,30 @@ test('grabAim degenerate guards: grabbing the zenith direction keeps the current
   assert.ok(Number.isFinite(aim.az) && Number.isFinite(aim.alt));
   assert.ok(Math.abs(aim.az - 45) < 1e-9, 'az unchanged when the grabbed direction has no azimuth');
 });
+
+test('grabAim regression: dragging outside the sky circle never flips the view upside down', () => {
+  // Zoomed way out near the zenith the whole sky hemisphere is a circle inside the window.
+  // Dragging a grabbed point across its edge used to snap to the over-the-pole solution
+  // ("aim at it by looking straight down"): alt jumped +90 -> -90 with a ~130° az swing. The
+  // no-flip rule keeps the aim on the continuous branch (pegged at the pole) instead. Walk the
+  // two drag paths that hit each flip mechanism and require every step to be continuous.
+  const paths = [
+    // diagonal: the exact root re-enters range at the FAR pole (the other branch's solution)
+    Array.from({ length: 30 }, (_, i) => [cx + i * 6, cy + 120 + i * 8]),
+    // horizontal: the cursor ray tilts >90° off-axis and the infeasible clamp collapses both roots
+    Array.from({ length: 30 }, (_, i) => [cx + 120 + i * 8, cy]),
+  ];
+  for (const path of paths) {
+    let cam = { az: 0, alt: 88, fov: 220, ...VIEW };
+    const d = unproject(path[0][0], path[0][1], cam);
+    let prev = { az: cam.az, alt: cam.alt };
+    for (const [x, y] of path) {
+      const aim = grabAim(d, x, y, cam);
+      const dAz = Math.abs(((aim.az - prev.az + 540) % 360) - 180);
+      assert.ok(Math.abs(aim.alt - prev.alt) < 15, `alt continuous: ${prev.alt} -> ${aim.alt} at (${x},${y})`);
+      assert.ok(dAz < 15, `az continuous: ${prev.az} -> ${aim.az} at (${x},${y})`);
+      cam = { ...cam, az: aim.az, alt: aim.alt };
+      prev = aim;
+    }
+  }
+});

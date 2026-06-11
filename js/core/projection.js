@@ -134,7 +134,18 @@ export function grabAim(d, x, y, cam) {
     const cands = [wrap(base - phi), wrap(Math.PI - base - phi)];
     const inRange = cands.filter((c) => c >= -90 && c <= 90);
     const pool = inRange.length ? inRange : cands;
-    const nearest = pool.reduce((best, c) => (Math.abs(c - cam.alt) < Math.abs(best - cam.alt) ? c : best));
+    let nearest = pool.reduce((best, c) => (Math.abs(c - cam.alt) < Math.abs(best - cam.alt) ? c : best));
+    // No-flip rule: a root more than 90° of pitch away is the over-the-pole aim — dragging the
+    // grab outside the sky circle at wide FOV makes "look straight down at it" the only in-range
+    // solution, which would snap the view upside down in one event. Stay on the continuous branch
+    // instead: the aim pegs at the pole and the grabbed point trades exact pinning for continuity
+    // (the same bargain dampedGrabAz makes near the poles). If the other branch is over the pole
+    // too (the infeasible asin clamp collapses both roots to the far pole once the cursor ray
+    // tilts >90° off-axis), no root is safe — hold the current pitch.
+    if (Math.abs(nearest - cam.alt) > 90) {
+      nearest = cands.reduce((best, c) => (Math.abs(c - cam.alt) < Math.abs(best - cam.alt) ? c : best));
+      if (Math.abs(nearest - cam.alt) > 90) nearest = cam.alt;
+    }
     altDeg = Math.max(-90, Math.min(90, nearest));
   }
 
