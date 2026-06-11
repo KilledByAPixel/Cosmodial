@@ -113,9 +113,13 @@ function computeSky(full) {
     namedStars = skyObjects.filter((s) => s.name);
     skyStamp = { lat: st.location.lat, lng: st.location.lng, ms: (st.time.instant ? new Date(st.time.instant) : new Date()).getTime() };
   } else {
-    // Frequent pass: refresh only the stars anything on screen reads — label positions (named stars).
-    // GL star rendering doesn't use these at all (GPU transform); unnamed stars refresh on the full pass.
+    // Frequent pass: refresh only the stars anything on screen reads — label positions (named stars)
+    // plus the selected/followed star. GL star rendering doesn't use these at all (GPU transform);
+    // other unnamed stars refresh on the full pass. Without the selection refresh, an unnamed star's
+    // ring/lock-on sits on the 30 s full-pass cadence and visibly lags the per-frame GPU stars at
+    // deep zoom (~0.004 deg/s of sidereal drift).
     for (const s of namedStars) Object.assign(s.altaz, toAltAz(s.ra, s.dec));
+    for (const s of selectionStars()) if (!s.name) Object.assign(s.altaz, toAltAz(s.ra, s.dec));
   }
   const planetMarkers = PLANETS.map((p) => {
     const mag = bodyMagnitude(p.body, time);
@@ -431,6 +435,16 @@ function buildFavoriteRows() {
       return obj ? { rec, name: displayName(rec), altaz: obj.altaz } : null;
     })
     .filter(Boolean);
+}
+
+// skyObjects entries for the star(s) the UI tracks live: the highlighted (carded) star and the
+// lock-on follow target. The frequent pass refreshes their positions so the ring/aim stay glued to
+// the per-frame GPU stars. At most two finds, and only while a star is actually selected.
+function selectionStars() {
+  const ids = new Set();
+  if (highlighted && highlighted.kind === 'star') ids.add(highlighted.id);
+  if (followTarget && followTarget.kind === 'star') ids.add(followTarget.id);
+  return [...ids].map((id) => skyObjects.find((o) => o.id === id)).filter(Boolean);
 }
 
 // Keep the selection's highlight ring (and its open card) pinned to the object's live position as the
