@@ -730,7 +730,8 @@ async function boot() {
     if (a !== prevAtmo) { prevAtmo = a; requestRecompute(); }
   });
   favPanel = buildFavoritesPanel({ onGoTo: onGoToFavorite, onRemove: (rec) => favorites.toggle(rec) });
-  favorites.onChange(() => favPanel.setRows(buildFavoriteRows())); // star/unstar refreshes the list live
+  // Star/unstar refreshes the list AND any open card (its ☆/★ would otherwise stay stale while paused).
+  favorites.onChange(() => { favPanel.setRows(buildFavoriteRows()); syncSelection(); });
   const favHost = document.getElementById('favorites-host');
   if (favHost) favHost.append(favPanel.el);
   requestRender();
