@@ -279,7 +279,10 @@ function render() {
   const view = resizeCanvas(canvas);
   const st = store.getState();
   // Aim-driven reveal of the lower hemisphere: 0 above the horizon, 1 by 10° below (smoothstep).
-  const belowFade = st.flags.edit ? 1 : belowHorizonFade(st.aim.alt);
+  // A SELECTED object below the horizon overrides it to fully revealed — searching or following
+  // something that has set would otherwise show a ghost (or nothing) at gentle aim altitudes.
+  const selBelow = highlighted && highlighted.altaz && highlighted.altaz.alt < 0;
+  const belowFade = (st.flags.edit || selBelow) ? 1 : belowHorizonFade(st.aim.alt);
   // Lift the compass ribbon/readout above the on-screen control bar so they aren't hidden behind it.
   const controlsEl = document.getElementById('controls');
   const bottomInset = controlsEl ? controlsEl.offsetHeight : 0;
@@ -466,7 +469,10 @@ function onIdentifyTap(x, y) {
     ...dsoObjects,
     ...cometObjects.filter((c) => c.altaz && c.mag <= COMET_MARKER_MAG),
     ...visibleMoons(resolvedPlanets).map(moonPick),
-  ].filter((o) => o.altaz.alt >= 0 || belowHorizonFade(st.aim.alt) > 0.05); // faded-in below-horizon objects are pickable too
+  ].filter((o) => o.altaz.alt >= 0 // faded-in below-horizon objects are pickable too, incl. the
+    // fully revealed hemisphere while a below-horizon selection holds the fade open (see render).
+    || (highlighted && highlighted.altaz && highlighted.altaz.alt < 0)
+    || belowHorizonFade(st.aim.alt) > 0.05);
   const projected = candidates.map((o) => { const p = projector(o.altaz.az, o.altaz.alt); return { x: p.x, y: p.y, visible: p.visible, ref: o }; });
   const hit = pickNearest(projected, x, y, 18);
   if (hit) {
