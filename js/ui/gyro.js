@@ -91,9 +91,18 @@ export function attachGyro(store, opts = {}) {
     store.setOrientation(prev.az, prev.alt, prev.roll);
   };
 
-  // Prefer the absolute (north-referenced) event when the platform has it (Android Chrome); otherwise
-  // the plain event (iOS, which carries webkitCompassHeading). Using one avoids two sources fighting.
-  const evName = ('ondeviceorientationabsolute' in window) ? 'deviceorientationabsolute' : 'deviceorientation';
-  window.addEventListener(evName, onOrient, true);
-  return function detach() { window.removeEventListener(evName, onOrient, true); };
+  // Listen to BOTH event names, exactly like detectGyro (which is what revealed the AR button):
+  // Chrome defines ondeviceorientationabsolute even on devices whose compass fusion never fires
+  // it, so attaching to the absolute name alone left the aim frozen there. Plain samples drive
+  // the aim until the first REAL absolute sample arrives; from then on the absolute event
+  // (north-referenced) owns it, so the two sources never fight.
+  let sawAbsolute = false;
+  const onAbs = (e) => { if (isRealOrientationSample(e)) { sawAbsolute = true; onOrient(e); } };
+  const onPlain = (e) => { if (!sawAbsolute && isRealOrientationSample(e)) onOrient(e); };
+  window.addEventListener('deviceorientationabsolute', onAbs, true);
+  window.addEventListener('deviceorientation', onPlain, true);
+  return function detach() {
+    window.removeEventListener('deviceorientationabsolute', onAbs, true);
+    window.removeEventListener('deviceorientation', onPlain, true);
+  };
 }
