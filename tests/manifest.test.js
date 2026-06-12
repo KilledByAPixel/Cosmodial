@@ -36,4 +36,6 @@ test('index.html links the manifest, theme color, and apple-touch icon', async (
   assert.match(html, /<link rel="manifest" href="\.\/manifest\.webmanifest"/);
   assert.match(html, /<meta name="theme-color" content="#000000"/);
   assert.match(html, /<link rel="apple-touch-icon" href="\.\/images\/apple-touch-icon\.png"/);
+  const apple = await pngSize(new URL('../images/apple-touch-icon.png', import.meta.url));
+  assert.deepEqual(apple, { w: 180, h: 180 }, 'apple-touch icon exists at 180x180');
 });
