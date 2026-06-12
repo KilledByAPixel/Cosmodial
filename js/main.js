@@ -10,6 +10,7 @@ import { PLANETS, planetRadius } from './render/planets.js';
 import { COMETS } from './core/comets.js';
 import { SATURN_RING, ringOpening } from './render/ring-math.js';
 import { drawScene, drawStarLabels, markerRadius, resizeCanvas, SUN_SCALE } from './render/sky.js';
+import { drawConstellations } from './render/constellations.js';
 import { createStarfield, hexToRgb01 } from './render/starfield-gl.js';
 import { drawHud, azToCompass } from './render/hud.js';
 import { createRenderScheduler } from './core/scheduler.js';
@@ -88,6 +89,7 @@ let selected = null;        // first star picked in edit mode (a skyObjects entr
 let highlighted = null;     // object whose card is currently open (gets a ring on canvas)
 let followTarget = null;    // object kept centred as time changes (set by Find/search; cleared on drag/tap)
 let screensaverOn = false;  // hides canvas-drawn chrome (HUD, all labels) while the tour runs
+let consFocus = null;       // { name, alpha }: the screensaver's focused constellation figure fade
 let bodyInputs = [];   // per-recompute lit-sphere inputs (Moon + planets); see computeSky()
 let planetMoons = [];       // all systems, flat [{planet, name, altaz, mag, behind}]; drawn when planet resolves
 let resolvedPlanets = new Set(); // sphere-pass planets from the LAST frame; gates moon picks like moon draws
@@ -298,9 +300,16 @@ function render() {
   const bottomInset = controlsEl ? Math.max(0, view.height - controlsEl.getBoundingClientRect().top) : 0;
   const cam = { az: st.aim.az, alt: st.aim.alt, fov: st.fov, roll: st.roll, width: view.width, height: view.height, bottomInset };
   // In edit mode, show ONLY the active constellation's lines (focus); otherwise honor the lines flag.
+  // The selected/followed constellation stays visible even with the lines toggle off —
+  // otherwise picking one from search would show nothing to look at.
+  const selCons = !st.flags.lines && !st.flags.edit
+    ? (highlighted && highlighted.kind === 'constellation' ? highlighted.name
+      : followTarget && followTarget.kind === 'constellation' ? followTarget.name : null)
+    : null;
   const visibleCons = st.flags.edit
     ? (constellations[editIndex] ? [constellations[editIndex]] : [])
-    : (st.flags.lines ? constellations : []);
+    : (st.flags.lines ? constellations
+      : selCons ? constellations.filter((c) => c.name === selCons) : []);
   // Comets bright enough to draw, as plain glow-dot markers (kept out of the module `markers`
   // array so conjunctions/body code never see them).
   const cometMarkers = st.flags.edit ? [] : cometObjects
@@ -403,6 +412,13 @@ function render() {
     selectedDsoId: highlighted && highlighted.kind === 'dso' ? highlighted.id : null,
     selectedStarId: highlighted && highlighted.kind === 'star' ? highlighted.id : null,
   });
+  // Screensaver constellation focus: the figure fades in as the camera approaches and out
+  // at the dwell's end. Overlay-drawn only when the lines toggle isn't already showing
+  // every figure (double-drawing would brighten it).
+  if (screensaverOn && consFocus && !st.flags.lines) {
+    const c = constellations.find((o) => o.name === consFocus.name);
+    if (c) drawConstellations(ctx, createProjector(cam), [c], cam, false, false, belowFade, consFocus.alpha);
+  }
   // In GL mode the star discs live on the GL canvas, so their labels are drawn here, after the
   // constellation lines (so labels sit on top), matching the old single-canvas order.
   if (useGL) drawStarLabels(ctx, skyObjects, createProjector(cam), cam, st.flags.labels && !screensaverOn, belowFade);
@@ -449,8 +465,13 @@ function onEditTap(x, y) {
 }
 
 // Card context, incl. an onClose that clears the on-canvas highlight.
-function cardCtx(observer, time, eclipse = null) {
-  return { observer, time, eclipse, fav: favorites, inspect: onInspectObject, onClose: () => { highlighted = null; requestRender(); } };
+function cardCtx(observer, time, eclipse = null, forKind = null) {
+  return {
+    observer, time, eclipse,
+    fav: forKind === 'constellation' ? null : favorites, // constellations aren't favoritable
+    inspect: onInspectObject,
+    onClose: () => { highlighted = null; requestRender(); },
+  };
 }
 
 // Picking reads the CPU skyObjects array, which can lag the live GPU stars. If the sidereal drift since
@@ -522,6 +543,7 @@ function eclipseForCard(kind) {
 function liveAltAzFor(sel) {
   if (sel.kind === 'star') { const s = skyObjects.find((o) => o.id === sel.id); return s ? s.altaz : null; }
   if (sel.kind === 'dso') { const d = dsoObjects.find((o) => o.id === sel.id); return d ? d.altaz : null; }
+  if (sel.kind === 'constellation') { const c = constellations.find((o) => o.name === sel.name); return c ? c.label : null; }
   if (sel.kind === 'planet-moon') { const m = planetMoons.find((o) => o.name === sel.label); return m ? m.altaz : null; }
   const m = markers.find((o) => o.label === sel.label); // moon / sun / planet
   return m ? m.altaz : null;
@@ -901,7 +923,7 @@ function onGoToFavorite(rec) {
 // kinds get a fixed deep zoom. setFov clamps to MIN_FOV, so small planets just bottom out fully
 // zoomed. Tuned by eye.
 const INSPECT_FILL = { planet: 0.6, moon: 0.5, sun: 0.5 }; // fraction of the view the disc spans
-const INSPECT_FOV = { star: 1, dso: 1.5, comet: 1.5, 'planet-moon': 0.3 }; // no disc: fixed deep zoom
+const INSPECT_FOV = { star: 1, dso: 1.5, comet: 1.5, 'planet-moon': 0.3, constellation: 40 }; // no disc: fixed zoom (constellations frame the figure)
 
 function inspectFov(kind, radiusDeg) {
   const fill = INSPECT_FILL[kind];
@@ -923,16 +945,36 @@ function onInspectObject(pick) {
   focusObject(pick, fov);
 }
 
-// Search result chosen: resolve it to a live object and reuse Find (slew + card). Constellations
-// have no info card, so they just slew to their centroid with a highlight ring.
+// A card-ready constellation pick: centroid position, its brightest catalogued star, and
+// an id mirroring the name so share links key it like the other string-id kinds.
+function constellationPick(c) {
+  const f = figures.find((o) => o.name === c.name);
+  let brightest = null;
+  if (f && f.abbr) {
+    for (const s of stars) {
+      if (s.con === f.abbr && s.name && (!brightest || s.mag < brightest.mag)) brightest = s;
+    }
+  }
+  return {
+    kind: 'constellation', id: c.name, name: c.name, altaz: c.label,
+    brightest: brightest ? { name: brightest.name, mag: brightest.mag } : null,
+  };
+}
+
+// Search result chosen: resolve it to a live object and reuse Find (slew + card).
 function onSearchSelect(entry) {
   if (entry.type === 'constellation') {
     const c = constellations.find((o) => o.name === entry.ref);
     if (c && c.label) {
-      highlighted = { altaz: c.label };
-      followTarget = { kind: 'constellation', name: c.name }; // lock on its label point
       const st = store.getState();
-      animateSlew(store, { az: c.label.az, alt: c.label.alt, fov: Math.max(12, Math.min(st.fov, 20)) });
+      const observer = makeObserver(st.location.lat, st.location.lng);
+      const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
+      const pick = constellationPick(c);
+      highlighted = pick;
+      followTarget = { kind: 'constellation', name: c.name }; // lock on its label point
+      openCard(pick, cardCtx(observer, time, null, 'constellation'));
+      // Frame the whole figure — constellations span tens of degrees.
+      animateSlew(store, { az: c.label.az, alt: c.label.alt, fov: Math.min(Math.max(st.fov, 50), 70) });
     }
     return;
   }
@@ -1133,6 +1175,7 @@ async function boot() {
       if (on) { closeCard(); highlighted = null; followTarget = null; }
       document.body.classList.toggle('screensaver', on);
     },
+    onConsFocus: (name, alpha) => { consFocus = name && alpha > 0 ? { name, alpha } : null; },
     // The caption under the show: the framed target's name, faded in per shot. Removing
     // and re-adding .show (with a reflow between) restarts the CSS fade-in animation.
     onShot: (name) => {

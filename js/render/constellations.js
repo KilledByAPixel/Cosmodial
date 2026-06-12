@@ -7,7 +7,9 @@ const LABEL_FONT = '12px system-ui, sans-serif';
 // constellations: [ { name, label:{alt,az}, lines: [ [ {alt,az}, ... ], ... ] } ]
 // belowFade (0..1): segments touching a below-horizon vertex draw at that alpha (skipped entirely
 // at 0, full strength at 1). Edit mode always shows the whole sphere at full alpha.
-export function drawConstellations(ctx, projector, constellations, cam, edit, labels = true, belowFade = 0) {
+// alpha (0..1) scales the whole drawing — the screensaver fades a focused figure in and out.
+export function drawConstellations(ctx, projector, constellations, cam, edit, labels = true, belowFade = 0, alpha = 1) {
+  if (alpha <= 0) return;
   const fade = edit ? 1 : belowFade;
   ctx.strokeStyle = LINE_STYLES.constellation.color;
   ctx.lineWidth = LINE_STYLES.constellation.width;
@@ -17,7 +19,7 @@ export function drawConstellations(ctx, projector, constellations, cam, edit, la
   // below-horizon vertex (fade alpha) — globalAlpha applies per stroke, not per vertex.
   for (const batch of [{ below: false, alpha: 1 }, { below: true, alpha: fade }]) {
     if (batch.below && fade <= 0) continue;
-    ctx.globalAlpha = batch.alpha;
+    ctx.globalAlpha = batch.alpha * alpha;
     for (const con of constellations) {
       for (const poly of con.lines) {
         ctx.beginPath();
@@ -47,7 +49,7 @@ export function drawConstellations(ctx, projector, constellations, cam, edit, la
     if (below && fade <= 0) continue;
     const p = projector(con.label.az, con.label.alt);
     if (p.visible && p.x >= 0 && p.x <= cam.width && p.y >= 0 && p.y <= cam.height) {
-      ctx.globalAlpha = below ? fade : 1;
+      ctx.globalAlpha = (below ? fade : 1) * alpha;
       ctx.fillText(con.name, p.x, p.y);
     }
   }

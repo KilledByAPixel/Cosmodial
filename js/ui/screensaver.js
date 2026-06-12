@@ -23,6 +23,7 @@ const VISTA_CHANCE = 0.2;          // odds a target shot is followed by a wide p
 const VISTA_FOV = 120;             // vista width — well past any target framing
 const VISTA_EASE_MS = 4000;        // vista pull-back duration
 const VISTA_HOLD_MS = [8000, 14000]; // how long a vista holds before the next target
+const CONS_FADE_MS = 2500;         // constellation-figure fade-out tail at the end of its dwell
 const PAN_MS = 10000;              // fallback horizon pan length before re-picking
 const PAN_ALT = 30;                // fallback pan altitude (deg)
 const PAN_FOV = 70;                // fallback pan field of view (deg)
@@ -101,6 +102,9 @@ export function driftOffset(tMs, fov) {
 //   setUiHidden(on): hide/show the chrome (and clear any card/lock-on when hiding)
 //   onShot(name): optional — each new shot's target name (null for the fallback pan);
 //     drives the on-screen caption
+//   onConsFocus(name, alpha): optional — while a constellation is the target, its name
+//     and a 0..1 figure-line opacity (fades in with the approach, out at the dwell's
+//     end); (null, 0) whenever no constellation is focused
 //   bindExit(onExit): attach the wake-up listeners; returns an unbind function
 //   raf / now / rng: injectable for tests (same pattern as animateSlew)
 export function createScreensaver(store, deps) {
@@ -124,6 +128,7 @@ export function createScreensaver(store, deps) {
     const st = store.getState();
     const from = { az: st.aim.az, alt: st.aim.alt, fov: st.fov };
     const at = new Date(simMs);
+    if (deps.onConsFocus) deps.onConsFocus(null, 0); // a new shot clears any figure fade
     // After a target shot, sometimes step back and take in the region — nonstop
     // close-ups make the tour feel busier than it is. Never two vistas in a row.
     if (shot && shot.target && rng() < VISTA_CHANCE) {
@@ -206,6 +211,17 @@ export function createScreensaver(store, deps) {
         store.setAim(base.az + d.az * ramp, base.alt + d.alt * ramp);
         if (el >= shot.dwellMs) nextShot();
       }
+      // A focused constellation introduces itself: its figure fades in with the
+      // approach, holds through the dwell, and dissolves over the dwell's last moments
+      // so the shot ends on the bare stars. Elapsed time is re-read because nextShot
+      // above may just have replaced `shot` with a fresh one.
+      if (deps.onConsFocus && shot.target && shot.target.type === 'constellation') {
+        const fe = t - shot.startReal;
+        const alpha = shot.mode === 'slew'
+          ? Math.min(1, fe / shot.slewMs)
+          : clamp((shot.dwellMs - fe) / CONS_FADE_MS, 0, 1);
+        deps.onConsFocus(shot.target.name, alpha);
+      }
     }
     raf(() => step(token));
   }
@@ -239,6 +255,7 @@ export function createScreensaver(store, deps) {
     active = false;
     if (unbindExit) { unbindExit(); unbindExit = null; }
     releaseWakeLock();
+    if (deps.onConsFocus) deps.onConsFocus(null, 0);
     deps.setUiHidden(false);
     store.setAim(saved.aim.az, saved.aim.alt);
     store.setFov(saved.fov);

@@ -56,3 +56,18 @@ test('belowFade > 0 reveals below-horizon segments at the fade alpha', () => {
   assert.ok(ctx.calls.lineTo >= 1, 'below-horizon segment drawn while fading in');
   assert.ok(ctx.calls.alphas.includes(0.5), 'drawn at the fade alpha');
 });
+
+test('the alpha parameter scales every stroke and label (0 draws nothing)', () => {
+  const ctx = stubCtx();
+  const cam = { az: 180, alt: 45, fov: 60, width: 800, height: 600 };
+  const projector = createProjector(cam);
+  const cons = [{ name: 'TestUp', label: { alt: 45, az: 180 },
+    lines: [[{ alt: 50, az: 178 }, { alt: 50, az: 182 }]] }];
+  drawConstellations(ctx, projector, cons, cam, false, true, 1, 0.4);
+  const used = ctx.calls.alphas.filter((a) => a !== 1); // trailing resets stay 1
+  assert.ok(used.length >= 1 && used.every((a) => Math.abs(a - 0.4) < 1e-9),
+    `all drawing alphas scaled to 0.4, got ${ctx.calls.alphas}`);
+  const ctx0 = stubCtx();
+  drawConstellations(ctx0, projector, cons, cam, false, true, 1, 0);
+  assert.equal(ctx0.calls.stroke + ctx0.calls.fillText, 0, 'alpha 0 draws nothing at all');
+});

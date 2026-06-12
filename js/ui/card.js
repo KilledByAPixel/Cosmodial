@@ -163,6 +163,11 @@ function bodyLines(obj, ctx) {
     } else {
       lines.push(row(`<b>No position for this date</b> — orbit data covers ${obj.coverage}.`));
     }
+  } else if (obj.kind === 'constellation') {
+    lines.push(row(`${obj.name} — a constellation.`));
+    if (obj.brightest) {
+      lines.push(row(`<b>Brightest star:</b> ${obj.brightest.name} (magnitude ${obj.brightest.mag.toFixed(1)})`));
+    }
   } else if (obj.kind === 'planet-moon') {
     const au = bodyDistanceAu(obj.planetBody, ctx.observer, ctx.time);
     lines.push(row(`${obj.label} — a moon of ${obj.planet}.`));
@@ -185,6 +190,7 @@ function titleOf(obj) {
   if (obj.kind === 'sun') return 'Sun';
   if (obj.kind === 'dso') return obj.name;
   if (obj.kind === 'comet') return obj.name;
+  if (obj.kind === 'constellation') return obj.name;
   return obj.label;
 }
 

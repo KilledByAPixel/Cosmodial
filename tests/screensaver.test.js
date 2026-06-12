@@ -331,3 +331,24 @@ test('onShot announces each framed target by name, and null for the fallback pan
   h2.ss.start();
   assert.deepEqual(empty, [null], 'no target -> caption cleared');
 });
+
+test('a constellation shot fades its figure in with the slew and out at the dwell end', () => {
+  const orion = { type: 'constellation', name: 'Orion', altAzAt: fixed(45, 100) };
+  const focus = [];
+  const h = harness({
+    getCandidates: () => [orion],
+    onConsFocus: (name, alpha) => focus.push([name, alpha]),
+  });
+  h.ss.start(); // ~9.7s distance-scaled slew to Orion, 15s dwell
+  h.tick(1000);
+  const early = focus[focus.length - 1];
+  assert.equal(early[0], 'Orion', 'the figure named while approaching');
+  assert.ok(early[1] > 0 && early[1] < 0.2, `fading in early in the slew (${early[1]})`);
+  for (let i = 0; i < 9; i++) h.tick(1000);   // arrival -> dwell begins
+  assert.equal(focus[focus.length - 1][1], 1, 'fully on through the dwell');
+  for (let i = 0; i < 14; i++) h.tick(1000);  // 14s into the 15s dwell: inside the fade tail
+  const tail = focus[focus.length - 1];
+  assert.ok(tail[1] > 0 && tail[1] < 0.5, `dissolving near the dwell's end (${tail[1]})`);
+  h.tick(1000);                                // dwell ends -> the next shot clears the fade
+  assert.deepEqual(focus[focus.length - 1], [null, 0], 'cleared when the shot moves on');
+});
