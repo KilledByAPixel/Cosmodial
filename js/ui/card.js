@@ -2,17 +2,7 @@ import { NAMES } from '../core/constellation-names.js';
 import { bodyDistanceAu, moonPhaseInfo } from '../core/astro.js';
 import { azToCompass } from '../render/hud.js';
 import { shareUrlFor } from './share.js';
-
-// A small transient confirmation, parented to body so the card's per-recompute re-render (which
-// replaces #card-host's children wholesale) can't wipe it mid-fade.
-function showToast(text) {
-  const t = document.createElement('div');
-  t.className = 'copy-toast';
-  t.textContent = text;
-  document.body.append(t);
-  setTimeout(() => t.classList.add('gone'), 900);
-  setTimeout(() => t.remove(), 1500);
-}
+import { showToast } from './toast.js';
 
 const PC_TO_LY = 3.26156;
 

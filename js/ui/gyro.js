@@ -74,6 +74,8 @@ export function sampleToCamera({ alpha, beta, gamma, compass, screen }) {
 // Stream device orientation into store.setOrientation(az, alt, roll). Picks the heading source
 // (iOS webkitCompassHeading, else the absolute event's north-referenced alpha), corrects for screen
 // orientation, and low-pass smooths to kill jitter. Returns detach() removing the listener.
+// opts.onNoData: called once if no real sample arrives within opts.noDataMs (default 3000 ms) —
+// lets the UI say the sensor is silent instead of leaving a dead-looking toggle.
 export function attachGyro(store, opts = {}) {
   const smoothing = opts.smoothing ?? 0.2; // 0..1; higher = snappier but noisier
   const screenAngle = () => {
@@ -97,11 +99,17 @@ export function attachGyro(store, opts = {}) {
   // the aim until the first REAL absolute sample arrives; from then on the absolute event
   // (north-referenced) owns it, so the two sources never fight.
   let sawAbsolute = false;
-  const onAbs = (e) => { if (isRealOrientationSample(e)) { sawAbsolute = true; onOrient(e); } };
-  const onPlain = (e) => { if (!sawAbsolute && isRealOrientationSample(e)) onOrient(e); };
+  let gotData = false;
+  const noDataTimer = opts.onNoData
+    ? setTimeout(() => { if (!gotData) opts.onNoData(); }, opts.noDataMs ?? 3000)
+    : null;
+  const seen = () => { gotData = true; };
+  const onAbs = (e) => { if (isRealOrientationSample(e)) { seen(); sawAbsolute = true; onOrient(e); } };
+  const onPlain = (e) => { if (isRealOrientationSample(e)) { seen(); if (!sawAbsolute) onOrient(e); } };
   window.addEventListener('deviceorientationabsolute', onAbs, true);
   window.addEventListener('deviceorientation', onPlain, true);
   return function detach() {
+    if (noDataTimer) clearTimeout(noDataTimer);
     window.removeEventListener('deviceorientationabsolute', onAbs, true);
     window.removeEventListener('deviceorientation', onPlain, true);
   };

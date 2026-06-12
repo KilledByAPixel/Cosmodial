@@ -7,6 +7,7 @@ import { buildLocationControl } from './location.js';
 import { detectGyro, requestGyroPermission, attachGyro } from './gyro.js';
 import { attachPopover } from './popover.js';
 import { openAbout } from './about.js';
+import { showToast } from './toast.js';
 
 // A button that toggles a boolean state flag and reflects it via the `.on` class.
 export function makeToggle(store, label, flag, className = '') {
@@ -46,10 +47,21 @@ function makeGyroToggle(store) {
     activating = true;
     try {
       const perm = await requestGyroPermission(); // turn ON — request inside the gesture (iOS)
-      if (perm !== 'granted') { console.warn(`[cosmodial] gyroscope unavailable: ${perm}`); return; }
+      // Every failure is VISIBLE: on a phone there is no console, and a silently dead button
+      // reads as broken. 'denied' is sticky on iOS (the browser remembers) — say where to fix it.
+      if (perm !== 'granted') {
+        console.warn(`[cosmodial] gyroscope unavailable: ${perm}`);
+        showToast(perm === 'denied'
+          ? 'Motion access blocked — allow motion & orientation for this site in your browser settings'
+          : 'No orientation sensor available', 3000);
+        return;
+      }
       store.setFlag('gyro', true);                // set the flag BEFORE attaching, so the first
-      detach = attachGyro(store);                 // setOrientation events are honored (not no-op'd)
+      detach = attachGyro(store, {                // setOrientation events are honored (not no-op'd)
+        onNoData: () => showToast('No motion data is arriving from this device — AR aim cannot work here', 3000),
+      });
       if (store.getState().fov < 30) store.setFov(50); // don't wave the phone in a telescope view
+      showToast('AR aim on — point your phone at the sky', 1600);
     } finally {
       activating = false;
     }
