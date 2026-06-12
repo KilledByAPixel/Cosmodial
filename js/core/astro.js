@@ -218,8 +218,8 @@ export function nextSunEvent(observer, refDate) {
 
 // The next moment the Sun DESCENDS through altDeg after refDate (e.g. -6 = end of civil
 // twilight) — the screensaver's skip-the-daytime search. Null when it doesn't happen
-// within limitDays (polar summer). Geometric altitude (no refraction): the half-degree
-// difference is irrelevant for "dark enough to start the show".
+// within limitDays (polar summer). Geometric altitude (no refraction): the ~0.6° difference
+// is irrelevant for "dark enough to start the show".
 export function nextSunBelowAlt(observer, refDate, altDeg, limitDays = 4) {
   const t = Astronomy.SearchAltitude(Body.Sun, observer, -1, Astronomy.MakeTime(refDate), limitDays, altDeg);
   return t ? t.date : null;

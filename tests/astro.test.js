@@ -154,7 +154,7 @@ test('nextSunBelowAlt finds the Sun descending through -6° within a day', () =>
   const from = new Date('2026-06-11T18:00:00Z');        // ~local noon (UTC-5)
   const when = nextSunBelowAlt(obs, from, -6);
   assert.ok(when instanceof Date && when > from, 'returns a future Date');
-  assert.ok(when - from < 24 * 3.6e6, 'within a day');
+  assert.ok(when - from < 12 * 3.6e6, 'within 12h - the descent tonight, not tomorrow\'s dawn crossing');
   // altAzOfBody applies refraction but SearchAltitude is geometric — allow that gap.
   const alt = altAzOfBody(Body.Sun, obs, makeTime(when)).alt;
   assert.ok(Math.abs(alt + 6) < 0.7, `sun alt ${alt} should be ~-6`);
