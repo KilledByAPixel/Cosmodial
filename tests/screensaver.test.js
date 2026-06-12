@@ -113,7 +113,7 @@ function harness(depsOver = {}) {
   });
   // Advance the clock and run the next queued frame.
   const tick = (ms) => { clock += ms; frames.shift()(); };
-  return { store, ss, tick, calls, triggerExit: () => exitCb && exitCb(), isExitBound: () => !!exitCb };
+  return { store, ss, tick, calls, frames, triggerExit: () => exitCb && exitCb(), isExitBound: () => !!exitCb };
 }
 
 test('start hides the UI, binds exit, and runs the time-lapse', () => {
@@ -151,8 +151,8 @@ test('daytime skips ahead to the next dusk', () => {
   });
   h.ss.start();
   h.tick(16);
-  assert.equal(h.store.getState().time.instant.getTime(), T0 + 6 * HOUR,
-    'sim clock jumped to dusk');
+  assert.equal(h.store.getState().time.instant.getTime(), T0 + 6 * HOUR + 60000,
+    'sim clock jumped to 60s past dusk (prevents re-firing on tolerance)');
 });
 
 test('with no eligible targets the camera falls back to a slow pan', () => {
@@ -196,4 +196,74 @@ test('starting under gyro aim turns the gyro flag off', () => {
   h.store.setFlag('gyro', true);
   h.ss.start();
   assert.equal(h.store.getState().flags.gyro, false, 'sensor aim would fight the tour');
+});
+
+test('polar summer (no dusk in reach) runs the show in daylight without re-searching', () => {
+  let duskCalls = 0;
+  const h = harness({
+    sunAltAt: () => 10,
+    nextDusk: () => { duskCalls++; return null; },
+  });
+  h.ss.start();
+  for (let i = 0; i < 5; i++) h.tick(1000);
+  assert.equal(duskCalls, 1, 'gave up after one null - no per-frame re-search');
+  assert.equal(h.store.getState().time.instant.getTime(), T0 + 5000 * TIME_SCALE,
+    'time-lapse keeps running in daylight');
+  assert.ok(h.ss.isActive());
+});
+
+test('the dwell ramp starts the drift from zero (exact arrival hold)', () => {
+  const h = harness();
+  h.ss.start();
+  for (let i = 0; i < 6; i++) h.tick(1000); // slew complete -> dwell begins
+  h.tick(50); // 50ms into the dwell: the ramp keeps the offset tiny
+  const st = h.store.getState();
+  assert.ok(Math.abs(st.aim.az - 200) < 0.05 && Math.abs(st.aim.alt - 60) < 0.05,
+    'still pinned to the target right after arrival');
+});
+
+test('after exit the leftover queued frame is inert and stop is idempotent', () => {
+  const h = harness();
+  h.ss.start();
+  h.tick(1000);
+  h.triggerExit();
+  h.ss.stop(); // second stop: no-op
+  const before = JSON.stringify(h.store.getState());
+  while (h.frames.length) h.tick(16); // drain whatever was queued
+  assert.equal(JSON.stringify(h.store.getState()), before, 'store untouched after stop');
+  assert.deepEqual(h.calls.hidden, [true, false], 'UI toggled exactly once each way');
+});
+
+test('a stale queued frame from a previous run cannot double-step the loop', () => {
+  const h = harness();
+  h.ss.start();
+  h.tick(1000);
+  h.triggerExit();           // one stale frame is still queued
+  h.ss.start();              // restart immediately, stale frame not yet drained
+  for (let i = 0; i < 3; i++) h.tick(16);
+  assert.equal(h.frames.length, 1, 'exactly one live frame chain');
+});
+
+test('gyro mode is handed back to the sensors on exit', () => {
+  const h = harness();
+  h.store.setFlag('gyro', true);
+  h.ss.start();
+  assert.equal(h.store.getState().flags.gyro, false, 'off during the show');
+  h.triggerExit();
+  assert.equal(h.store.getState().flags.gyro, true, 'restored on exit');
+});
+
+test('constellation dwells hold a fixed frame so the stars stream through', () => {
+  const orion = {
+    type: 'constellation', name: 'Orion',
+    // Jumps after arrival: a (buggy) tracking dwell would follow it; a frozen one won't.
+    altAzAt: (d) => (d.getTime() - T0 > 6500 * TIME_SCALE ? { az: 140, alt: 20 } : { az: 100, alt: 45 }),
+  };
+  const h = harness({ getCandidates: () => [orion] });
+  h.ss.start();
+  for (let i = 0; i < 6; i++) h.tick(1000); // arrive: base frozen at az 100 / alt 45
+  for (let i = 0; i < 4; i++) h.tick(1000); // 4s into the dwell, target "moved" to az 140
+  const st = h.store.getState();
+  assert.ok(Math.abs(st.aim.az - 100) < 4 && Math.abs(st.aim.alt - 45) < 4,
+    'aim stayed on the frozen frame (drift only), not the moved target');
 });

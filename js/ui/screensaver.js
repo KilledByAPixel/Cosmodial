@@ -93,6 +93,8 @@ export function createScreensaver(store, deps) {
   let lastReal = 0;
   let shot = null;        // current shot: { mode, target, from, startReal, slewMs, dwellMs, fov, base }
   const recent = [];      // last RECENT_WINDOW target names
+  let run = 0;            // generation token: a stale queued frame from a prior run must bail
+  let noDusk = false;     // polar summer: nextDusk found nothing — run the show in daylight
 
   const randIn = ([lo, hi]) => lo + rng() * (hi - lo);
 
@@ -115,19 +117,23 @@ export function createScreensaver(store, deps) {
     };
   }
 
-  // Skip the daylight: jump the simulated clock to the next dusk and re-pick there.
+  // Skip the daylight: jump the simulated clock to just past the next dusk and re-pick
+  // there. Landing 60s beyond the crossing keeps the strict > check from re-firing on
+  // the search's ~1s tolerance. No dusk within reach (polar summer): run the show in
+  // daylight rather than re-searching every frame.
   function skipToDusk() {
     const dusk = deps.nextDusk(new Date(simMs));
-    if (dusk) simMs = dusk.getTime();
+    if (!dusk) { noDusk = true; return; }
+    simMs = dusk.getTime() + 60000;
     nextShot();
   }
 
-  function step() {
-    if (!active) return;
+  function step(token) {
+    if (!active || token !== run) return;
     const t = now();
     simMs += (t - lastReal) * TIME_SCALE;
     lastReal = t;
-    if (deps.sunAltAt(new Date(simMs)) > DUSK_SUN_ALT) skipToDusk();
+    if (!noDusk && deps.sunAltAt(new Date(simMs)) > DUSK_SUN_ALT) skipToDusk();
     store.setTime(new Date(simMs), false);
     const el = t - shot.startReal;
     if (shot.mode === 'pan') {
@@ -158,14 +164,14 @@ export function createScreensaver(store, deps) {
         if (el >= shot.dwellMs) nextShot();
       }
     }
-    raf(step);
+    raf(() => step(token));
   }
 
   function start() {
     if (active) return;
     active = true;
     const st = store.getState();
-    saved = { aim: { ...st.aim }, fov: st.fov, time: { ...st.time } };
+    saved = { aim: { ...st.aim }, fov: st.fov, time: { ...st.time }, gyro: st.flags.gyro };
     if (st.flags.gyro) store.setFlag('gyro', false); // sensor aim would fight the tour
     simMs = (st.time.instant ? new Date(st.time.instant) : new Date()).getTime();
     lastReal = now();
@@ -173,7 +179,9 @@ export function createScreensaver(store, deps) {
     unbindExit = deps.bindExit(stop);
     acquireWakeLock();
     nextShot();
-    raf(step);
+    noDusk = false;
+    const token = ++run;
+    raf(() => step(token));
   }
 
   function stop() {
@@ -185,6 +193,7 @@ export function createScreensaver(store, deps) {
     store.setAim(saved.aim.az, saved.aim.alt);
     store.setFov(saved.fov);
     store.setTime(saved.time.instant, saved.time.live);
+    if (saved.gyro) store.setFlag('gyro', true); // hand aim back to the sensors
     saved = null;
   }
 
@@ -193,7 +202,9 @@ export function createScreensaver(store, deps) {
   async function acquireWakeLock() {
     try {
       if (typeof navigator !== 'undefined' && navigator.wakeLock) {
-        wakeLock = await navigator.wakeLock.request('screen');
+        const lock = await navigator.wakeLock.request('screen');
+        if (active) wakeLock = lock;
+        else lock.release(); // exited before the request resolved — don't leak a held lock
       }
     } catch { wakeLock = null; }
   }
