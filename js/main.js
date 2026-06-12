@@ -1,5 +1,5 @@
 import { createState } from './core/state.js';
-import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, searchSolarEclipse, nextSolarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, planetMoonsAltAz, moonLibrationDeg, nextSunEvent, cometsAltAz, PLANET_MOONS, lunarShadow } from './core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, searchSolarEclipse, nextSolarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, planetMoonsAltAz, moonLibrationDeg, nextSunEvent, cometsAltAz, PLANET_MOONS, lunarShadow, nextSunBelowAlt } from './core/astro.js';
 import { makeStarAltAz, horToEqjRotation, eqjToGalRotation } from './core/astro.js';
 import { eqjToEnuMatrix } from './render/star-transform.js';
 import { bodyScreenOrientation, altazSepDeg, discObscuration, frameFovDeg, planetResolveFovDeg } from './core/moon.js';
@@ -24,6 +24,7 @@ import { buildFavoritesPanel } from './ui/favorites.js';
 import { buildSearch, buildSearchIndex } from './ui/search.js';
 import { parseShareParam } from './ui/share.js';
 import { animateSlew } from './ui/slew.js';
+import { createScreensaver, DUSK_SUN_ALT } from './ui/screensaver.js';
 import { findEclipseContext, umbralVisibility, solarVisibility } from './guide/eclipses.js';
 import { activeShower } from './guide/showers.js';
 import { findConjunctions, midpointAltAz } from './guide/conjunctions.js';
@@ -543,6 +544,52 @@ function resolveFavorite(rec) {
   return { kind, label: m.label, body: m.body, mag: m.mag, altaz: m.altaz };
 }
 
+// Naked-eye threshold for a comet to join the screensaver tour. Stricter than
+// COMET_MARKER_MAG (the app draws comets down to binocular mag 9, but dwelling on a
+// barely-there dot is no show).
+const SCREENSAVER_COMET_MAG = 6;
+
+// Candidate targets for the screensaver tour. Each carries a live alt-az resolver so the
+// eligibility checks and the per-frame chase both track the time-lapse. The Sun is
+// excluded (daytime is skipped anyway) and so is untextured Pluto (mag ~14.5 — dwelling
+// on a barely-there dot is no show).
+function screensaverCandidates() {
+  const st = store.getState();
+  const observer = makeObserver(st.location.lat, st.location.lng);
+  const atDate = st.time.instant ? new Date(st.time.instant) : new Date();
+  const atNow = makeTime(atDate);
+  // A lunar eclipse with its umbral phase underway at the viewed time makes the Moon the
+  // must-see (the disc turns coppery in Earth's shadow). Searching from 2 days back
+  // catches an eclipse already in progress.
+  const ec = searchLunarEclipse(new Date(atDate.getTime() - 2 * 86400000));
+  const eclipseNow = !!(ec.contacts.partialBegin && ec.contacts.partialEnd
+    && atDate >= ec.contacts.partialBegin && atDate <= ec.contacts.partialEnd);
+  const bodyCandidate = (name, body, priority = false) => ({
+    type: 'body', name, priority,
+    altAzAt: (d) => altAzOfBody(body, observer, makeTime(d)),
+    angularRadiusDeg: bodyAngularRadiusDeg(body, observer, atNow),
+  });
+  const starAt = (ra, dec) => (d) => altAzOfStar(ra, dec, observer, makeTime(d));
+  // Out-of-coverage comets resolve to a below-nadir sentinel: never eligible.
+  const cometAt = (id) => (d) => {
+    const c = cometsAltAz(observer, makeTime(d)).find((o) => o.id === id);
+    return c && c.altaz ? c.altaz : { az: 0, alt: -90 };
+  };
+  return [
+    bodyCandidate('Moon', Body.Moon, eclipseNow),
+    ...PLANETS.filter((p) => p.tex).map((p) => bodyCandidate(p.name, p.body)),
+    ...cometsAltAz(observer, atNow)
+      .filter((c) => c.altaz && c.mag != null && c.mag <= SCREENSAVER_COMET_MAG)
+      .map((c) => ({ type: 'comet', name: c.name, altAzAt: cometAt(c.id) })),
+    ...dsos.map((d) => ({ type: 'dso', name: d.name, sizeArcmin: d.sizeArcmin, altAzAt: starAt(d.ra, d.dec) })),
+    ...figures.map((f) => {
+      const [ra, dec] = labelOf(f);
+      return { type: 'constellation', name: f.name, altAzAt: starAt(ra, dec) };
+    }),
+    ...stars.filter((s) => s.name && s.mag <= 1.5).map((s) => ({ type: 'star', name: s.name, altAzAt: starAt(s.ra, s.dec) })),
+  ];
+}
+
 // Panel rows for the current favorites: resolved live positions; unresolvable records (stale
 // catalog ids) are dropped from display but kept in storage.
 function buildFavoriteRows() {
@@ -987,8 +1034,44 @@ async function boot() {
     render();
     saveComposite(useGL ? [glCanvas, canvas] : [canvas], canvas.width, canvas.height, screenshotName());
   };
-  const menu = buildMenu(store, { onScreenshot });
+  const menu = buildMenu(store, { onScreenshot, onScreensaver: () => screensaver.start() });
   const skyToggles = buildSkyToggles(store);
+  const screensaver = createScreensaver(store, {
+    getCandidates: screensaverCandidates,
+    sunAltAt: (d) => {
+      const st = store.getState();
+      return altAzOfBody(Body.Sun, makeObserver(st.location.lat, st.location.lng), makeTime(d)).alt;
+    },
+    nextDusk: (d) => {
+      const st = store.getState();
+      return nextSunBelowAlt(makeObserver(st.location.lat, st.location.lng), d, DUSK_SUN_ALT);
+    },
+    setUiHidden: (on) => {
+      if (on) { closeCard(); highlighted = null; followTarget = null; }
+      document.body.classList.toggle('screensaver', on);
+    },
+    // Wake-up listeners: capture-phase on window so the waking input never reaches the
+    // app. pointermove deliberately excluded (a nudged mouse shouldn't end the show), and
+    // the click that follows the waking pointerdown is swallowed so it can't press a
+    // just-restored button.
+    bindExit: (onExit) => {
+      const swallowClick = (e) => { e.preventDefault(); e.stopPropagation(); };
+      const wake = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.type === 'pointerdown') window.addEventListener('click', swallowClick, { capture: true, once: true });
+        onExit();
+      };
+      window.addEventListener('pointerdown', wake, true);
+      window.addEventListener('keydown', wake, true);
+      window.addEventListener('wheel', wake, { capture: true, passive: false });
+      return () => {
+        window.removeEventListener('pointerdown', wake, true);
+        window.removeEventListener('keydown', wake, true);
+        window.removeEventListener('wheel', wake, { capture: true });
+      };
+    },
+  });
   if (controls) controls.append(menu.el, ...skyToggles, search.el, buildTimeControls(store));
   // Thin screens: the emoji sky toggles (🌅 🌙 📱) leave the bar for the menu's Sky section so the
   // search box keeps its width; they move back when the viewport widens (rotation, window resize).

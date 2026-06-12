@@ -217,3 +217,15 @@ body.night #night-overlay { display: block; }
 .city-list { list-style: none; margin: 6px 0 0; padding: 0; max-height: min(40vh, 260px); overflow-y: auto; }
 .time-panel input[type="range"] { display: block; width: 100%; margin: 0 0 8px; }
 .time-panel input[type="datetime-local"] { width: 100%; }
+
+/* Screensaver mode: the chrome fades away and the cursor hides; the sky keeps rendering.
+   The opacity transition also eases everything back in on exit. */
+#controls, #card-host, #favorites-host { transition: opacity 1.2s ease; }
+body.screensaver { cursor: none; }
+body.screensaver #controls, body.screensaver #card-host, body.screensaver #favorites-host {
+  opacity: 0;
+  pointer-events: none;
+}
+body.screensaver #controls *, body.screensaver #card-host *, body.screensaver #favorites-host * {
+  pointer-events: none; /* children with their own pointer-events would re-enable inside a none parent */
+}
