@@ -18,6 +18,9 @@ input, textarea { -webkit-user-select: text; user-select: text; }
    the UI panels (z-index >= 5), and leaves #controls' auto stacking untouched (search dropdown still
    layers right). #sky must be transparent so the GL stars show through. */
 #sky, #sky-gl { position: fixed; inset: 0; display: block; width: 100vw; height: 100vh;
+  /* Mobile: 100vh is the LARGE viewport (URL bar hidden), pushing the canvas bottom off-screen
+     while the browser chrome shows; dvh tracks the actually-visible viewport. */
+  width: 100dvw; height: 100dvh;
   z-index: 0; touch-action: none; }
 #sky { background: transparent; }
 #sky-gl { pointer-events: none; }

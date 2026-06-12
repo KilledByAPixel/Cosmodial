@@ -110,13 +110,18 @@ export function buildMenu(store, opts = {}) {
       makeToggle(store, 'Eq grid', 'eqgrid'),
       makeToggle(store, 'Deep sky', 'deepsky')),
   );
+  // On narrow screens main.js re-homes the bar's emoji sky toggles (🌅 🌙 📱) into this section
+  // to free bar width for the search box; it stays hidden while empty (see placeSkyToggles).
+  const skySection = section('Sky');
+  skySection.hidden = true;
+  panel.append(skySection);
   if (opts.onScreenshot) {
     panel.append(section('Capture', makeAction('📷 Screenshot', 'Save the current view as a PNG', opts.onScreenshot)));
   }
   panel.append(section('Info', makeAction('✨ About Cosmodial', 'About this app', openAbout)));
   el.append(btn, panel);
   attachPopover(btn, panel);
-  return { el };
+  return { el, skySection, skyRow: skySection.querySelector('.menu-row') };
 }
 
 // The sky switches as emoji-only bar buttons (the name lives in the hover tooltip): atmosphere,

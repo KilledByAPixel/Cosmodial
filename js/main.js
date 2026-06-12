@@ -284,9 +284,12 @@ function render() {
   // something that has set would otherwise show a ghost (or nothing) at gentle aim altitudes.
   const selBelow = highlighted && highlighted.altaz && highlighted.altaz.alt < 0;
   const belowFade = (st.flags.edit || selBelow) ? 1 : belowHorizonFade(st.aim.alt);
-  // Lift the compass ribbon/readout above the on-screen control bar so they aren't hidden behind it.
+  // Lift the compass ribbon/readout above the on-screen control bar so they aren't hidden behind
+  // it. Measured from where the bar actually sits in the viewport (not just its height): if the
+  // canvas runs taller than the visible area (mobile URL-bar quirks), height-based math would put
+  // the pill under the bar or off-screen.
   const controlsEl = document.getElementById('controls');
-  const bottomInset = controlsEl ? controlsEl.offsetHeight : 0;
+  const bottomInset = controlsEl ? Math.max(0, view.height - controlsEl.getBoundingClientRect().top) : 0;
   const cam = { az: st.aim.az, alt: st.aim.alt, fov: st.fov, roll: st.roll, width: view.width, height: view.height, bottomInset };
   // In edit mode, show ONLY the active constellation's lines (focus); otherwise honor the lines flag.
   const visibleCons = st.flags.edit
@@ -984,7 +987,20 @@ async function boot() {
     render();
     saveComposite(useGL ? [glCanvas, canvas] : [canvas], canvas.width, canvas.height, screenshotName());
   };
-  if (controls) controls.append(buildMenu(store, { onScreenshot }).el, ...buildSkyToggles(store), search.el, buildTimeControls(store));
+  const menu = buildMenu(store, { onScreenshot });
+  const skyToggles = buildSkyToggles(store);
+  if (controls) controls.append(menu.el, ...skyToggles, search.el, buildTimeControls(store));
+  // Thin screens: the emoji sky toggles (🌅 🌙 📱) leave the bar for the menu's Sky section so the
+  // search box keeps its width; they move back when the viewport widens (rotation, window resize).
+  // Moving the same DOM nodes preserves their listeners and on/off state either way.
+  const thinBar = window.matchMedia('(max-width: 640px)');
+  const placeSkyToggles = () => {
+    if (thinBar.matches) menu.skyRow.append(...skyToggles);
+    else menu.el.after(...skyToggles);
+    menu.skySection.hidden = !thinBar.matches;
+  };
+  placeSkyToggles();
+  thinBar.addEventListener('change', placeSkyToggles);
   // Night mode also tints the whole document (the toggle button's own state is handled in menu.js).
   const applyNight = () => document.body.classList.toggle('night', store.getState().flags.night);
   store.subscribe(applyNight);
