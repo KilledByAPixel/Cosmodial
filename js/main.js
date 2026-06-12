@@ -347,9 +347,11 @@ function render() {
     ? (highlighted && highlighted.kind === 'constellation' ? highlighted.name
       : followTarget && followTarget.kind === 'constellation' ? followTarget.name : null)
     : null;
+  // The screensaver never shows the flag's all-figures layer (whatever the toggle says) — only
+  // its own focused figure, drawn via the consFocus fade overlay below.
   const visibleCons = st.flags.edit
     ? (constellations[editIndex] ? [constellations[editIndex]] : [])
-    : (st.flags.lines ? constellations
+    : (st.flags.lines && !screensaverOn ? constellations
       : selCons ? constellations.filter((c) => c.name === selCons) : []);
   // Comets bright enough to draw, as plain glow-dot markers (kept out of the module `markers`
   // array so conjunctions/body code never see them).
@@ -458,9 +460,9 @@ function render() {
     selectedStarId: highlighted && highlighted.kind === 'star' ? highlighted.id : null,
   });
   // Screensaver constellation focus: the figure fades in as the camera approaches and out
-  // at the dwell's end. Overlay-drawn only when the lines toggle isn't already showing
-  // every figure (double-drawing would brighten it).
-  if (screensaverOn && consFocus && !st.flags.lines) {
+  // at the dwell's end. This overlay is the ONLY way a figure draws during the show — the
+  // all-figures lines layer is suppressed above regardless of the toggle.
+  if (screensaverOn && consFocus) {
     const c = constellations.find((o) => o.name === consFocus.name);
     if (c) drawConstellations(ctx, createProjector(cam), [c], cam, false, false, belowFade, consFocus.alpha);
   }
