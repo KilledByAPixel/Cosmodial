@@ -1,5 +1,5 @@
 import { createState } from './core/state.js';
-import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, searchSolarEclipse, nextSolarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, planetMoonsAltAz, moonLibrationDeg, nextSunEvent, cometsAltAz, PLANET_MOONS, lunarShadow, nextSunBelowAlt, sunGeometricAlt, nextMaxElongation, nextOpposition, nextVenusPeakMagnitude, nextFullMoon, nextTransit } from './core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, searchSolarEclipse, nextSolarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, planetMoonsAltAz, moonLibrationDeg, nextSunEvent, cometsAltAz, PLANET_MOONS, lunarShadow, nextSunBelowAlt, sunGeometricAlt, nextMaxElongation, nextOpposition, nextVenusPeakMagnitude, nextFullMoon, nextTransit, sunDirectionEqj } from './core/astro.js';
 import { makeStarAltAz, horToEqjRotation, eqjToGalRotation } from './core/astro.js';
 import { eqjToEnuMatrix } from './render/star-transform.js';
 import { bodyScreenOrientation, altazSepDeg, discObscuration, frameFovDeg, planetResolveFovDeg } from './core/moon.js';
@@ -30,6 +30,7 @@ import { findEclipseContext, umbralVisibility, solarVisibility } from './guide/e
 import { activeShower } from './guide/showers.js';
 import { findConjunctions, midpointAltAz } from './guide/conjunctions.js';
 import { HIGHLIGHT_WINDOW_DAYS, SUPERMOON_KM, withinDays, bestVisibleComet, isOccultation } from './guide/highlights.js';
+import { parseTle, issAltAz, issMagnitude, findNextVisiblePass, loadIssTle } from './core/iss.js';
 
 // Planet disc size vs true angular size. 1 = true scale (Stellarium-like): zoomed out, planets are the
 // oversized glow DOTS (visibility); the textured sphere appears exactly when its TRUE disc outgrows the
@@ -83,6 +84,9 @@ let eclipseObscuration = 0; // fraction of the Sun's disc the Moon covers right 
 let tonightShower = null;   // the meteor shower peaking tonight (+ radiant alt/az), or null
 let conjunctions = [];      // close Moon/planet pairs tonight, closest-first
 let skyEvents = [];         // date-window events near the viewed time (oppositions, elongations, ...), priority-ordered
+let issRec = null;          // parsed ISS TLE (satrec), or null when the optional fetch never landed
+let issObj = null;          // per-recompute ISS marker inputs { altaz, mag }, null when not trackable
+let issPass = null;         // next watchable ISS pass from the viewed time (full pass), or null
 let skyDirty = true;  // next render runs the FREQUENT recompute (markers/spheres/lines/labels/DSOs)
 let fullDirty = true; // next recompute also runs the FULL pass (100k pick array, eclipse, favorites/events)
 let selected = null;        // first star picked in edit mode (a skyObjects entry)
@@ -176,6 +180,14 @@ function computeSky(full) {
   }
   planetMoons = planetMoonsAltAz(observer, time);
   cometObjects = cometsAltAz(observer, time).map((c) => ({ ...c, kind: 'comet' }));
+  // ISS: optional and render-local. Null when no TLE ever arrived, or when the viewed time sits
+  // outside the TLE's ±10-day validity window (time travel) — it vanishes like an out-of-coverage
+  // comet. Recomputed every pass: the station moves ~1°/s, far too fast for the 30 s full cadence.
+  issObj = null;
+  if (issRec) {
+    const p = issAltAz(issRec, st.location.lat, st.location.lng, time.date);
+    if (p) issObj = { altaz: { alt: p.alt, az: p.az }, mag: issMagnitude(p.rangeKm) };
+  }
   if (useGL) {
     // Sky background: atmosphere colour + star wash-out are driven by the Sun's altitude; the warm
     // glow lobe needs its direction, and the Milky Way texture its ENU->galactic sampling matrix.
@@ -253,6 +265,15 @@ function computeSky(full) {
       visibilityOf: solarVisibility,
     });
     skyEvents = findSkyEvents(eclipseAt);
+    // Next watchable ISS pass (dark sky, station sunlit, ≥10° up). Starts 15 min back so a pass
+    // in progress at the viewed time is found, not skipped, and scans 18 h — enough to feed the
+    // 12 h notice window with margin (~8 ms of SGP4 steps). Null without a usable TLE.
+    issPass = issRec ? findNextVisiblePass(issRec, st.location.lat, st.location.lng,
+      new Date(eclipseAt.getTime() - 15 * 60000), {
+        sunAltAt: (d) => sunGeometricAlt(observer, d),
+        sunDirAt: sunDirectionEqj,
+        days: 0.75,
+      }) : null;
     if (favPanel) {
       favPanel.setSunEvent(nextSunEvent(observer, eclipseAt));
       favPanel.setRows(buildFavoriteRows());
@@ -315,7 +336,11 @@ function render() {
   const cometMarkers = st.flags.edit ? [] : cometObjects
     .filter((c) => c.altaz && c.mag <= COMET_MARKER_MAG)
     .map((c) => ({ altaz: c.altaz, label: c.name, color: c.color, mag: c.mag, alpha: markerAlpha(c.mag), radius: planetRadius(c.mag) }));
-  let drawList = st.flags.edit ? [] : markers.concat(cometMarkers); // markers (+ moons/comets variants below)
+  // The ISS as a warm glow dot, same render-local treatment as the comets (never in `markers`,
+  // so conjunction/body code stays blind to it). Present only while a fresh-enough TLE tracks it.
+  const issMarkers = (st.flags.edit || !issObj) ? [] :
+    [{ altaz: issObj.altaz, label: 'ISS', color: '#ffe9c4', mag: issObj.mag, alpha: markerAlpha(issObj.mag), radius: planetRadius(issObj.mag) }];
+  let drawList = st.flags.edit ? [] : markers.concat(cometMarkers, issMarkers); // markers (+ moons/comets variants below)
   // One EQJ->ENU rotation per frame, shared by the GPU star transform and the equatorial grid:
   // stars sweep smoothly in live/play/scrub at zero per-star CPU cost, and the grid stays glued
   // to them because both use the SAME rotation.
@@ -383,7 +408,7 @@ function render() {
         altaz: m.altaz, label: m.name, color: '#d8cfc0',
         mag: m.mag, alpha: markerAlpha(m.mag), radius: planetRadius(m.mag),
       }));
-    drawList = st.flags.edit ? [] : markers.concat(moonMarkers, cometMarkers);
+    drawList = st.flags.edit ? [] : markers.concat(moonMarkers, cometMarkers, issMarkers);
     starfield.draw(cam, { belowFade, edit: st.flags.edit });
     // Sun/Moon/planets as glowing discs: size from markerRadius (angular for Sun/Moon, disk for
     // planets), tint from the body's colour, brightness from magnitude. Hidden in edit mode.
@@ -736,8 +761,34 @@ function buildTonightEvents() {
   if (comet) events.push(cometEvent(comet));
   if (tonightShower) events.push(showerEvent(tonightShower));
   if (conjunctions.length) events.push(conjunctionEvent(conjunctions[0]));
+  // The classic "what's that moving light": tonight's watchable ISS pass, once it's near.
+  if (issPass && issPass.start.getTime() - at.getTime() <= ISS_PASS_NOTICE_MS) events.push(issPassEvent(issPass, at));
   for (const ev of skyEvents) events.push(skyEventRow(ev));
   return events.slice(0, MAX_HIGHLIGHTS);
+}
+
+// How far ahead tonight's ISS pass earns its row. Passes cluster into the couple of hours after
+// dusk and before dawn; half a day of notice means an evening pass shows from that morning on.
+const ISS_PASS_NOTICE_MS = 12 * 3600000;
+
+// Banner for an ISS pass: in progress at the viewed time, or coming up tonight.
+function issPassEvent(p, at) {
+  const live = at >= p.start && at <= p.end;
+  const t = p.start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const text = live
+    ? `🛰️ The ISS is overhead right now — look ${azToCompass(p.peakAz)}, it sets in minutes.`
+    : `🛰️ The ISS passes over at ${t} — ${azToCompass(p.startAz)} to ${azToCompass(p.endAz)}, peaking ${Math.round(p.peakAlt)}° up.`;
+  return { text, actionLabel: 'Find', onAction: () => onFindIssPass(p) };
+}
+
+// Jump to an ISS pass: set the clock to its peak and frame that point wide, so the station's
+// glow dot is sweeping through the view (it crosses the sky in ~5 minutes, so the dot moves live).
+function onFindIssPass(p) {
+  closeCard();
+  store.setTime(p.peakDate, false);          // jump the clock to peak (triggers recompute)
+  highlighted = { altaz: { alt: p.peakAlt, az: p.peakAz } };
+  const st = store.getState();
+  animateSlew(store, { az: p.peakAz, alt: p.peakAlt, fov: Math.min(Math.max(st.fov, 40), 60) });
 }
 
 // SearchTransit pays for transit rarity by scanning synodic period after synodic period (~15-30 ms
@@ -1153,6 +1204,13 @@ async function boot() {
   } catch (err) {
     console.error('[cosmodial] Failed to load star catalogue:', err);
   }
+  // ISS TLE: optional runtime fetch (CelesTrak, localStorage-cached). Fire-and-forget; offline or
+  // blocked simply means no ISS this session — the app has no other runtime network dependency.
+  loadIssTle().then((tle) => {
+    if (!tle) return;
+    issRec = parseTle(tle.line1, tle.line2);
+    if (issRec) requestFullRecompute(); // surface the marker and tonight's pass row
+  }).catch(() => { /* absence, not error */ });
   let loaded = [];
   try {
     const cres = await fetch('./data/constellations.json');

@@ -8,6 +8,11 @@
   https://github.com/cosinekitty/astronomy), **MIT** — vendored at `js/vendor/astronomy.js`
   (downloaded from https://cdn.jsdelivr.net/npm/astronomy-engine@2/esm/astronomy.js) with its
   original license header.
+- **Satellite propagation:** satellite.js v5.0.0 (shashwatak/satellite-js,
+  https://github.com/shashwatak/satellite-js), **MIT** — vendored at `js/vendor/satellite.js`
+  (downloaded from https://cdn.jsdelivr.net/npm/satellite.js@5.0.0/dist/satellite.es.js).
+- **ISS orbital elements:** fetched at runtime from CelesTrak (https://celestrak.org), with
+  https://wheretheiss.at as fallback. Optional — the app runs fully without them.
 - **Constellation lines:** figure line data from d3-celestial (ofrohn/d3-celestial), **BSD-3-Clause**
   (https://github.com/ofrohn/d3-celestial). Converted to RA/Dec polylines in `data/constellations.json`.
 - **Deep-sky objects:** OpenNGC (mattiaverga/OpenNGC, https://github.com/mattiaverga/OpenNGC),

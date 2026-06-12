@@ -283,6 +283,14 @@ export function nextVenusPeakMagnitude(refDate) {
   return { date: i.time.date, mag: i.mag };
 }
 
+// Geocentric unit vector toward the Sun (EQJ) — feeds the ISS Earth-shadow test in core/iss.js.
+// The TEME-vs-EQJ frame difference is arcminutes: noise against a 6371 km shadow cylinder.
+export function sunDirectionEqj(date) {
+  const v = Astronomy.GeoVector(Body.Sun, makeTime(date), true);
+  const r = Math.hypot(v.x, v.y, v.z) || 1;
+  return { x: v.x / r, y: v.y / r, z: v.z / r };
+}
+
 // Next Mercury/Venus transit across the Sun's face after refDate: start/peak/finish as JS Dates.
 // RARE (Mercury ~14 per century; Venus not again until 2117), and the vendor search pays for that
 // rarity by scanning synodic period after synodic period — ~15-30 ms per call, so callers should
