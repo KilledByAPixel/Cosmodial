@@ -229,3 +229,24 @@ body.screensaver #controls, body.screensaver #card-host, body.screensaver #favor
 body.screensaver #controls *, body.screensaver #card-host *, body.screensaver #favorites-host * {
   pointer-events: none; /* children with their own pointer-events would re-enable inside a none parent */
 }
+
+/* Screensaver caption: the only text during the show — the framed target's name, bottom
+   center. main.js re-adds .show per target, restarting the fade-in. Under #night-overlay
+   (z-index 9999) so night mode tints it like everything else. */
+#screensaver-label { display: none; }
+body.screensaver #screensaver-label {
+  display: block;
+  position: fixed;
+  left: 0; right: 0;
+  bottom: 30px;
+  z-index: 4; /* above the canvases, below the UI panels (>= 5) */
+  text-align: center;
+  font: 16px/1.4 system-ui, sans-serif;
+  letter-spacing: 0.12em;
+  color: rgba(205, 222, 245, 0.92);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+  opacity: 0;
+}
+body.screensaver #screensaver-label.show { animation: ss-caption-in 1.6s ease forwards; }
+@keyframes ss-caption-in { from { opacity: 0; } to { opacity: 1; } }

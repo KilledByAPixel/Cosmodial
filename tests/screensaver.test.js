@@ -274,3 +274,17 @@ test('the picker sees the simulated instant, not the wall clock', () => {
   h.ss.start();
   assert.equal(seenAt.getTime(), T0, 'first pick happens at the starting sim instant');
 });
+
+test('onShot announces each framed target by name, and null for the fallback pan', () => {
+  const names = [];
+  const h = harness({ onShot: (n) => names.push(n) });
+  h.ss.start();
+  assert.deepEqual(names, ['B'], 'first shot announced (drives the on-screen caption)');
+  for (let i = 0; i < 21; i++) h.tick(1000); // 6s slew + 15s dwell -> next shot begins
+  assert.equal(names.length, 2, 'second shot announced');
+  assert.equal(names[1], 'A', 'recency rotates to the other candidate');
+  const empty = [];
+  const h2 = harness({ getCandidates: () => [], onShot: (n) => empty.push(n) });
+  h2.ss.start();
+  assert.deepEqual(empty, [null], 'no target -> caption cleared');
+});

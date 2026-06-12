@@ -85,7 +85,7 @@ let fullDirty = true; // next recompute also runs the FULL pass (100k pick array
 let selected = null;        // first star picked in edit mode (a skyObjects entry)
 let highlighted = null;     // object whose card is currently open (gets a ring on canvas)
 let followTarget = null;    // object kept centred as time changes (set by Find/search; cleared on drag/tap)
-let screensaverOn = false;  // hides canvas-drawn chrome (compass pill, all labels) while the tour runs
+let screensaverOn = false;  // hides canvas-drawn chrome (HUD, all labels) while the tour runs
 let bodyInputs = [];   // per-recompute lit-sphere inputs (Moon + planets); see computeSky()
 let planetMoons = [];       // all systems, flat [{planet, name, altaz, mag, behind}]; drawn when planet resolves
 let resolvedPlanets = new Set(); // sphere-pass planets from the LAST frame; gates moon picks like moon draws
@@ -403,7 +403,7 @@ function render() {
   // constellation lines (so labels sit on top), matching the old single-canvas order.
   if (useGL) drawStarLabels(ctx, skyObjects, createProjector(cam), cam, st.flags.labels && !screensaverOn, belowFade);
   if (!st.flags.edit) drawCorona(ctx, cam);
-  drawHud(ctx, cam, { compass: !screensaverOn });
+  if (!screensaverOn) drawHud(ctx, cam); // the show is chrome-free: no horizon, cardinals, or pill
   if (st.flags.edit) drawEditOverlay(ctx, cam);
   drawHighlight(ctx, cam);
   // Live mode: self-sustaining render loop (one render per animation frame) so the sky moves smoothly —
@@ -1056,6 +1056,16 @@ async function boot() {
       screensaverOn = on;
       if (on) { closeCard(); highlighted = null; followTarget = null; }
       document.body.classList.toggle('screensaver', on);
+    },
+    // The caption under the show: the framed target's name, faded in per shot. Removing
+    // and re-adding .show (with a reflow between) restarts the CSS fade-in animation.
+    onShot: (name) => {
+      const label = document.getElementById('screensaver-label');
+      if (!label) return;
+      label.classList.remove('show');
+      void label.offsetWidth;
+      label.textContent = name || '';
+      if (name) label.classList.add('show');
     },
     // Wake-up listeners: capture-phase on window so the waking input never reaches the
     // app. pointermove deliberately excluded (a nudged mouse shouldn't end the show), and

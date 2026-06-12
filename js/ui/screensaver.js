@@ -84,6 +84,8 @@ export function driftOffset(tMs, fov) {
 //     or both refracted). If the check and the search disagree by even a fraction of a
 //     degree, the dusk skip re-fires every frame and the show jumps a day per frame.
 //   setUiHidden(on): hide/show the chrome (and clear any card/lock-on when hiding)
+//   onShot(name): optional — each new shot's target name (null for the fallback pan);
+//     drives the on-screen caption
 //   bindExit(onExit): attach the wake-up listeners; returns an unbind function
 //   raf / now / rng: injectable for tests (same pattern as animateSlew)
 export function createScreensaver(store, deps) {
@@ -108,6 +110,7 @@ export function createScreensaver(store, deps) {
     const from = { az: st.aim.az, alt: st.aim.alt, fov: st.fov };
     const at = new Date(simMs);
     const target = pickTarget(deps.getCandidates(at), recent, { rng, at });
+    if (deps.onShot) deps.onShot(target ? target.name : null);
     if (!target) {
       shot = { mode: 'pan', from, startReal: now() };
       return;
