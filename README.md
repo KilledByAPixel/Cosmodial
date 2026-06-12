@@ -26,7 +26,7 @@ Cosmodial knows. Tell it where you are and it paints the actual sky above your h
 
 ☀️ **Solar and lunar eclipses.** Jump to the next one and watch the corona emerge or the Moon turn coppery-red.
 
-🛰️ **Catch the ISS.** Its live position in your sky, plus a heads-up when tonight has a flyover worth stepping outside for.
+🛰️ **Catch a space station.** The ISS and Tiangong cross your sky live, with a heads-up when tonight has a flyover worth stepping outside for.
 
 🔴 **Night mode.** Red-on-black to protect your dark-adapted eyes.
 

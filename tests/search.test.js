@@ -60,12 +60,16 @@ test('buildSearchIndex includes planetary moons with a per-entry hint', () => {
   assert.ok(searchIndex(index, 'tit').some((e) => e.ref === 'Titan'), 'findable by prefix');
 });
 
-test('buildSearchIndex includes the ISS, findable by name and full-name aliases', () => {
-  const sats = [{ label: 'ISS', aliases: ['International Space Station', 'Space Station'] }];
+test('buildSearchIndex includes satellites, findable by name and full-name aliases', () => {
+  const sats = [
+    { id: 'ISS', label: 'ISS', aliases: ['International Space Station', 'Space Station'] },
+    { id: 'Tiangong', label: 'Tiangong', aliases: ['Chinese Space Station', 'CSS', 'Tianhe'] },
+  ];
   const index = buildSearchIndex([], [], [], [], [], [], sats);
-  assert.deepEqual(index, [{ label: 'ISS', type: 'iss', ref: 'ISS', aliases: ['International Space Station', 'Space Station'] }]);
-  assert.ok(searchIndex(index, 'iss').some((e) => e.type === 'iss'), 'found by name');
-  assert.ok(searchIndex(index, 'space station').some((e) => e.type === 'iss'), 'found by alias');
+  assert.deepEqual(index[0], { label: 'ISS', type: 'satellite', ref: 'ISS', aliases: ['International Space Station', 'Space Station'] });
+  assert.ok(searchIndex(index, 'iss').some((e) => e.ref === 'ISS'), 'ISS found by name');
+  assert.ok(searchIndex(index, 'tiangong').some((e) => e.ref === 'Tiangong'), 'Tiangong found by name');
+  assert.ok(searchIndex(index, 'space station').map((e) => e.ref).join() === 'ISS,Tiangong', 'both found by alias');
 });
 
 test('searchIndex ranks Titan ahead of Titania for the query "titan"', () => {

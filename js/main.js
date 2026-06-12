@@ -30,7 +30,7 @@ import { findEclipseContext, umbralVisibility, solarVisibility } from './guide/e
 import { activeShower } from './guide/showers.js';
 import { findConjunctions, midpointAltAz } from './guide/conjunctions.js';
 import { HIGHLIGHT_WINDOW_DAYS, SUPERMOON_KM, withinDays, bestVisibleComet, isOccultation } from './guide/highlights.js';
-import { parseTle, issAltAz, issMagnitude, findNextVisiblePass, loadIssTle } from './core/iss.js';
+import { SATELLITES, parseTle, satAltAz, satMagnitude, findNextVisiblePass, loadSatTles } from './core/satellites.js';
 
 // Planet disc size vs true angular size. 1 = true scale (Stellarium-like): zoomed out, planets are the
 // oversized glow DOTS (visibility); the textured sphere appears exactly when its TRUE disc outgrows the
@@ -84,9 +84,9 @@ let eclipseObscuration = 0; // fraction of the Sun's disc the Moon covers right 
 let tonightShower = null;   // the meteor shower peaking tonight (+ radiant alt/az), or null
 let conjunctions = [];      // close Moon/planet pairs tonight, closest-first
 let skyEvents = [];         // date-window events near the viewed time (oppositions, elongations, ...), priority-ordered
-let issRec = null;          // parsed ISS TLE (satrec), or null when the optional fetch never landed
-let issObj = null;          // per-recompute ISS state { altaz, mag, rangeKm }, null when not trackable
-let issPass = null;         // next watchable ISS pass from the viewed time (full pass), or null
+let satRecs = {};           // satellite id -> parsed TLE (satrec); empty until the optional fetch lands
+let satObjs = [];           // per-recompute trackable satellites [{ sat, altaz, mag, rangeKm }]
+let satPasses = [];         // full pass: next watchable pass per satellite [{ sat, pass }], soonest first
 let skyDirty = true;  // next render runs the FREQUENT recompute (markers/spheres/lines/labels/DSOs)
 let fullDirty = true; // next recompute also runs the FULL pass (100k pick array, eclipse, favorites/events)
 let selected = null;        // first star picked in edit mode (a skyObjects entry)
@@ -105,12 +105,16 @@ let resolvedPlanets = new Set(); // sphere-pass planets from the LAST frame; gat
 const moonPick = (m) => ({ kind: 'planet-moon', label: m.name, planet: m.planet,
   planetBody: Body[m.planet], mag: m.mag, altaz: m.altaz, behind: m.behind });
 
-// Live pick object for the ISS — search, tap, follow, favorites, and share all converge here.
+// Live pick object for a satellite — search, tap, follow, favorites, and share all converge here.
 // A null altaz (TLE never arrived, or the viewed time is outside its window) still makes a valid
 // pick: the card opens and explains the data coverage instead of pointing anywhere.
-const issPick = () => ({ kind: 'iss', id: 'ISS', name: 'ISS', label: 'ISS',
-  altaz: issObj ? issObj.altaz : null, mag: issObj ? issObj.mag : null,
-  rangeKm: issObj ? issObj.rangeKm : null, nextPass: issPass });
+function satPick(sat) {
+  const o = satObjs.find((x) => x.sat.id === sat.id);
+  const p = satPasses.find((x) => x.sat.id === sat.id);
+  return { kind: 'satellite', id: sat.id, name: sat.label, label: sat.label, title: sat.title, blurb: sat.blurb,
+    altaz: o ? o.altaz : null, mag: o ? o.mag : null, rangeKm: o ? o.rangeKm : null,
+    nextPass: p ? p.pass : null };
+}
 
 // Moons whose planet has resolved into a sphere (per the given set) and that aren't occulted —
 // the one gate shared by drawing and tap-picking so the two can't drift apart.
@@ -187,13 +191,15 @@ function computeSky(full) {
   }
   planetMoons = planetMoonsAltAz(observer, time);
   cometObjects = cometsAltAz(observer, time).map((c) => ({ ...c, kind: 'comet' }));
-  // ISS: optional and render-local. Null when no TLE ever arrived, or when the viewed time sits
-  // outside the TLE's ±10-day validity window (time travel) — it vanishes like an out-of-coverage
-  // comet. Recomputed every pass: the station moves ~1°/s, far too fast for the 30 s full cadence.
-  issObj = null;
-  if (issRec) {
-    const p = issAltAz(issRec, st.location.lat, st.location.lng, time.date);
-    if (p) issObj = { altaz: { alt: p.alt, az: p.az }, mag: issMagnitude(p.rangeKm), rangeKm: p.rangeKm };
+  // Satellites: optional and render-local. A satellite drops out when no TLE ever arrived, or
+  // when the viewed time sits outside its TLE's ±10-day validity window (time travel) — vanishing
+  // like an out-of-coverage comet. Recomputed every pass: stations move ~1°/s, far too fast for
+  // the 30 s full cadence.
+  satObjs = [];
+  for (const s of SATELLITES) {
+    const rec = satRecs[s.id];
+    const p = rec && satAltAz(rec, st.location.lat, st.location.lng, time.date);
+    if (p) satObjs.push({ sat: s, altaz: { alt: p.alt, az: p.az }, mag: satMagnitude(p.rangeKm, s.stdMag), rangeKm: p.rangeKm });
   }
   if (useGL) {
     // Sky background: atmosphere colour + star wash-out are driven by the Sun's altitude; the warm
@@ -272,15 +278,22 @@ function computeSky(full) {
       visibilityOf: solarVisibility,
     });
     skyEvents = findSkyEvents(eclipseAt);
-    // Next watchable ISS pass (dark sky, station sunlit, ≥10° up). Starts 15 min back so a pass
-    // in progress at the viewed time is found, not skipped, and scans 18 h — enough to feed the
-    // 12 h notice window with margin (~8 ms of SGP4 steps). Null without a usable TLE.
-    issPass = issRec ? findNextVisiblePass(issRec, st.location.lat, st.location.lng,
-      new Date(eclipseAt.getTime() - 15 * 60000), {
-        sunAltAt: (d) => sunGeometricAlt(observer, d),
-        sunDirAt: sunDirectionEqj,
-        days: 0.75,
-      }) : null;
+    // Next watchable pass per satellite (dark sky, station sunlit, ≥10° up), soonest first. Each
+    // scan starts 15 min back so a pass in progress at the viewed time is found, not skipped, and
+    // covers 18 h — enough to feed the 12 h notice window with margin (~8 ms of SGP4 steps per
+    // satellite). Empty without usable TLEs.
+    satPasses = [];
+    for (const s of SATELLITES) {
+      const rec = satRecs[s.id];
+      const pass = rec && findNextVisiblePass(rec, st.location.lat, st.location.lng,
+        new Date(eclipseAt.getTime() - 15 * 60000), {
+          sunAltAt: (d) => sunGeometricAlt(observer, d),
+          sunDirAt: sunDirectionEqj,
+          days: 0.75,
+        });
+      if (pass) satPasses.push({ sat: s, pass });
+    }
+    satPasses.sort((a, b) => a.pass.start - b.pass.start);
     if (favPanel) {
       favPanel.setSunEvent(nextSunEvent(observer, eclipseAt));
       favPanel.setRows(buildFavoriteRows());
@@ -343,11 +356,11 @@ function render() {
   const cometMarkers = st.flags.edit ? [] : cometObjects
     .filter((c) => c.altaz && c.mag <= COMET_MARKER_MAG)
     .map((c) => ({ altaz: c.altaz, label: c.name, color: c.color, mag: c.mag, alpha: markerAlpha(c.mag), radius: planetRadius(c.mag) }));
-  // The ISS as a warm glow dot, same render-local treatment as the comets (never in `markers`,
-  // so conjunction/body code stays blind to it). Present only while a fresh-enough TLE tracks it.
-  const issMarkers = (st.flags.edit || !issObj) ? [] :
-    [{ altaz: issObj.altaz, label: 'ISS', color: '#ffe9c4', mag: issObj.mag, alpha: markerAlpha(issObj.mag), radius: planetRadius(issObj.mag) }];
-  let drawList = st.flags.edit ? [] : markers.concat(cometMarkers, issMarkers); // markers (+ moons/comets variants below)
+  // Satellites as warm glow dots, same render-local treatment as the comets (never in `markers`,
+  // so conjunction/body code stays blind to them). Present only while a fresh-enough TLE tracks them.
+  const satMarkers = st.flags.edit ? [] : satObjs
+    .map((o) => ({ altaz: o.altaz, label: o.sat.label, color: '#ffe9c4', mag: o.mag, alpha: markerAlpha(o.mag), radius: planetRadius(o.mag) }));
+  let drawList = st.flags.edit ? [] : markers.concat(cometMarkers, satMarkers); // markers (+ moons/comets variants below)
   // One EQJ->ENU rotation per frame, shared by the GPU star transform and the equatorial grid:
   // stars sweep smoothly in live/play/scrub at zero per-star CPU cost, and the grid stays glued
   // to them because both use the SAME rotation.
@@ -415,7 +428,7 @@ function render() {
         altaz: m.altaz, label: m.name, color: '#d8cfc0',
         mag: m.mag, alpha: markerAlpha(m.mag), radius: planetRadius(m.mag),
       }));
-    drawList = st.flags.edit ? [] : markers.concat(moonMarkers, cometMarkers, issMarkers);
+    drawList = st.flags.edit ? [] : markers.concat(moonMarkers, cometMarkers, satMarkers);
     starfield.draw(cam, { belowFade, edit: st.flags.edit });
     // Sun/Moon/planets as glowing discs: size from markerRadius (angular for Sun/Moon, disk for
     // planets), tint from the body's colour, brightness from magnitude. Hidden in edit mode.
@@ -528,7 +541,7 @@ function onIdentifyTap(x, y) {
     ...dsoObjects,
     ...cometObjects.filter((c) => c.altaz && c.mag <= COMET_MARKER_MAG),
     ...visibleMoons(resolvedPlanets).map(moonPick),
-    ...(issObj ? [issPick()] : []), // the drawn ISS dot is tappable like any marker
+    ...satObjs.map((o) => satPick(o.sat)), // the drawn station dots are tappable like any marker
   ].filter((o) => o.altaz.alt >= 0 // faded-in below-horizon objects are pickable too, incl. the
     // fully revealed hemisphere while a below-horizon selection holds the fade open (see render).
     || (highlighted && highlighted.altaz && highlighted.altaz.alt < 0)
@@ -572,7 +585,7 @@ function liveAltAzFor(sel) {
   if (sel.kind === 'star') { const s = skyObjects.find((o) => o.id === sel.id); return s ? s.altaz : null; }
   if (sel.kind === 'dso') { const d = dsoObjects.find((o) => o.id === sel.id); return d ? d.altaz : null; }
   if (sel.kind === 'constellation') { const c = constellations.find((o) => o.name === sel.name); return c ? c.label : null; }
-  if (sel.kind === 'iss') return issObj ? issObj.altaz : null;
+  if (sel.kind === 'satellite') { const o = satObjs.find((x) => x.sat.id === sel.id); return o ? o.altaz : null; }
   if (sel.kind === 'planet-moon') { const m = planetMoons.find((o) => o.name === sel.label); return m ? m.altaz : null; }
   const m = markers.find((o) => o.label === sel.label); // moon / sun / planet
   return m ? m.altaz : null;
@@ -594,7 +607,10 @@ function resolveFavorite(rec) {
     const c = cometObjects.find((o) => o.id === rec.id);
     return c && c.altaz ? c : null; // out-of-coverage comets drop from rows/go-to but stay stored
   }
-  if (rec.kind === 'iss') return issObj ? issPick() : null; // untracked (no TLE / out of window): drops like a comet
+  if (rec.kind === 'satellite') {
+    const sat = SATELLITES.find((s) => s.id === rec.id);
+    return sat && satObjs.some((o) => o.sat.id === sat.id) ? satPick(sat) : null; // untracked: drops like a comet
+  }
   if (rec.kind === 'planet-moon') {
     const m = planetMoons.find((o) => o.name === rec.label);
     return m ? moonPick(m) : null;
@@ -687,10 +703,11 @@ function syncSelection() {
     // forward otherwise leaves the card's "hidden behind X" note frozen at open time.
     const m = planetMoons.find((o) => o.name === highlighted.label);
     if (m) Object.assign(highlighted, moonPick(m));
-  } else if (highlighted.kind === 'iss') {
-    // The ISS refreshes the whole pick: range/magnitude tick per frame, and altaz legitimately
+  } else if (highlighted.kind === 'satellite') {
+    // Satellites refresh the whole pick: range/magnitude tick per frame, and altaz legitimately
     // becomes null when the clock scrubs outside the TLE window — the card copes, like comets.
-    Object.assign(highlighted, issPick());
+    const sat = SATELLITES.find((s) => s.id === highlighted.id);
+    if (sat) Object.assign(highlighted, satPick(sat));
   } else {
     const altaz = liveAltAzFor(highlighted);
     if (altaz) highlighted.altaz = altaz;          // ring follows the object
@@ -775,29 +792,32 @@ function buildTonightEvents() {
   if (comet) events.push(cometEvent(comet));
   if (tonightShower) events.push(showerEvent(tonightShower));
   if (conjunctions.length) events.push(conjunctionEvent(conjunctions[0]));
-  // The classic "what's that moving light": tonight's watchable ISS pass, once it's near.
-  if (issPass && issPass.start.getTime() - at.getTime() <= ISS_PASS_NOTICE_MS) events.push(issPassEvent(issPass, at));
+  // The classic "what's that moving light": tonight's watchable station passes, once they're near.
+  for (const { sat, pass } of satPasses) {
+    if (pass.start.getTime() - at.getTime() <= SAT_PASS_NOTICE_MS) events.push(satPassEvent(sat, pass, at));
+  }
   for (const ev of skyEvents) events.push(skyEventRow(ev));
   return events.slice(0, MAX_HIGHLIGHTS);
 }
 
-// How far ahead tonight's ISS pass earns its row. Passes cluster into the couple of hours after
-// dusk and before dawn; half a day of notice means an evening pass shows from that morning on.
-const ISS_PASS_NOTICE_MS = 12 * 3600000;
+// How far ahead tonight's station pass earns its row. Passes cluster into the couple of hours
+// after dusk and before dawn; half a day of notice means an evening pass shows from that morning.
+const SAT_PASS_NOTICE_MS = 12 * 3600000;
 
-// Banner for an ISS pass: in progress at the viewed time, or coming up tonight.
-function issPassEvent(p, at) {
+// Banner for a station pass: in progress at the viewed time, or coming up tonight.
+function satPassEvent(sat, p, at) {
   const live = at >= p.start && at <= p.end;
+  const who = sat.id === 'ISS' ? 'The ISS' : sat.label;
   const t = p.start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const text = live
-    ? `🛰️ The ISS is overhead right now — look ${azToCompass(p.peakAz)}, it sets in minutes.`
-    : `🛰️ The ISS passes over at ${t} — ${azToCompass(p.startAz)} to ${azToCompass(p.endAz)}, peaking ${Math.round(p.peakAlt)}° up.`;
-  return { text, actionLabel: 'Find', onAction: () => onFindIssPass(p) };
+    ? `🛰️ ${who} is overhead right now — look ${azToCompass(p.peakAz)}, it sets in minutes.`
+    : `🛰️ ${who} passes over at ${t} — ${azToCompass(p.startAz)} to ${azToCompass(p.endAz)}, peaking ${Math.round(p.peakAlt)}° up.`;
+  return { text, actionLabel: 'Find', onAction: () => onFindSatPass(p) };
 }
 
-// Jump to an ISS pass: set the clock to its peak and frame that point wide, so the station's
+// Jump to a station pass: set the clock to its peak and frame that point wide, so the station's
 // glow dot is sweeping through the view (it crosses the sky in ~5 minutes, so the dot moves live).
-function onFindIssPass(p) {
+function onFindSatPass(p) {
   closeCard();
   store.setTime(p.peakDate, false);          // jump the clock to peak (triggers recompute)
   highlighted = { altaz: { alt: p.peakAlt, az: p.peakAz } };
@@ -965,7 +985,7 @@ function followIdentity(pick) {
   if (pick.kind === 'dso') return { kind: 'dso', id: pick.id };
   if (pick.kind === 'comet') return { kind: 'comet', id: pick.id };
   if (pick.kind === 'constellation') return { kind: 'constellation', name: pick.name };
-  if (pick.kind === 'iss') return { kind: 'iss' };
+  if (pick.kind === 'satellite') return { kind: 'satellite', id: pick.id };
   if (pick.kind === 'planet-moon') return { kind: 'planet-moon', label: pick.label };
   if (pick.kind === 'moon' || pick.kind === 'sun' || pick.kind === 'planet') return { kind: 'body', label: pick.label };
   return null;
@@ -980,7 +1000,7 @@ function resolveFollowAltAz() {
   if (followTarget.kind === 'comet') { const c = cometObjects.find((o) => o.id === followTarget.id); return c && c.altaz ? c.altaz : null; }
   if (followTarget.kind === 'planet-moon') { const m = planetMoons.find((o) => o.name === followTarget.label); return m ? m.altaz : null; }
   if (followTarget.kind === 'constellation') { const c = constellations.find((o) => o.name === followTarget.name); return c ? c.label : null; }
-  if (followTarget.kind === 'iss') return issObj ? issObj.altaz : null; // lock-on TRACKS the station across the sky
+  if (followTarget.kind === 'satellite') { const o = satObjs.find((x) => x.sat.id === followTarget.id); return o ? o.altaz : null; } // lock-on TRACKS the station
   return null;
 }
 
@@ -1023,7 +1043,7 @@ function onFindObject(pick) {
 
 // Go-to zoom per kind: planets close enough that their moons resolve; Moon/Sun framed; stars and
 // DSOs wider. Tuned by eye.
-const GOTO_FOV = { planet: 0.5, moon: 1.5, sun: 1.5, star: 2, dso: 4, comet: 4, constellation: 55, iss: 20 }; // ISS stays wide: it crosses ~1°/s, lock-on does the chasing
+const GOTO_FOV = { planet: 0.5, moon: 1.5, sun: 1.5, star: 2, dso: 4, comet: 4, constellation: 55, satellite: 20 }; // satellites stay wide: they cross ~1°/s, lock-on does the chasing
 
 // A favorites row was clicked: same as Find, but zoomed to the kind's close-up FOV.
 function onGoToFavorite(rec) {
@@ -1037,7 +1057,7 @@ function onGoToFavorite(rec) {
 // kinds get a fixed deep zoom. setFov clamps to MIN_FOV, so small planets just bottom out fully
 // zoomed. Tuned by eye.
 const INSPECT_FILL = { planet: 0.6, moon: 0.5, sun: 0.5 }; // fraction of the view the disc spans
-const INSPECT_FOV = { star: 1, dso: 1.5, comet: 1.5, 'planet-moon': 0.3, constellation: 40, iss: 5 }; // no disc: fixed zoom (constellations frame the figure; the ISS keeps margin to chase)
+const INSPECT_FOV = { star: 1, dso: 1.5, comet: 1.5, 'planet-moon': 0.3, constellation: 40, satellite: 5 }; // no disc: fixed zoom (constellations frame the figure; satellites keep margin to chase)
 
 function inspectFov(kind, radiusDeg) {
   const fill = INSPECT_FILL[kind];
@@ -1110,13 +1130,15 @@ function onSearchSelect(entry) {
     openCard(c, cardCtx(observer, time));
     requestRender();
   }
-  // The ISS without a live track (no TLE yet, offline, or time-traveled outside its window):
+  // A satellite without a live track (no TLE yet, offline, or time-traveled outside its window):
   // open the card — it explains the data coverage — without slewing or locking on.
-  if (entry.type === 'iss') {
+  if (entry.type === 'satellite') {
+    const sat = SATELLITES.find((s) => s.id === entry.ref);
+    if (!sat) return;
     const st = store.getState();
     const observer = makeObserver(st.location.lat, st.location.lng);
     const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
-    highlighted = issPick();
+    highlighted = satPick(sat);
     followTarget = null;
     openCard(highlighted, cardCtx(observer, time));
     requestRender();
@@ -1231,18 +1253,23 @@ async function boot() {
   } catch (err) {
     console.error('[cosmodial] Failed to load star catalogue:', err);
   }
-  // ISS TLE: optional runtime fetch (CelesTrak, localStorage-cached). Fire-and-forget; offline or
-  // blocked simply means no ISS this session — the app has no other runtime network dependency.
-  loadIssTle().then((tle) => {
-    if (!tle) return;
-    issRec = parseTle(tle.line1, tle.line2);
-    if (!issRec) return;
-    requestFullRecompute(); // surface the marker and tonight's pass row
-    // A shared ISS link (or an early search) can land before the TLE does, leaving a card open
-    // with no position. Once the recompute above has actually run (double rAF, like the boot
-    // splash), replay the selection so it slews and locks on.
+  // Satellite TLEs: optional runtime fetch (CelesTrak stations group, localStorage-cached).
+  // Fire-and-forget; offline or blocked simply means no satellites this session — the app has no
+  // other runtime network dependency.
+  loadSatTles().then((res) => {
+    if (!res) return;
+    for (const s of SATELLITES) {
+      const tle = res.tles[s.id];
+      const rec = tle && parseTle(tle.line1, tle.line2);
+      if (rec) satRecs[s.id] = rec;
+    }
+    if (!Object.keys(satRecs).length) return;
+    requestFullRecompute(); // surface the markers and tonight's pass rows
+    // A shared satellite link (or an early search) can land before the TLEs do, leaving a card
+    // open with no position. Once the recompute above has actually run (double rAF, like the
+    // boot splash), replay the selection so it slews and locks on.
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      if (highlighted && highlighted.kind === 'iss' && !highlighted.altaz) onSearchSelect({ type: 'iss', ref: 'ISS' });
+      if (highlighted && highlighted.kind === 'satellite' && !highlighted.altaz) onSearchSelect({ type: 'satellite', ref: highlighted.id });
     }));
   }).catch(() => { /* absence, not error */ });
   let loaded = [];
@@ -1285,8 +1312,7 @@ async function boot() {
   attachInput(canvas, store, { onTap, onAction: onEditAction, onViewDrag: () => { followTarget = null; } });
   const controls = document.getElementById('controls');
   const bodyLabels = ['Moon', 'Sun', ...PLANETS.map((p) => p.name)];
-  const search = buildSearch(buildSearchIndex(stars, figures, bodyLabels, dsos, COMETS, PLANET_MOONS,
-    [{ label: 'ISS', aliases: ['International Space Station', 'Space Station'] }]), { onSelect: onSearchSelect });
+  const search = buildSearch(buildSearchIndex(stars, figures, bodyLabels, dsos, COMETS, PLANET_MOONS, SATELLITES), { onSelect: onSearchSelect });
   // Screenshot: re-render synchronously, then composite GL sky + 2D overlay in the SAME task —
   // the GL context has no preserveDrawingBuffer, so its pixels only survive until the task ends.
   const onScreenshot = () => {

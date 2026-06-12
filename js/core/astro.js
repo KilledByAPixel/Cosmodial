@@ -283,7 +283,7 @@ export function nextVenusPeakMagnitude(refDate) {
   return { date: i.time.date, mag: i.mag };
 }
 
-// Geocentric unit vector toward the Sun (EQJ) — feeds the ISS Earth-shadow test in core/iss.js.
+// Geocentric unit vector toward the Sun (EQJ) — feeds the satellite Earth-shadow test in core/satellites.js.
 // The TEME-vs-EQJ frame difference is arcminutes: noise against a 6371 km shadow cylinder.
 export function sunDirectionEqj(date) {
   const v = Astronomy.GeoVector(Body.Sun, makeTime(date), true);
