@@ -25,8 +25,8 @@ export function sunRowText(ev) {
 }
 
 // Build the collapsible Favorites panel. onGoTo(rec) fires when a row is clicked; onRemove(rec)
-// when a row's × is clicked. Returns { el, setRows(rows), setEvents(events), setSunEvent(ev) } where
-// each row is { rec, name, altaz }.
+// when a row's × is clicked. Returns { el, setRows(rows), setEvents(events), setSunEvent(ev),
+// collapse() } where each row is { rec, name, altaz }.
 export function buildFavoritesPanel({ onGoTo, onRemove }) {
   const el = document.createElement('div');
   el.className = 'fav-panel collapsed';
@@ -106,5 +106,5 @@ export function buildFavoritesPanel({ onGoTo, onRemove }) {
     sunEl.textContent = ev ? sunRowText(ev) : '';
   }
 
-  return { el, setRows, setEvents, setSunEvent };
+  return { el, setRows, setEvents, setSunEvent, collapse: () => el.classList.add('collapsed') };
 }

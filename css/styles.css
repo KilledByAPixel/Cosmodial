@@ -15,8 +15,8 @@ input, textarea { -webkit-user-select: text; user-select: text; }
    first in the DOM) behind #sky (the 2D overlay: grid/lines/labels/markers/HUD). Equal z-index +
    DOM order — NOT negative z-index, which would hide #sky-gl behind the body background (it paints
    in a later step than negative-z children). z-index:0 keeps both above the body backdrop and below
-   the UI panels (z-index >= 5), and leaves #controls' auto stacking untouched (search dropdown still
-   layers right). #sky must be transparent so the GL stars show through. */
+   the UI panels (z-index >= 5; #controls sits at 8 so its popovers beat the cards).
+   #sky must be transparent so the GL stars show through. */
 #sky, #sky-gl { position: fixed; inset: 0; display: block; width: 100vw; height: 100vh;
   /* Mobile: 100vh is the LARGE viewport (URL bar hidden), pushing the canvas bottom off-screen
      while the browser chrome shows; dvh tracks the actually-visible viewport. */
@@ -33,6 +33,9 @@ input, textarea { -webkit-user-select: text; user-select: text; }
   /* Match the compass pill's shade so the dark backdrop reads as one piece. */
   background: rgba(5, 7, 13, 0.55);
   user-select: none;
+  /* Above the object cards (5) and Highlights (6): browsers treat position:fixed as its own
+     stacking context, so the popovers' inner z-index can't escape — the bar itself must win. */
+  z-index: 8;
 }
 #controls .ctrl { display: flex; align-items: center; gap: 6px; }
 #controls .menu, #controls .ctrl-time, #controls .ctrl-location { position: relative; } /* popover anchors */

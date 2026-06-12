@@ -85,7 +85,7 @@ let tonightShower = null;   // the meteor shower peaking tonight (+ radiant alt/
 let conjunctions = [];      // close Moon/planet pairs tonight, closest-first
 let skyEvents = [];         // date-window events near the viewed time (oppositions, elongations, ...), priority-ordered
 let issRec = null;          // parsed ISS TLE (satrec), or null when the optional fetch never landed
-let issObj = null;          // per-recompute ISS marker inputs { altaz, mag }, null when not trackable
+let issObj = null;          // per-recompute ISS state { altaz, mag, rangeKm }, null when not trackable
 let issPass = null;         // next watchable ISS pass from the viewed time (full pass), or null
 let skyDirty = true;  // next render runs the FREQUENT recompute (markers/spheres/lines/labels/DSOs)
 let fullDirty = true; // next recompute also runs the FULL pass (100k pick array, eclipse, favorites/events)
@@ -104,6 +104,13 @@ let resolvedPlanets = new Set(); // sphere-pass planets from the LAST frame; gat
 // planetBody lets the card read the planet's distance without importing Body itself.
 const moonPick = (m) => ({ kind: 'planet-moon', label: m.name, planet: m.planet,
   planetBody: Body[m.planet], mag: m.mag, altaz: m.altaz, behind: m.behind });
+
+// Live pick object for the ISS — search, tap, follow, favorites, and share all converge here.
+// A null altaz (TLE never arrived, or the viewed time is outside its window) still makes a valid
+// pick: the card opens and explains the data coverage instead of pointing anywhere.
+const issPick = () => ({ kind: 'iss', id: 'ISS', name: 'ISS', label: 'ISS',
+  altaz: issObj ? issObj.altaz : null, mag: issObj ? issObj.mag : null,
+  rangeKm: issObj ? issObj.rangeKm : null, nextPass: issPass });
 
 // Moons whose planet has resolved into a sphere (per the given set) and that aren't occulted —
 // the one gate shared by drawing and tap-picking so the two can't drift apart.
@@ -186,7 +193,7 @@ function computeSky(full) {
   issObj = null;
   if (issRec) {
     const p = issAltAz(issRec, st.location.lat, st.location.lng, time.date);
-    if (p) issObj = { altaz: { alt: p.alt, az: p.az }, mag: issMagnitude(p.rangeKm) };
+    if (p) issObj = { altaz: { alt: p.alt, az: p.az }, mag: issMagnitude(p.rangeKm), rangeKm: p.rangeKm };
   }
   if (useGL) {
     // Sky background: atmosphere colour + star wash-out are driven by the Sun's altitude; the warm
@@ -564,6 +571,7 @@ function liveAltAzFor(sel) {
   if (sel.kind === 'star') { const s = skyObjects.find((o) => o.id === sel.id); return s ? s.altaz : null; }
   if (sel.kind === 'dso') { const d = dsoObjects.find((o) => o.id === sel.id); return d ? d.altaz : null; }
   if (sel.kind === 'constellation') { const c = constellations.find((o) => o.name === sel.name); return c ? c.label : null; }
+  if (sel.kind === 'iss') return issObj ? issObj.altaz : null;
   if (sel.kind === 'planet-moon') { const m = planetMoons.find((o) => o.name === sel.label); return m ? m.altaz : null; }
   const m = markers.find((o) => o.label === sel.label); // moon / sun / planet
   return m ? m.altaz : null;
@@ -585,6 +593,7 @@ function resolveFavorite(rec) {
     const c = cometObjects.find((o) => o.id === rec.id);
     return c && c.altaz ? c : null; // out-of-coverage comets drop from rows/go-to but stay stored
   }
+  if (rec.kind === 'iss') return issObj ? issPick() : null; // untracked (no TLE / out of window): drops like a comet
   if (rec.kind === 'planet-moon') {
     const m = planetMoons.find((o) => o.name === rec.label);
     return m ? moonPick(m) : null;
@@ -677,6 +686,10 @@ function syncSelection() {
     // forward otherwise leaves the card's "hidden behind X" note frozen at open time.
     const m = planetMoons.find((o) => o.name === highlighted.label);
     if (m) Object.assign(highlighted, moonPick(m));
+  } else if (highlighted.kind === 'iss') {
+    // The ISS refreshes the whole pick: range/magnitude tick per frame, and altaz legitimately
+    // becomes null when the clock scrubs outside the TLE window — the card copes, like comets.
+    Object.assign(highlighted, issPick());
   } else {
     const altaz = liveAltAzFor(highlighted);
     if (altaz) highlighted.altaz = altaz;          // ring follows the object
@@ -965,6 +978,7 @@ function resolveFollowAltAz() {
   if (followTarget.kind === 'comet') { const c = cometObjects.find((o) => o.id === followTarget.id); return c && c.altaz ? c.altaz : null; }
   if (followTarget.kind === 'planet-moon') { const m = planetMoons.find((o) => o.name === followTarget.label); return m ? m.altaz : null; }
   if (followTarget.kind === 'constellation') { const c = constellations.find((o) => o.name === followTarget.name); return c ? c.label : null; }
+  if (followTarget.kind === 'iss') return issObj ? issObj.altaz : null; // lock-on TRACKS the station across the sky
   return null;
 }
 
@@ -1348,6 +1362,8 @@ async function boot() {
     if (a !== prevAtmo) { prevAtmo = a; requestRecompute(); }
   });
   favPanel = buildFavoritesPanel({ onGoTo: onGoToFavorite, onRemove: (rec) => favorites.toggle(rec) });
+  // Opening (or closing) the ☰ menu puts the Highlights panel away — one big panel at a time.
+  menu.el.querySelector('.menu-button').addEventListener('click', () => favPanel.collapse());
   // Star/unstar refreshes the list AND any open card (its ☆/★ would otherwise stay stale while paused).
   favorites.onChange(() => { favPanel.setRows(buildFavoriteRows()); syncSelection(); });
   const favHost = document.getElementById('favorites-host');
