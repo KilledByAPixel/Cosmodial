@@ -40,6 +40,8 @@ Cosmodial knows. Tell it where you are and it paints the actual sky above your h
 - ☄️ 7 famous comets + all 3 interstellar visitors
 - 🛰️ 2 space stations - tracked live from fresh orbital data
 
+**Install it:** Cosmodial is a PWA — "Install app" / "Add to Home Screen" in your browser menu gives you an icon and the full app offline, star catalog and all. Visiting once in the browser caches everything too.
+
 ## Credits
 
 Cosmodial stands on some wonderful shoulders:

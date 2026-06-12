@@ -31,6 +31,8 @@ import { activeShower } from './guide/showers.js';
 import { findConjunctions, midpointAltAz } from './guide/conjunctions.js';
 import { HIGHLIGHT_WINDOW_DAYS, SUPERMOON_KM, withinDays, bestVisibleComet, isOccultation } from './guide/highlights.js';
 import { SATELLITES, parseTle, satAltAz, satMagnitude, isSunlit, findNextVisiblePass, loadSatTles } from './core/satellites.js';
+import { initUpdates } from './ui/update.js';
+import { showActionToast } from './ui/toast.js';
 
 // Planet disc size vs true angular size. 1 = true scale (Stellarium-like): zoomed out, planets are the
 // oversized glow DOTS (visibility); the textured sphere appears exactly when its TRUE disc outgrows the
@@ -1472,6 +1474,15 @@ async function boot() {
       const qs = params.toString();
       history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : '') + window.location.hash);
     }
+    // First frame is up: now (and only now) bring in the service worker, so the ~15 MB
+    // offline precache never competes with startup. When a new version is ready, one tap
+    // applies it; the page reloads when the new worker takes over.
+    initUpdates({
+      serviceWorker: navigator.serviceWorker,
+      documentRef: document,
+      reload: () => location.reload(),
+      onUpdateReady: (worker) => showActionToast('Update ready — tap to apply', () => worker.postMessage('skip-waiting')),
+    });
   }));
 }
 
