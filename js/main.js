@@ -397,7 +397,7 @@ function render() {
   // One EQJ->ENU rotation per frame, shared by the GPU star transform and the equatorial grid:
   // stars sweep smoothly in live/play/scrub at zero per-star CPU cost, and the grid stays glued
   // to them because both use the SAME rotation.
-  const wantEqGrid = st.flags.eqgrid && !st.flags.edit;
+  const wantEqGrid = st.flags.eqgrid && !st.flags.edit && !screensaverOn;
   const eqjToEnu = (useGL || wantEqGrid)
     ? eqjToEnuMatrix(horToEqjRotation(makeObserver(st.location.lat, st.location.lng),
         makeTime(st.time.instant ? new Date(st.time.instant) : new Date())))
@@ -480,13 +480,13 @@ function render() {
     cam,
     edit: st.flags.edit,
     labels: st.flags.labels && !screensaverOn, // the show is text-free; the flag itself is untouched
-    grid: st.flags.grid && !st.flags.edit,   // hide the grid in edit mode to keep the figure clear
+    grid: st.flags.grid && !st.flags.edit && !screensaverOn, // hide the grid in edit mode (figure clarity) and in the show (sky furniture)
     eqGrid: wantEqGrid ? eqjToEnu : null,    // RA/Dec grid rides the same per-frame rotation as the stars
     belowFade,                               // below-horizon content fades in as the aim dips
     drawStarPoints: !useGL,                  // GL draws the star discs; 2D only as the fallback
     drawMarkerDiscs: !useGL,                 // GL draws the marker discs; 2D keeps only their labels
     dsos: st.flags.edit ? [] : dsoObjects,   // deep-sky glow/symbols (hidden in edit mode)
-    deepsky: st.flags.deepsky,
+    deepsky: st.flags.deepsky && !screensaverOn, // no atlas symbols in the show — DSOs appear as bare glows
     selectedDsoId: highlighted && highlighted.kind === 'dso' ? highlighted.id : null,
     selectedStarId: highlighted && highlighted.kind === 'star' ? highlighted.id : null,
   });
