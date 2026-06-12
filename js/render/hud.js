@@ -108,7 +108,9 @@ function drawCompass(ctx, cam) {
   ctx.textAlign = 'left';
 }
 
-export function drawHud(ctx, cam) {
+// opts.compass: false hides the mini compass pill (screensaver mode) — the horizon
+// line and its cardinal letters are scene furniture and always draw.
+export function drawHud(ctx, cam, opts = {}) {
   drawHorizon(ctx, cam);
-  drawCompass(ctx, cam);
+  if (opts.compass !== false) drawCompass(ctx, cam);
 }

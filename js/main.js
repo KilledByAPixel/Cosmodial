@@ -85,6 +85,7 @@ let fullDirty = true; // next recompute also runs the FULL pass (100k pick array
 let selected = null;        // first star picked in edit mode (a skyObjects entry)
 let highlighted = null;     // object whose card is currently open (gets a ring on canvas)
 let followTarget = null;    // object kept centred as time changes (set by Find/search; cleared on drag/tap)
+let screensaverOn = false;  // hides canvas-drawn chrome (the compass pill) while the tour runs
 let bodyInputs = [];   // per-recompute lit-sphere inputs (Moon + planets); see computeSky()
 let planetMoons = [];       // all systems, flat [{planet, name, altaz, mag, behind}]; drawn when planet resolves
 let resolvedPlanets = new Set(); // sphere-pass planets from the LAST frame; gates moon picks like moon draws
@@ -402,7 +403,7 @@ function render() {
   // constellation lines (so labels sit on top), matching the old single-canvas order.
   if (useGL) drawStarLabels(ctx, skyObjects, createProjector(cam), cam, st.flags.labels, belowFade);
   if (!st.flags.edit) drawCorona(ctx, cam);
-  drawHud(ctx, cam);
+  drawHud(ctx, cam, { compass: !screensaverOn });
   if (st.flags.edit) drawEditOverlay(ctx, cam);
   drawHighlight(ctx, cam);
   // Live mode: self-sustaining render loop (one render per animation frame) so the sky moves smoothly —
@@ -1047,6 +1048,7 @@ async function boot() {
       return nextSunBelowAlt(makeObserver(st.location.lat, st.location.lng), d, DUSK_SUN_ALT);
     },
     setUiHidden: (on) => {
+      screensaverOn = on;
       if (on) { closeCard(); highlighted = null; followTarget = null; }
       document.body.classList.toggle('screensaver', on);
     },

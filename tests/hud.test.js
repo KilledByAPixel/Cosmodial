@@ -42,6 +42,25 @@ test('drawHud runs over a stubbed canvas without throwing', () => {
   assert.ok(calls.fill >= 1, 'fills the compass pill backdrop');
 });
 
+test('drawHud with { compass: false } skips the pill (no fill or arc calls)', () => {
+  const calls = { fill: 0, arc: 0 };
+  const ctx = {
+    set fillStyle(_) {}, get fillStyle() { return ''; },
+    set strokeStyle(_) {}, get strokeStyle() { return ''; },
+    set lineWidth(_) {}, get lineWidth() { return 1; },
+    set font(_) {}, get font() { return ''; },
+    set textAlign(_) {}, get textAlign() { return 'left'; },
+    set textBaseline(_) {}, get textBaseline() { return 'alphabetic'; },
+    fillRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, closePath() {},
+    arc() { calls.arc++; }, fill() { calls.fill++; }, stroke() {}, fillText() {},
+    save() {}, restore() {}, clip() {},
+  };
+  const cam = { az: 180, alt: 10, fov: 60, width: 800, height: 600 };
+  assert.doesNotThrow(() => drawHud(ctx, cam, { compass: false }));
+  assert.equal(calls.fill, 0, 'pill backdrop fill must not be called');
+  assert.equal(calls.arc, 0, 'pill arc must not be called');
+});
+
 test('looking nearly straight up fully zoomed out, the horizon draws as a closed ring', () => {
   const calls = { lineTo: 0 };
   const ctx = {
