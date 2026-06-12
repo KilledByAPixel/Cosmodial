@@ -131,7 +131,7 @@ export function skyVeil(dir, sunDir, p) {
 // out — crossing the horizon mid-fade just reverses it from wherever it is. stepBelowFade
 // advances the linear progress (0..1) by the elapsed frame time; easeBelowFade shapes it for
 // display. The progress state lives in main.js, which owns the frame loop.
-export const BELOW_FADE_MS = 1000;
+export const BELOW_FADE_MS = 300;
 export function stepBelowFade(p, on, dtMs, durMs = BELOW_FADE_MS) {
   return clamp(p + (on ? dtMs : -dtMs) / durMs, 0, 1);
 }
