@@ -112,3 +112,17 @@ test('planet-moon records: keyed by label, persist, survive validation, display 
   assert.deepEqual(createFavorites(storage).list(), [{ kind: 'planet-moon', label: 'Titan' }],
     'round-trips through storage validation');
 });
+
+test('constellations are favoritable: id-keyed, stored with their name, round-trips', () => {
+  const pick = { kind: 'constellation', id: 'Orion', name: 'Orion', altaz: { az: 180, alt: 45 } };
+  assert.equal(keyOf(pick), 'constellation:Orion');
+  assert.deepEqual(recordOf(pick), { kind: 'constellation', id: 'Orion', name: 'Orion' });
+  assert.equal(displayName(recordOf(pick)), 'Orion');
+  const f = createFavorites(fakeStorage({ [KEY]: '[]' }));
+  f.toggle(pick);
+  assert.deepEqual(f.list(), [{ kind: 'constellation', id: 'Orion', name: 'Orion' }]);
+  assert.ok(f.has(pick), 'a live pick matches its stored record');
+  // and a reload (fresh instance over the same storage) keeps it - isValidRecord accepts it
+  const store2 = fakeStorage({ [KEY]: JSON.stringify(f.list()) });
+  assert.deepEqual(createFavorites(store2).list(), [{ kind: 'constellation', id: 'Orion', name: 'Orion' }]);
+});

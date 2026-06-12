@@ -29,7 +29,7 @@ export function displayName(rec) {
 function isValidRecord(r) {
   if (!r || typeof r !== 'object') return false;
   if (labelKeyed(r.kind)) return typeof r.label === 'string' && r.label.length > 0;
-  if (r.kind === 'star' || r.kind === 'dso' || r.kind === 'comet') return r.id != null;
+  if (r.kind === 'star' || r.kind === 'dso' || r.kind === 'comet' || r.kind === 'constellation') return r.id != null;
   return false;
 }
 

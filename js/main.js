@@ -1,5 +1,5 @@
 import { createState } from './core/state.js';
-import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, searchSolarEclipse, nextSolarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, planetMoonsAltAz, moonLibrationDeg, nextSunEvent, cometsAltAz, PLANET_MOONS, lunarShadow, nextSunBelowAlt, sunGeometricAlt, nextMaxElongation, nextOpposition, nextVenusPeakMagnitude, nextFullMoon } from './core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, searchSolarEclipse, nextSolarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, planetMoonsAltAz, moonLibrationDeg, nextSunEvent, cometsAltAz, PLANET_MOONS, lunarShadow, nextSunBelowAlt, sunGeometricAlt, nextMaxElongation, nextOpposition, nextVenusPeakMagnitude, nextFullMoon, nextTransit } from './core/astro.js';
 import { makeStarAltAz, horToEqjRotation, eqjToGalRotation } from './core/astro.js';
 import { eqjToEnuMatrix } from './render/star-transform.js';
 import { bodyScreenOrientation, altazSepDeg, discObscuration, frameFovDeg, planetResolveFovDeg } from './core/moon.js';
@@ -465,13 +465,8 @@ function onEditTap(x, y) {
 }
 
 // Card context, incl. an onClose that clears the on-canvas highlight.
-function cardCtx(observer, time, eclipse = null, forKind = null) {
-  return {
-    observer, time, eclipse,
-    fav: forKind === 'constellation' ? null : favorites, // constellations aren't favoritable
-    inspect: onInspectObject,
-    onClose: () => { highlighted = null; requestRender(); },
-  };
+function cardCtx(observer, time, eclipse = null) {
+  return { observer, time, eclipse, fav: favorites, inspect: onInspectObject, onClose: () => { highlighted = null; requestRender(); } };
 }
 
 // Picking reads the CPU skyObjects array, which can lag the live GPU stars. If the sidereal drift since
@@ -557,6 +552,10 @@ function resolveFavorite(rec) {
     return s ? { kind: 'star', id: s.id, name: s.name, mag: s.mag, bv: s.bv, con: s.con, dist: s.dist, altaz: s.altaz } : null;
   }
   if (rec.kind === 'dso') return dsoObjects.find((o) => o.id === rec.id) || null;
+  if (rec.kind === 'constellation') {
+    const c = constellations.find((o) => o.name === rec.id);
+    return c && c.label ? constellationPick(c) : null;
+  }
   if (rec.kind === 'comet') {
     const c = cometObjects.find((o) => o.id === rec.id);
     return c && c.altaz ? c : null; // out-of-coverage comets drop from rows/go-to but stay stored
@@ -661,7 +660,7 @@ function syncSelection() {
   const st = store.getState();
   const observer = makeObserver(st.location.lat, st.location.lng);
   const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
-  openCard(highlighted, cardCtx(observer, time, eclipseForCard(highlighted.kind), highlighted.kind));
+  openCard(highlighted, cardCtx(observer, time, eclipseForCard(highlighted.kind)));
 }
 
 // How far ahead a coming solar eclipse earns the banner. Solar eclipses are daytime events that a
@@ -707,6 +706,8 @@ function findSkyEvents(at) {
 // (The "next eclipse" readouts live on the Sun/Moon cards.)
 const MAX_HIGHLIGHTS = 3;
 function buildTonightEvents() {
+  const st = store.getState();
+  const at = st.time.instant ? new Date(st.time.instant) : new Date();
   const events = [];
   if (solarEclipseCtx.inProgress) {
     events.push(solarEclipseEvent(solarEclipseCtx.inProgress, true));
@@ -720,9 +721,16 @@ function buildTonightEvents() {
     });
   } else if (solarEclipseCtx.next) {
     const soon = solarEclipseCtx.next;
-    const st = store.getState();
-    const at = st.time.instant ? new Date(st.time.instant) : new Date();
     if (soon.peak.getTime() - at.getTime() <= SOLAR_ECLIPSE_NOTICE_MS) events.push(solarEclipseEvent(soon, false));
+  }
+  // A planet silhouetted on the Sun outranks everything but an eclipse: ~14 Mercury transits a
+  // century, and Venus doesn't go again until 2117. Detection only, no special rendering — the
+  // true-scale planet already sits on the Sun's disc at deep zoom, and in real life the dot takes
+  // solar filters to see anyway. The row appears a day before first contact, drops at last contact.
+  for (const label of ['Mercury', 'Venus']) {
+    const tr = nextTransitCached(label, at);
+    const noticeMs = HIGHLIGHT_WINDOW_DAYS.transit * 86400000;
+    if (at.getTime() >= tr.start.getTime() - noticeMs && at <= tr.finish) events.push(transitEvent(label, tr, at));
   }
   const comet = bestVisibleComet(cometObjects);
   if (comet) events.push(cometEvent(comet));
@@ -730,6 +738,44 @@ function buildTonightEvents() {
   if (conjunctions.length) events.push(conjunctionEvent(conjunctions[0]));
   for (const ev of skyEvents) events.push(skyEventRow(ev));
   return events.slice(0, MAX_HIGHLIGHTS);
+}
+
+// SearchTransit pays for transit rarity by scanning synodic period after synodic period (~15-30 ms
+// per body from 2026 — the next Venus transit is 2117). Too slow for every full pass, so the found
+// transit is memoized per body: the cache answers for any viewed time inside [searched-from, last
+// contact] and only re-searches when scrubbing leaves that span (which is years wide in live mode).
+const transitCache = new Map(); // planet label -> { from, start, peak, finish }
+function nextTransitCached(label, at) {
+  const cached = transitCache.get(label);
+  if (!cached || at < cached.from || at > cached.finish) {
+    const from = new Date(at.getTime() - HIGHLIGHT_WINDOW_DAYS.transit * 86400000);
+    transitCache.set(label, { from, ...nextTransit(Body[label], from) });
+  }
+  return transitCache.get(label);
+}
+
+// Banner for a Mercury/Venus solar transit: in progress at the viewed time, or within a day's notice.
+function transitEvent(label, tr, at) {
+  const live = at >= tr.start && at <= tr.finish;
+  const when = `${tr.peak.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} at ${tr.peak.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+  const text = live
+    ? `⚫ ${label} is crossing the Sun's face right now — a transit.`
+    : `⚫ ${label} transits the Sun ${when} — a black dot crossing the disc.`;
+  return { text, actionLabel: 'Find', onAction: () => onJumpToTransit(tr) };
+}
+
+// Jump to a transit: set the clock to its peak and center the Sun, zoomed so the true-scale
+// planet dot is findable on the disc (same flow as the solar-eclipse jump, minus the timeline).
+function onJumpToTransit(tr) {
+  const st = store.getState();
+  const observer = makeObserver(st.location.lat, st.location.lng);
+  const time = makeTime(tr.peak);
+  const altaz = altAzOfBody(Body.Sun, observer, time);
+  const pick = { kind: 'sun', label: 'Sun', body: Body.Sun, altaz };
+  store.setTime(tr.peak, false);              // jump the clock to peak (triggers recompute)
+  highlighted = pick;
+  openCard(pick, cardCtx(observer, time));
+  animateSlew(store, { az: altaz.az, alt: altaz.alt, fov: Math.max(2, Math.min(st.fov, 8)) });
 }
 
 // Banner for a binocular-or-better comet that's up right now.
@@ -853,6 +899,7 @@ function followIdentity(pick) {
   if (pick.kind === 'star') return { kind: 'star', id: pick.id };
   if (pick.kind === 'dso') return { kind: 'dso', id: pick.id };
   if (pick.kind === 'comet') return { kind: 'comet', id: pick.id };
+  if (pick.kind === 'constellation') return { kind: 'constellation', name: pick.name };
   if (pick.kind === 'planet-moon') return { kind: 'planet-moon', label: pick.label };
   if (pick.kind === 'moon' || pick.kind === 'sun' || pick.kind === 'planet') return { kind: 'body', label: pick.label };
   return null;
@@ -909,7 +956,7 @@ function onFindObject(pick) {
 
 // Go-to zoom per kind: planets close enough that their moons resolve; Moon/Sun framed; stars and
 // DSOs wider. Tuned by eye.
-const GOTO_FOV = { planet: 0.5, moon: 1.5, sun: 1.5, star: 2, dso: 4, comet: 4 };
+const GOTO_FOV = { planet: 0.5, moon: 1.5, sun: 1.5, star: 2, dso: 4, comet: 4, constellation: 55 };
 
 // A favorites row was clicked: same as Find, but zoomed to the kind's close-up FOV.
 function onGoToFavorite(rec) {
@@ -972,7 +1019,7 @@ function onSearchSelect(entry) {
       const pick = constellationPick(c);
       highlighted = pick;
       followTarget = { kind: 'constellation', name: c.name }; // lock on its label point
-      openCard(pick, cardCtx(observer, time, null, 'constellation'));
+      openCard(pick, cardCtx(observer, time));
       // Frame the whole figure — constellations span tens of degrees.
       animateSlew(store, { az: c.label.az, alt: c.label.alt, fov: Math.min(Math.max(st.fov, 50), 70) });
     }
