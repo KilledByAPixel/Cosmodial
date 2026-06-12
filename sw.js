@@ -59,6 +59,7 @@ const PRECACHE = [
   './js/ui/favorites.js',
   './js/ui/gyro.js',
   './js/ui/input.js',
+  './js/ui/install.js',
   './js/ui/location.js',
   './js/ui/menu.js',
   './js/ui/popover.js',

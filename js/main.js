@@ -32,6 +32,7 @@ import { findConjunctions, midpointAltAz } from './guide/conjunctions.js';
 import { HIGHLIGHT_WINDOW_DAYS, SUPERMOON_KM, withinDays, bestVisibleComet, isOccultation } from './guide/highlights.js';
 import { SATELLITES, parseTle, satAltAz, satMagnitude, isSunlit, findNextVisiblePass, loadSatTles } from './core/satellites.js';
 import { initUpdates } from './ui/update.js';
+import { watchInstallability } from './ui/install.js';
 import { showActionToast } from './ui/toast.js';
 
 // Planet disc size vs true angular size. 1 = true scale (Stellarium-like): zoomed out, planets are the
@@ -1355,7 +1356,10 @@ async function boot() {
     render();
     saveComposite(useGL ? [glCanvas, canvas] : [canvas], canvas.width, canvas.height, screenshotName());
   };
-  const menu = buildMenu(store, { onScreenshot, onScreensaver: () => screensaver.start() });
+  // Created before the menu so a beforeinstallprompt that fires mid-boot isn't missed
+  // (the menu button syncs to the watcher's current state when built).
+  const install = watchInstallability({ windowRef: window });
+  const menu = buildMenu(store, { onScreenshot, onScreensaver: () => screensaver.start(), install });
   const skyToggles = buildSkyToggles(store);
   const screensaver = createScreensaver(store, {
     getCandidates: screensaverCandidates,

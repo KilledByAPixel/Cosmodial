@@ -103,6 +103,8 @@ function makeAction(label, title, onClick) {
 
 // opts.onScreenshot: capture the current view as a PNG (wired by main.js, which owns the canvases).
 // opts.onScreensaver: start screensaver mode (wired by main.js, which owns the controller).
+// opts.install: installability watcher (js/ui/install.js); its button appears only while the
+// browser is offering an install prompt — installable, not yet installed, Chromium.
 export function buildMenu(store, opts = {}) {
   const el = document.createElement('div');
   el.className = 'ctrl menu';
@@ -137,6 +139,13 @@ export function buildMenu(store, opts = {}) {
   if (opts.onScreensaver) {
     tools.push(makeAction('🌌 Sky Tour', 'Sit back and tour the sky — a tap, Space, Enter, or Esc exits',
       () => { pop.close(); opts.onScreensaver(); }));
+  }
+  if (opts.install) {
+    const ib = makeAction('📲 Install app', 'Install Cosmodial as an app — works fully offline',
+      () => opts.install.prompt());
+    ib.hidden = true;
+    opts.install.onChange((ok) => { ib.hidden = !ok; });
+    tools.push(ib);
   }
   if (tools.length) panel.append(section('Tools', ...tools));
   panel.append(section('Info', makeAction('✨ About Cosmodial', 'About this app', openAbout)));
