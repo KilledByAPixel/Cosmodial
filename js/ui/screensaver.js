@@ -5,15 +5,24 @@
 
 import { clamp } from '../core/angles.js';
 import { slewFrame } from './slew.js';
+import { altazSepDeg } from '../core/moon.js';
 
 // Tuning. Durations are real milliseconds; SIM marks simulated (time-lapse) time.
 export const TIME_SCALE = 90;      // simulated seconds per real second (~a night in 6 minutes)
 export const DUSK_SUN_ALT = -6;    // Sun altitude (deg) marking "dark enough" (end of civil twilight)
 export const MIN_TARGET_ALT = 10;  // deg: candidates below this aren't worth visiting
 export const RECENT_WINDOW = 5;    // never revisit any of the last N targets
-const SLEW_MS = [4000, 8000];      // randomized slew duration range
+const SLEW_MS = [4000, 12000];     // min/max slew duration; the actual scales with distance
+const SLEW_PACE_MS_PER_DEG = 100;  // ~10 deg/s of camera travel — far swings take longer, not faster
+const NEAR_DEG = 70;               // prefer the next target within this distance of the current aim
 const DWELL_MS = [10000, 20000];   // randomized dwell duration range
 const DRIFT_RAMP_MS = 3000;        // ease the dwell drift in from zero
+const ESTABLISH_FOV = 90;          // entry eases out to this wide view before the first target
+const ESTABLISH_MS = 2500;         // entry zoom-out duration
+const VISTA_CHANCE = 0.2;          // odds a target shot is followed by a wide pull-back vista
+const VISTA_FOV = 120;             // vista width — well past any target framing
+const VISTA_EASE_MS = 4000;        // vista pull-back duration
+const VISTA_HOLD_MS = [8000, 14000]; // how long a vista holds before the next target
 const PAN_MS = 10000;              // fallback horizon pan length before re-picking
 const PAN_ALT = 30;                // fallback pan altitude (deg)
 const PAN_FOV = 70;                // fallback pan field of view (deg)
@@ -40,11 +49,13 @@ export function framingFov(target, rng = Math.random) {
 
 // Pick the next target: only candidates above MIN_TARGET_ALT now AND at the end of a
 // worst-case visit (so nothing sets mid-dwell), excluding recently-visited names. A
-// priority candidate (the Moon mid-eclipse) preempts the rotation; otherwise roughly
+// priority candidate (the Moon mid-eclipse) preempts the rotation (however far away);
+// otherwise candidates near the current aim (opts.from) are preferred — the tour roams
+// the neighborhood instead of whipping across the whole sky — and the pick is roughly
 // uniform across the type pools so the largest catalogue doesn't dominate the show.
 // Null when nothing qualifies (the controller falls back to a horizon pan).
 export function pickTarget(candidates, recentNames, opts) {
-  const { rng = Math.random, at, visitSimMs = MAX_VISIT_SIM_MS } = opts;
+  const { rng = Math.random, at, visitSimMs = MAX_VISIT_SIM_MS, from = null } = opts;
   const later = new Date(at.getTime() + visitSimMs);
   const eligible = candidates.filter((c) =>
     !recentNames.includes(c.name) &&
@@ -52,7 +63,11 @@ export function pickTarget(candidates, recentNames, opts) {
     c.altAzAt(later).alt >= MIN_TARGET_ALT);
   if (!eligible.length) return null;
   const prio = eligible.filter((c) => c.priority);
-  const pickFrom = prio.length ? prio : eligible;
+  let pickFrom = prio.length ? prio : eligible;
+  if (from && !prio.length) {
+    const near = pickFrom.filter((c) => altazSepDeg(c.altAzAt(at), from) <= NEAR_DEG);
+    if (near.length) pickFrom = near;
+  }
   const pools = new Map();
   for (const c of pickFrom) {
     if (!pools.has(c.type)) pools.set(c.type, []);
@@ -96,20 +111,27 @@ export function createScreensaver(store, deps) {
   let wakeLock = null;
   let simMs = 0;          // simulated clock (ms epoch), advanced TIME_SCALE x real time
   let lastReal = 0;
-  let shot = null;        // current shot: { mode, target, from, startReal, slewMs, dwellMs, fov, base }
+  let shot = null;        // current shot: { mode: 'slew'|'dwell'|'wide'|'pan', target?, from, startReal, ... }
   const recent = [];      // last RECENT_WINDOW target names
   let run = 0;            // generation token: a stale queued frame from a prior run must bail
   let noDusk = false;     // polar summer: nextDusk found nothing — run the show in daylight
 
   const randIn = ([lo, hi]) => lo + rng() * (hi - lo);
 
-  // Begin the next shot from wherever the camera is: a fresh target if one qualifies,
-  // else a slow wide pan until something rises.
+  // Begin the next shot from wherever the camera is: occasionally a wide pull-back
+  // vista, else a fresh target if one qualifies, else a slow wide pan until one rises.
   function nextShot() {
     const st = store.getState();
     const from = { az: st.aim.az, alt: st.aim.alt, fov: st.fov };
     const at = new Date(simMs);
-    const target = pickTarget(deps.getCandidates(at), recent, { rng, at });
+    // After a target shot, sometimes step back and take in the region — nonstop
+    // close-ups make the tour feel busier than it is. Never two vistas in a row.
+    if (shot && shot.target && rng() < VISTA_CHANCE) {
+      if (deps.onShot) deps.onShot(null); // no caption: the vista frames the sky, not a thing
+      shot = { mode: 'wide', from, startReal: now(), easeMs: VISTA_EASE_MS, holdMs: randIn(VISTA_HOLD_MS), fov: VISTA_FOV };
+      return;
+    }
+    const target = pickTarget(deps.getCandidates(at), recent, { rng, at, from });
     if (deps.onShot) deps.onShot(target ? target.name : null);
     if (!target) {
       shot = { mode: 'pan', from, startReal: now() };
@@ -117,9 +139,13 @@ export function createScreensaver(store, deps) {
     }
     recent.push(target.name);
     if (recent.length > RECENT_WINDOW) recent.shift();
+    // Slew duration scales with how far the camera must travel (slightly jittered), so
+    // a long swing glides instead of whipping and a short hop doesn't dawdle.
+    const dist = altazSepDeg(target.altAzAt(at), from);
     shot = {
       mode: 'slew', target, from, startReal: now(),
-      slewMs: randIn(SLEW_MS), dwellMs: randIn(DWELL_MS),
+      slewMs: clamp(dist * SLEW_PACE_MS_PER_DEG * (0.85 + rng() * 0.3), SLEW_MS[0], SLEW_MS[1]),
+      dwellMs: randIn(DWELL_MS),
       fov: framingFov(target, rng), base: null,
     };
   }
@@ -132,6 +158,9 @@ export function createScreensaver(store, deps) {
     const dusk = deps.nextDusk(new Date(simMs));
     if (!dusk) { noDusk = true; return; }
     simMs = dusk.getTime() + 60000;
+    // Mid-establish (the entry zoom-out), keep widening — the first pick happens when
+    // it completes, now at the post-jump instant.
+    if (shot && shot.mode === 'wide' && shot.holdMs === 0) return;
     nextShot();
   }
 
@@ -150,6 +179,13 @@ export function createScreensaver(store, deps) {
       store.setAim(f.az, f.alt);
       store.setFov(f.fov);
       if (el >= PAN_MS) nextShot();
+    } else if (shot.mode === 'wide') {
+      // Entry establish / occasional vista: ease straight back at a held aim, linger,
+      // then move on — the time-lapse keeps the frame alive while pulled out.
+      const f = slewFrame(shot.from, { az: shot.from.az, alt: shot.from.alt, fov: shot.fov }, Math.min(1, el / shot.easeMs));
+      store.setAim(f.az, f.alt);
+      store.setFov(f.fov);
+      if (el >= shot.easeMs + shot.holdMs) nextShot();
     } else {
       const aa = shot.target.altAzAt(new Date(simMs)); // chase the LIVE position under time-lapse
       if (shot.mode === 'slew') {
@@ -185,7 +221,14 @@ export function createScreensaver(store, deps) {
     deps.setUiHidden(true);
     unbindExit = deps.bindExit(stop);
     acquireWakeLock();
-    nextShot();
+    // Open wide: entering deep in a telescope zoom would otherwise begin with a frantic
+    // swing. Ease out to an establishing view first; the first target slew settles back in.
+    if (st.fov < ESTABLISH_FOV - 1) {
+      if (deps.onShot) deps.onShot(null);
+      shot = { mode: 'wide', from: { az: st.aim.az, alt: st.aim.alt, fov: st.fov }, startReal: lastReal, easeMs: ESTABLISH_MS, holdMs: 0, fov: ESTABLISH_FOV };
+    } else {
+      nextShot();
+    }
     noDusk = false;
     const token = ++run;
     raf(() => step(token));

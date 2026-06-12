@@ -62,6 +62,16 @@ test('pickTarget picks roughly uniformly across type pools, not across candidate
   assert.equal(pickTarget([...stars, dso], [], { rng, at: AT }).name, 'M31');
 });
 
+test('pickTarget prefers a target near the current aim over a far swing', () => {
+  const near = cand({ name: 'Near', altAzAt: fixed(50, 110) });   // ~12 deg from the aim
+  const far = cand({ name: 'Far', altAzAt: fixed(45, 280) });     // ~95 deg away
+  const from = { az: 100, alt: 40 };
+  assert.equal(pickTarget([far, near], [], { rng: () => 0, at: AT, from }).name, 'Near',
+    'stays in the neighborhood when something is there');
+  assert.equal(pickTarget([far], [], { rng: () => 0, at: AT, from }).name, 'Far',
+    'with nothing nearby, a far target is still reachable');
+});
+
 test('pickTarget prefers priority candidates (the Moon mid-eclipse) unless just visited', () => {
   const moon = cand({ type: 'body', name: 'Moon', priority: true });
   const star = cand({ name: 'Vega' });
@@ -77,7 +87,9 @@ const HOUR = 3.6e6;
 // Minimal store fake mirroring the real API shape (see js/core/state.js).
 function fakeStore() {
   let state = {
-    aim: { az: 0, alt: 0 }, fov: 60,
+    // fov 90 = already wide: the entry establish zoom-out is skipped, keeping most test
+    // timelines simple. The establish tests zoom in first.
+    aim: { az: 0, alt: 0 }, fov: 90,
     time: { instant: new Date(T0), live: false },
     flags: { gyro: false },
   };
@@ -131,8 +143,9 @@ test('start hides the UI, binds exit, and runs the time-lapse', () => {
 test('the slew eases to the target framing, then the dwell drifts around it', () => {
   const h = harness();
   h.ss.start();
-  // rng 0.5 -> slew 6000ms, dwell 15000ms; pools: one 'star' pool, member index 1 -> 'B'.
-  for (let i = 0; i < 6; i++) h.tick(1000);  // 6s: slew complete
+  // rng 0.5 -> one 'star' pool, member index 1 -> 'B' at (200, 60): 118 deg from the start
+  // aim, so the distance-scaled slew runs ~11.8s (100ms/deg, jitter factor 1.0 at rng 0.5).
+  for (let i = 0; i < 12; i++) h.tick(1000);  // 12s: slew complete
   const st = h.store.getState();
   assert.ok(Math.abs(st.aim.az - 200) < 1e-6 && Math.abs(st.aim.alt - 60) < 1e-6,
     'arrived exactly on target B');
@@ -172,7 +185,7 @@ test('exit restores the exact prior view and time, unhides, and unbinds', () => 
   h.triggerExit();
   const st = h.store.getState();
   assert.deepEqual(st.aim, { az: 0, alt: 0 }, 'aim restored');
-  assert.equal(st.fov, 60, 'fov restored');
+  assert.equal(st.fov, 90, 'fov restored');
   assert.equal(st.time.instant.getTime(), T0, 'instant restored');
   assert.equal(st.time.live, false, 'live mode restored');
   assert.deepEqual(h.calls.hidden, [true, false], 'UI unhidden');
@@ -215,7 +228,7 @@ test('polar summer (no dusk in reach) runs the show in daylight without re-searc
 test('the dwell ramp starts the drift from zero (exact arrival hold)', () => {
   const h = harness();
   h.ss.start();
-  for (let i = 0; i < 6; i++) h.tick(1000); // slew complete -> dwell begins
+  for (let i = 0; i < 12; i++) h.tick(1000); // slew complete -> dwell begins
   h.tick(50); // 50ms into the dwell: the ramp keeps the offset tiny
   const st = h.store.getState();
   assert.ok(Math.abs(st.aim.az - 200) < 0.05 && Math.abs(st.aim.alt - 60) < 0.05,
@@ -257,11 +270,11 @@ test('constellation dwells hold a fixed frame so the stars stream through', () =
   const orion = {
     type: 'constellation', name: 'Orion',
     // Jumps after arrival: a (buggy) tracking dwell would follow it; a frozen one won't.
-    altAzAt: (d) => (d.getTime() - T0 > 6500 * TIME_SCALE ? { az: 140, alt: 20 } : { az: 100, alt: 45 }),
+    altAzAt: (d) => (d.getTime() - T0 > 10500 * TIME_SCALE ? { az: 140, alt: 20 } : { az: 100, alt: 45 }),
   };
   const h = harness({ getCandidates: () => [orion] });
   h.ss.start();
-  for (let i = 0; i < 6; i++) h.tick(1000); // arrive: base frozen at az 100 / alt 45
+  for (let i = 0; i < 10; i++) h.tick(1000); // ~9.7s distance-scaled slew: base frozen at az 100 / alt 45
   for (let i = 0; i < 4; i++) h.tick(1000); // 4s into the dwell, target "moved" to az 140
   const st = h.store.getState();
   assert.ok(Math.abs(st.aim.az - 100) < 4 && Math.abs(st.aim.alt - 45) < 4,
@@ -275,12 +288,42 @@ test('the picker sees the simulated instant, not the wall clock', () => {
   assert.equal(seenAt.getTime(), T0, 'first pick happens at the starting sim instant');
 });
 
+test('entering zoomed-in eases out to a wide establishing view before the first target', () => {
+  const names = [];
+  const h = harness({ onShot: (n) => names.push(n) });
+  h.store.setFov(0.8); // deep telescope zoom
+  h.ss.start();
+  assert.deepEqual(names, [null], 'no caption during the establishing zoom-out');
+  h.tick(1000);
+  const mid = h.store.getState().fov;
+  assert.ok(mid > 0.8 && mid < 90, `zooming out smoothly (at ${mid}), not snapping`);
+  h.tick(1000);
+  h.tick(1000); // 3s: the 2.5s establish completes and the first target is picked
+  assert.equal(h.store.getState().fov, 90, 'reached the wide establishing view');
+  assert.deepEqual(names, [null, 'B'], 'the first target is announced after the pull-back');
+  h.triggerExit();
+  assert.equal(h.store.getState().fov, 0.8, 'exact zoom restored on exit');
+});
+
+test('the show occasionally pulls back for a wide captionless vista between targets', () => {
+  // rng: shot 1 consumes [pool, member, slew jitter, dwell] = 4 calls at 0.5; the 5th
+  // call is the vista check -> 0.0 forces a vista; the 6th is its hold duration.
+  const seq = [0.5, 0.5, 0.5, 0.5, 0.0, 0.5];
+  const names = [];
+  const h = harness({ rng: () => (seq.length ? seq.shift() : 0.5), onShot: (n) => names.push(n) });
+  h.ss.start();
+  for (let i = 0; i < 27; i++) h.tick(1000); // target B: ~11.8s slew + 15s dwell -> vista begins
+  for (let i = 0; i < 4; i++) h.tick(1000);  // vista pull-back complete
+  assert.ok(h.store.getState().fov > 100, 'pulled back well past any target framing');
+  assert.deepEqual(names, ['B', null], 'vista clears the caption');
+});
+
 test('onShot announces each framed target by name, and null for the fallback pan', () => {
   const names = [];
   const h = harness({ onShot: (n) => names.push(n) });
   h.ss.start();
   assert.deepEqual(names, ['B'], 'first shot announced (drives the on-screen caption)');
-  for (let i = 0; i < 21; i++) h.tick(1000); // 6s slew + 15s dwell -> next shot begins
+  for (let i = 0; i < 27; i++) h.tick(1000); // ~11.8s slew + 15s dwell -> next shot begins
   assert.equal(names.length, 2, 'second shot announced');
   assert.equal(names[1], 'A', 'recency rotates to the other candidate');
   const empty = [];
