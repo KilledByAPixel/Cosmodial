@@ -30,6 +30,17 @@ test('pickNearest returns the nearest visible point within maxDist, else null', 
   assert.equal(pickNearest(projected, 50, 50, 12), null); // C is not visible
 });
 
+test('pickNearest measures from the footprint edge, so a disc beats a nearer point centre', () => {
+  const projected = [
+    { x: 100, y: 100, visible: true, ref: 'star' },
+    { x: 115, y: 100, visible: true, r: 12, ref: 'sun' }, // disc edge reaches x=103
+  ];
+  // Tap inside the disc: the sun wins even though the star's centre is nearer (4px vs 11px).
+  assert.equal(pickNearest(projected, 104, 100, 18), 'sun');
+  // Tap clear of the disc on the star's side: the plain nearest point wins again.
+  assert.equal(pickNearest(projected, 95, 100, 18), 'star');
+});
+
 test('circularCentroid handles the RA 0/360 wrap', () => {
   const [ra, dec] = circularCentroid([[359, 10], [1, 20]]);
   assert.ok(ra < 5 || ra > 355, `ra ${ra} should be near 0`);

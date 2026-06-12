@@ -1,4 +1,4 @@
-import { createState } from './core/state.js';
+import { createState, DEFAULT_FOV } from './core/state.js';
 import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, searchSolarEclipse, nextSolarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, planetMoonsAltAz, moonLibrationDeg, nextSunEvent, cometsAltAz, PLANET_MOONS, lunarShadow, nextSunBelowAlt, sunGeometricAlt, nextMaxElongation, nextOpposition, nextVenusPeakMagnitude, nextFullMoon, nextTransit, sunDirectionEqj } from './core/astro.js';
 import { makeStarAltAz, horToEqjRotation, eqjToGalRotation } from './core/astro.js';
 import { eqjToEnuMatrix } from './render/star-transform.js';
@@ -563,16 +563,17 @@ function ensureFreshPickData() {
 
 // Extra pick footprint (px) beyond a body's apparent edge: a tap this close to the Sun/Moon/a
 // planet still snaps to it rather than to a smaller star whose centre happens to sit nearer.
-const BODY_PICK_GRACE = 10;
+const BODY_PICK_GRACE = 2;
 
 // Pick footprint (px) for a Sun/Moon/planet marker. The GL pass draws each marker as a solid disc
-// plus a glow halo on a sprite 6x the disc across (MARKER_GLOW_SCALE), and the visible glow reaches
-// roughly 3x the disc radius — that's the "circle" a finger aims at, especially zoomed out where the
-// glow exaggerates the body's true size. Track it, capped so a zoomed-in Moon/Sun whose disc already
-// fills a chunk of the frame doesn't also swallow taps far outside its limb.
+// plus a glow halo reaching roughly 3x the disc radius — that's the "circle" a finger aims at when
+// zoomed out, where the glow exaggerates the body's true size. The extension beyond the disc fades
+// linearly with zoom: by deep zoom the disc is honest-sized and nearby stars sit many px clear of
+// it, so the body claims only its own disc and stars right off its limb stay tappable.
 function bodyPickRadius(m, cam) {
   const disc = markerRadius(m, cam);
-  return Math.min(disc * 3, disc + 18) + BODY_PICK_GRACE;
+  const t = Math.min(1, cam.fov / DEFAULT_FOV); // 1 at naked-eye FOV and wider, ~0 zoomed deep
+  return disc + (Math.min(disc * 2, 18) + BODY_PICK_GRACE) * t;
 }
 
 // Outside edit mode, a tap identifies the nearest visible object and opens its card.

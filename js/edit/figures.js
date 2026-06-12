@@ -21,12 +21,14 @@ export function toggleEdge(lines, a, b) {
   return [...lines, [a, b]];
 }
 
-// Nearest item to (x,y) within maxDist px among projected points [{x,y,visible,ref}]. Returns ref|null.
+// Nearest item to (x,y) within maxDist px among projected points [{x,y,visible,ref,r?}]. Returns ref|null.
+// r (default 0) is a point's on-screen footprint radius: distance is measured from the footprint's
+// edge and goes negative inside it, so a disc beats a point object peeking out from behind it.
 export function pickNearest(projected, x, y, maxDist) {
   let best = null, bd = maxDist;
   for (const p of projected) {
     if (!p.visible) continue;
-    const d = Math.hypot(p.x - x, p.y - y);
+    const d = Math.hypot(p.x - x, p.y - y) - (p.r || 0);
     if (d <= bd) { bd = d; best = p.ref; }
   }
   return best;
