@@ -68,3 +68,25 @@ test('initUpdates registers ./sw.js, reloads once on controllerchange, re-checks
 test('initUpdates is a no-op without serviceWorker support', () => {
   assert.doesNotThrow(() => initUpdates({ serviceWorker: undefined, documentRef: fakeTarget(), reload: () => {}, onUpdateReady: () => {} }));
 });
+
+test('watchRegistration keeps watching after an already-waiting worker (long sessions see later updates)', () => {
+  const reg = fakeTarget({ waiting: { id: 'w1' } });
+  const sw = { controller: {} };
+  const ready = [];
+  watchRegistration(reg, sw, (w) => ready.push(w));
+  assert.equal(ready.length, 1, 'the waiting worker is reported immediately');
+  const worker = fakeTarget({ state: 'installed' });
+  reg.installing = worker;
+  reg.fire('updatefound');
+  worker.fire('statechange');
+  assert.deepEqual(ready, [reg.waiting, worker], 'a later update in the same session is reported too');
+});
+
+test('initUpdates survives a rejecting register() and still reloads on takeover', async () => {
+  const sw = fakeTarget({ controller: {}, register: () => Promise.reject(new Error('https required')) });
+  let reloads = 0;
+  initUpdates({ serviceWorker: sw, documentRef: fakeTarget({ hidden: false }), reload: () => { reloads += 1; }, onUpdateReady: () => {} });
+  await Promise.resolve(); await Promise.resolve();
+  sw.fire('controllerchange');
+  assert.equal(reloads, 1, 'controllerchange wiring lives outside the register() promise');
+});

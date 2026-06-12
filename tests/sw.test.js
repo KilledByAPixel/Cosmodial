@@ -5,7 +5,6 @@ import { fileURLToPath } from 'node:url';
 
 const swText = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
 
-
 function extractPrecache(src) {
   const m = src.match(/const PRECACHE = \[([\s\S]*?)\];/);
   assert.ok(m, 'sw.js declares const PRECACHE = [...]');

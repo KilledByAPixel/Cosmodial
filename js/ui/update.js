@@ -5,8 +5,11 @@
 // Calls onReady(worker) when a NEW version has finished installing while an old one is
 // still controlling the page — i.e. an update is sitting in 'waiting', one tap from live.
 // First-ever installs don't fire: there's nothing to "update" on a fresh visit.
+// Can fire more than once in a long session (visibility-driven reg.update() checks exist for
+// exactly this). Each subsequent onReady supersedes the previous one; the caller's toast
+// replaces itself so the tap always reaches the newest worker.
 export function watchRegistration(reg, serviceWorker, onReady) {
-  if (reg.waiting && serviceWorker.controller) { onReady(reg.waiting); return; }
+  if (reg.waiting && serviceWorker.controller) onReady(reg.waiting);
   reg.addEventListener('updatefound', () => {
     const worker = reg.installing;
     if (!worker) return;
