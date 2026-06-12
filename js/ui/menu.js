@@ -90,6 +90,7 @@ function makeAction(label, title, onClick) {
 }
 
 // opts.onScreenshot: capture the current view as a PNG (wired by main.js, which owns the canvases).
+// opts.onScreensaver: start screensaver mode (wired by main.js, which owns the controller).
 export function buildMenu(store, opts = {}) {
   const el = document.createElement('div');
   el.className = 'ctrl menu';
@@ -118,9 +119,15 @@ export function buildMenu(store, opts = {}) {
   if (opts.onScreenshot) {
     panel.append(section('Capture', makeAction('📷 Screenshot', 'Save the current view as a PNG', opts.onScreenshot)));
   }
+  let pop; // assigned below; the action closes the menu before the chrome fades
+  if (opts.onScreensaver) {
+    panel.append(section('Screensaver',
+      makeAction('🌌 Start', 'Hide the controls and tour the sky — any tap or key exits',
+        () => { pop.close(); opts.onScreensaver(); })));
+  }
   panel.append(section('Info', makeAction('✨ About Cosmodial', 'About this app', openAbout)));
   el.append(btn, panel);
-  attachPopover(btn, panel);
+  pop = attachPopover(btn, panel);
   return { el, skySection, skyRow: skySection.querySelector('.menu-row') };
 }
 
