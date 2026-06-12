@@ -3,6 +3,16 @@
 // as the README explains), and it doesn't fire when the app is already installed or running
 // standalone — so "show the button only when installable and not yet installed" falls out
 // for free. windowRef is injected so the state machine is testable with plain fakes.
+// True when the menu should offer iOS install GUIDANCE (no programmatic install exists there:
+// every iOS browser is WebKit and none fires beforeinstallprompt — install is the browser's own
+// Share → "Add to Home Screen"). iPadOS reports itself as "Macintosh", so touch support is the
+// tiebreaker. Suppressed when already running from the Home Screen; iOS gives no signal for
+// "added but currently browsing", so the hint still shows in that case — accepted limit.
+export function iosInstallHint({ userAgent, maxTouchPoints = 0, standalone = false }) {
+  const ios = /iPad|iPhone|iPod/.test(userAgent) || (/Macintosh/.test(userAgent) && maxTouchPoints > 1);
+  return ios && !standalone;
+}
+
 export function watchInstallability({ windowRef }) {
   let deferred = null; // the stashed BeforeInstallPromptEvent, if the browser has offered one
   const subs = new Set();

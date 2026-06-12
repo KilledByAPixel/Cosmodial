@@ -105,6 +105,8 @@ function makeAction(label, title, onClick) {
 // opts.onScreensaver: start screensaver mode (wired by main.js, which owns the controller).
 // opts.install: installability watcher (js/ui/install.js); its button appears only while the
 // browser is offering an install prompt — installable, not yet installed, Chromium.
+// opts.iosInstall: true on iOS browsing (not Home-Screen) — the install button shows
+// Add-to-Home-Screen guidance instead (iOS has no programmatic install).
 export function buildMenu(store, opts = {}) {
   const el = document.createElement('div');
   el.className = 'ctrl menu';
@@ -146,6 +148,13 @@ export function buildMenu(store, opts = {}) {
     ib.hidden = true;
     opts.install.onChange((ok) => { ib.hidden = !ok; });
     tools.push(ib);
+  }
+  // iOS has no programmatic install (no browser there fires beforeinstallprompt), so the same
+  // button becomes guidance for the browser's own Share-sheet route. Never both: iOS never
+  // fires the event above, everything else never sets iosInstall.
+  if (opts.iosInstall) {
+    tools.push(makeAction('📲 Install app', 'Add Cosmodial to your Home Screen — works fully offline',
+      () => showToast('Tap the Share button, then "Add to Home Screen"', 6000)));
   }
   if (tools.length) panel.append(section('Tools', ...tools));
   panel.append(section('Info', makeAction('✨ About Cosmodial', 'About this app', openAbout)));

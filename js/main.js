@@ -33,7 +33,7 @@ import { HIGHLIGHT_WINDOW_DAYS, SUPERMOON_KM, withinDays, bestVisibleComet, isOc
 import { SATELLITES, parseTle, satAltAz, satMagnitude, isSunlit, findNextVisiblePass, loadSatTles } from './core/satellites.js';
 import { loadCatalogue } from './core/catalogue.js';
 import { initUpdates } from './ui/update.js';
-import { watchInstallability } from './ui/install.js';
+import { watchInstallability, iosInstallHint } from './ui/install.js';
 import { showActionToast } from './ui/toast.js';
 
 // Planet disc size vs true angular size. 1 = true scale (Stellarium-like): zoomed out, planets are the
@@ -1394,7 +1394,16 @@ async function boot() {
     render();
     saveComposite(useGL ? [glCanvas, canvas] : [canvas], canvas.width, canvas.height, screenshotName());
   };
-  const menu = buildMenu(store, { onScreenshot, onScreensaver: () => screensaver.start(), install });
+  const menu = buildMenu(store, {
+    onScreenshot,
+    onScreensaver: () => screensaver.start(),
+    install,
+    iosInstall: iosInstallHint({
+      userAgent: navigator.userAgent,
+      maxTouchPoints: navigator.maxTouchPoints,
+      standalone: window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true,
+    }),
+  });
   const skyToggles = buildSkyToggles(store);
   const screensaver = createScreensaver(store, {
     getCandidates: screensaverCandidates,
