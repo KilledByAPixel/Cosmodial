@@ -160,6 +160,9 @@ input, textarea { -webkit-user-select: text; user-select: text; }
   text-indent: 0.45em; text-transform: uppercase; color: #8fb0e0; }
 .boot-loading { margin-top: 16px; font: 11px system-ui, sans-serif; letter-spacing: 0.12em;
   text-transform: uppercase; color: #5a6a85; }
+/* The underlying error when boot fails (splashProblem): the diagnostic payload on phones. */
+.boot-error { font: 11px system-ui, sans-serif; color: #8895ab; max-width: min(440px, 86vw);
+  text-align: center; overflow-wrap: anywhere; }
 
 /* About modal: dim backdrop + a short card; click outside, the ×, or Escape dismisses. */
 .about-overlay { position: fixed; inset: 0; z-index: 20; background: rgba(2, 3, 7, 0.6);

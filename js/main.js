@@ -31,6 +31,7 @@ import { activeShower } from './guide/showers.js';
 import { findConjunctions, midpointAltAz } from './guide/conjunctions.js';
 import { HIGHLIGHT_WINDOW_DAYS, SUPERMOON_KM, withinDays, bestVisibleComet, isOccultation } from './guide/highlights.js';
 import { SATELLITES, parseTle, satAltAz, satMagnitude, isSunlit, findNextVisiblePass, loadSatTles } from './core/satellites.js';
+import { loadCatalogue } from './core/catalogue.js';
 import { initUpdates } from './ui/update.js';
 import { watchInstallability } from './ui/install.js';
 import { showActionToast } from './ui/toast.js';
@@ -1305,15 +1306,32 @@ function drawHighlight(ctx, cam) {
 // itself, so the listener provably exists before the event can fire.
 const install = watchInstallability({ windowRef: window });
 
-async function boot() {
-  try {
-    const res = await fetch('./data/stars.json');
-    if (!res.ok) throw new Error(`stars.json: HTTP ${res.status}`);
-    stars = await res.json();
-    if (useGL) starfield.uploadStarsJ2000(stars); // J2000 attrs upload ONCE; per-frame motion is the matrix uniform
-  } catch (err) {
-    console.error('[cosmodial] Failed to load star catalogue:', err);
+// Boot failures must be VISIBLE: on a phone there is no console, and an eternal splash reads
+// as a frozen app (field-reported on iOS). Rewrites the splash status line, shows the
+// underlying error below it, and makes the whole splash a tap-to-reload.
+function splashProblem(message, detail = '') {
+  const splash = document.getElementById('boot-splash');
+  if (!splash) return; // splash already lifted: the app is up, nothing to report
+  const line = splash.querySelector('.boot-loading');
+  if (line) line.textContent = message;
+  if (detail) {
+    let err = splash.querySelector('.boot-error');
+    if (!err) {
+      err = document.createElement('div');
+      err.className = 'boot-error';
+      splash.append(err);
+    }
+    err.textContent = detail;
   }
+  splash.addEventListener('click', () => location.reload(), { once: true });
+}
+
+async function boot() {
+  // The star catalogue IS the app: without it there is nothing to show, so a failure here
+  // aborts boot and surfaces on the splash (via the boot().catch below). The generous ceiling
+  // is for the 11 MB file on a slow connection; the watchdog narrates the wait before it hits.
+  stars = await loadCatalogue('./data/stars.json', { timeoutMs: 60000 });
+  if (useGL) starfield.uploadStarsJ2000(stars); // J2000 attrs upload ONCE; per-frame motion is the matrix uniform
   // Satellite TLEs: optional runtime fetch (CelesTrak stations group, localStorage-cached).
   // Fire-and-forget; offline or blocked simply means no satellites this session — the app has no
   // other runtime network dependency.
@@ -1335,18 +1353,14 @@ async function boot() {
   }).catch(() => { /* absence, not error */ });
   let loaded = [];
   try {
-    const cres = await fetch('./data/constellations.json');
-    if (!cres.ok) throw new Error(`constellations.json: HTTP ${cres.status}`);
-    loaded = await cres.json();
+    loaded = await loadCatalogue('./data/constellations.json');
   } catch (err) {
-    console.error('[cosmodial] Failed to load constellations:', err);
+    console.error('[cosmodial] Failed to load constellations:', err); // degrade: sky without figures
   }
   try {
-    const dres = await fetch('./data/dso.json');
-    if (!dres.ok) throw new Error(`dso.json: HTTP ${dres.status}`);
-    dsos = await dres.json();
+    dsos = await loadCatalogue('./data/dso.json');
   } catch (err) {
-    console.error('[cosmodial] Failed to load deep-sky catalogue:', err);
+    console.error('[cosmodial] Failed to load deep-sky catalogue:', err); // degrade: no deep sky
   }
   loadedRaw = loaded;
   const saved = loadSavedFigures(loaded);
@@ -1511,4 +1525,12 @@ async function boot() {
   }));
 }
 
-boot();
+// The watchdog narrates a slow boot (the splash otherwise reads as frozen — field-reported on
+// phones); the catch makes any boot failure visible and retryable instead of console-only.
+const bootWatchdog = setTimeout(
+  () => splashProblem('still loading — slow connection? tap to reload'), 20000);
+boot().then(() => clearTimeout(bootWatchdog)).catch((err) => {
+  clearTimeout(bootWatchdog);
+  console.error('[cosmodial] boot failed:', err);
+  splashProblem('couldn’t load the sky — tap to retry', String(err?.message ?? err));
+});
