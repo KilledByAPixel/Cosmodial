@@ -42,6 +42,10 @@ test('toggleKeyAction maps c/l/g/a/e keys to flags (case-insensitive), ignores o
   assert.equal(toggleKeyAction('A'), 'atmo');
   assert.equal(toggleKeyAction('s'), null, 'full-sphere key retired');
   assert.equal(toggleKeyAction('e'), 'edit');
+  assert.equal(toggleKeyAction('n'), 'night');
+  assert.equal(toggleKeyAction('N'), 'night');
+  assert.equal(toggleKeyAction('d'), 'deepsky');
+  assert.equal(toggleKeyAction('D'), 'deepsky');
   assert.equal(toggleKeyAction('x'), null);
 });
 

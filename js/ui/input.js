@@ -21,6 +21,8 @@ export function toggleKeyAction(key) {
   if (key === 'g' || key === 'G') return 'grid';   // 'g' = alt-az grid
   if (key === 'q' || key === 'Q') return 'eqgrid'; // 'q' = equatorial (RA/Dec) grid
   if (key === 'a' || key === 'A') return 'atmo';   // 'a' = atmosphere on/off (off = space view)
+  if (key === 'n' || key === 'N') return 'night';  // 'n' = night (red) mode
+  if (key === 'd' || key === 'D') return 'deepsky'; // 'd' = deep-sky objects
   if (key === 'e' || key === 'E') return 'edit';   // 'e' = edit mode
   return null;
 }
@@ -162,14 +164,16 @@ export function attachInput(canvas, store, opts = {}) {
   const onKey = (e) => {
     const tag = e.target && e.target.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) return;
-    const flag = toggleKeyAction(e.key);
-    if (flag) { store.setFlag(flag, !store.getState().flags[flag]); return; }
+    // Edit-mode actions own their keys WHILE editing — d/n double as the deep-sky/night toggles
+    // everywhere else.
     if (store.getState().flags.edit && opts.onAction) {
-      if (e.key === 'd' || e.key === 'D') opts.onAction('download');
-      if (e.key === 'r' || e.key === 'R') opts.onAction('reset');
-      if (e.key === 'n' || e.key === 'N') opts.onAction('next');
-      if (e.key === 'p' || e.key === 'P') opts.onAction('prev');
+      if (e.key === 'd' || e.key === 'D') { opts.onAction('download'); return; }
+      if (e.key === 'r' || e.key === 'R') { opts.onAction('reset'); return; }
+      if (e.key === 'n' || e.key === 'N') { opts.onAction('next'); return; }
+      if (e.key === 'p' || e.key === 'P') { opts.onAction('prev'); return; }
     }
+    const flag = toggleKeyAction(e.key);
+    if (flag) store.setFlag(flag, !store.getState().flags[flag]);
   };
 
   canvas.addEventListener('pointerdown', onDown);
