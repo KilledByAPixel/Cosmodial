@@ -1,0 +1,15 @@
+{
+  "name": "Cosmodial Sky Atlas",
+  "short_name": "Cosmodial",
+  "description": "A free, offline-first stargazing web app — the live sky from where you stand, from naked-eye views down to a telescope eyepiece.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [
+    { "src": "./images/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "./images/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "./images/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
