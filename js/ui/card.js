@@ -158,6 +158,7 @@ function bodyLines(obj, ctx) {
     if (obj.altaz) {
       lines.push(row(`<b>Distance:</b> ${Math.round(obj.rangeKm).toLocaleString()} km away`));
       lines.push(row(`<b>How to see it:</b> naked eye (magnitude ${obj.mag.toFixed(1)}) — a steady light, visibly moving`));
+      if (obj.sunlit === false) lines.push(row(`Currently inside Earth's shadow — unlit, invisible from the ground.`));
       if (obj.nextPass) {
         const p = obj.nextPass;
         const t = p.start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });

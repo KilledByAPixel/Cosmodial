@@ -17,7 +17,7 @@ import { createRenderScheduler } from './core/scheduler.js';
 import { attachInput } from './ui/input.js';
 import { splitSegments, toggleEdge, pickNearest, circularCentroid, exportFigures } from './edit/figures.js';
 import { createProjector, vec, focalPx } from './core/projection.js';
-import { skyParams, spaceSkyParams, belowHorizonFade, enuToGalMatrix, eclipseDarkenedSunAlt, eclipseDeepFraction } from './render/atmosphere.js';
+import { skyParams, spaceSkyParams, belowHorizonFade, enuToGalMatrix, eclipseDarkenedSunAlt, eclipseDeepFraction, extinction } from './render/atmosphere.js';
 import { openCard, closeCard, constellationName, isCardOpen } from './ui/card.js';
 import { altazToWhere } from './guide/ranking.js';
 import { createFavorites, displayName } from './core/favorites.js';
@@ -30,7 +30,7 @@ import { findEclipseContext, umbralVisibility, solarVisibility } from './guide/e
 import { activeShower } from './guide/showers.js';
 import { findConjunctions, midpointAltAz } from './guide/conjunctions.js';
 import { HIGHLIGHT_WINDOW_DAYS, SUPERMOON_KM, withinDays, bestVisibleComet, isOccultation } from './guide/highlights.js';
-import { SATELLITES, parseTle, satAltAz, satMagnitude, findNextVisiblePass, loadSatTles } from './core/satellites.js';
+import { SATELLITES, parseTle, satAltAz, satMagnitude, isSunlit, findNextVisiblePass, loadSatTles } from './core/satellites.js';
 
 // Planet disc size vs true angular size. 1 = true scale (Stellarium-like): zoomed out, planets are the
 // oversized glow DOTS (visibility); the textured sphere appears exactly when its TRUE disc outgrows the
@@ -113,7 +113,15 @@ function satPick(sat) {
   const p = satPasses.find((x) => x.sat.id === sat.id);
   return { kind: 'satellite', id: sat.id, name: sat.label, label: sat.label, title: sat.title, blurb: sat.blurb,
     altaz: o ? o.altaz : null, mag: o ? o.mag : null, rangeKm: o ? o.rangeKm : null,
-    nextPass: p ? p.pass : null };
+    sunlit: o ? o.sunlit : null, nextPass: p ? p.pass : null };
+}
+
+// Stations draw (and are tappable) ONLY while selected or followed: two dots sweeping the whole
+// sky in minutes upstage everything else — distracting in time scrubs and ruinous in the
+// screensaver (which clears the selection, hiding them, when it starts). Select one and it's there.
+function satSelected(id) {
+  return (highlighted && highlighted.kind === 'satellite' && highlighted.id === id)
+    || (followTarget && followTarget.kind === 'satellite' && followTarget.id === id);
 }
 
 // Moons whose planet has resolved into a sphere (per the given set) and that aren't occulted —
@@ -196,10 +204,14 @@ function computeSky(full) {
   // like an out-of-coverage comet. Recomputed every pass: stations move ~1°/s, far too fast for
   // the 30 s full cadence.
   satObjs = [];
+  const sunDir = Object.keys(satRecs).length ? sunDirectionEqj(time.date) : null;
   for (const s of SATELLITES) {
     const rec = satRecs[s.id];
     const p = rec && satAltAz(rec, st.location.lat, st.location.lng, time.date);
-    if (p) satObjs.push({ sat: s, altaz: { alt: p.alt, az: p.az }, mag: satMagnitude(p.rangeKm, s.stdMag), rangeKm: p.rangeKm });
+    // sunlit drives the marker's shadow dimming and the card's "in Earth's shadow" note — a
+    // station crossing the umbra really does vanish mid-pass.
+    if (p) satObjs.push({ sat: s, altaz: { alt: p.alt, az: p.az }, mag: satMagnitude(p.rangeKm, s.stdMag),
+      rangeKm: p.rangeKm, sunlit: isSunlit(p.eciKm, sunDir) });
   }
   if (useGL) {
     // Sky background: atmosphere colour + star wash-out are driven by the Sun's altitude; the warm
@@ -359,9 +371,18 @@ function render() {
     .filter((c) => c.altaz && c.mag <= COMET_MARKER_MAG)
     .map((c) => ({ altaz: c.altaz, label: c.name, color: c.color, mag: c.mag, alpha: markerAlpha(c.mag), radius: planetRadius(c.mag) }));
   // Satellites as warm glow dots, same render-local treatment as the comets (never in `markers`,
-  // so conjunction/body code stays blind to them). Present only while a fresh-enough TLE tracks them.
+  // so conjunction/body code stays blind to them). Drawn only while selected/followed (see
+  // satSelected) and with a fresh-enough TLE. The glow honors the real sky: atmospheric
+  // extinction dims it toward the horizon (same green-channel curve the stars use, atmosphere
+  // toggle respected), and a station inside Earth's shadow drops to a ghost — in reality it
+  // vanishes outright mid-pass, but a trace keeps a followed station findable.
   const satMarkers = st.flags.edit ? [] : satObjs
-    .map((o) => ({ altaz: o.altaz, label: o.sat.label, color: '#ffe9c4', mag: o.mag, alpha: markerAlpha(o.mag), radius: planetRadius(o.mag) }));
+    .filter((o) => satSelected(o.sat.id))
+    .map((o) => {
+      const mag = st.flags.atmo ? o.mag - 2.5 * Math.log10(extinction(o.altaz.alt)[1]) : o.mag;
+      const alpha = markerAlpha(mag) * (o.sunlit ? 1 : 0.15);
+      return { altaz: o.altaz, label: o.sat.label, color: '#ffe9c4', mag, alpha, radius: planetRadius(mag) };
+    });
   let drawList = st.flags.edit ? [] : markers.concat(cometMarkers, satMarkers); // markers (+ moons/comets variants below)
   // One EQJ->ENU rotation per frame, shared by the GPU star transform and the equatorial grid:
   // stars sweep smoothly in live/play/scrub at zero per-star CPU cost, and the grid stays glued
@@ -543,7 +564,7 @@ function onIdentifyTap(x, y) {
     ...dsoObjects,
     ...cometObjects.filter((c) => c.altaz && c.mag <= COMET_MARKER_MAG),
     ...visibleMoons(resolvedPlanets).map(moonPick),
-    ...satObjs.map((o) => satPick(o.sat)), // the drawn station dots are tappable like any marker
+    ...satObjs.filter((o) => satSelected(o.sat.id)).map((o) => satPick(o.sat)), // only DRAWN station dots are tappable
   ].filter((o) => o.altaz.alt >= 0 // faded-in below-horizon objects are pickable too, incl. the
     // fully revealed hemisphere while a below-horizon selection holds the fade open (see render).
     || (highlighted && highlighted.altaz && highlighted.altaz.alt < 0)
@@ -814,17 +835,19 @@ function satPassEvent(sat, p, at) {
   const text = live
     ? `🛰️ ${who} is overhead right now — look ${azToCompass(p.peakAz)}, it sets in minutes.`
     : `🛰️ ${who} passes over at ${t} — ${azToCompass(p.startAz)} to ${azToCompass(p.endAz)}, peaking ${Math.round(p.peakAlt)}° up.`;
-  return { text, actionLabel: 'Find', onAction: () => onFindSatPass(p) };
+  return { text, actionLabel: 'Find', onAction: () => onFindSatPass(sat, p) };
 }
 
-// Jump to a station pass: set the clock to its peak and frame that point wide, so the station's
-// glow dot is sweeping through the view (it crosses the sky in ~5 minutes, so the dot moves live).
-function onFindSatPass(p) {
+// Jump to a station pass: set the clock to its peak, then — once that recompute has actually run
+// (double rAF, the boot-splash idiom) — select and lock onto the station itself. Selection is
+// what makes a station visible at all now, and lock-on chases the dot through the pass.
+function onFindSatPass(sat, p) {
   closeCard();
   store.setTime(p.peakDate, false);          // jump the clock to peak (triggers recompute)
-  highlighted = { altaz: { alt: p.peakAlt, az: p.peakAz } };
-  const st = store.getState();
-  animateSlew(store, { az: p.peakAz, alt: p.peakAlt, fov: Math.min(Math.max(st.fov, 40), 60) });
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const pick = satPick(sat);
+    if (pick.altaz) focusObject(pick, GOTO_FOV.satellite);
+  }));
 }
 
 // SearchTransit pays for transit rarity by scanning synodic period after synodic period (~15-30 ms
