@@ -561,6 +561,20 @@ function ensureFreshPickData() {
   if (locChanged || driftDeg > pickRadiusDeg * 0.5) { computeSky(true); fullDirty = false; } // full just ran; don't repeat it next render
 }
 
+// Extra pick footprint (px) beyond a body's apparent edge: a tap this close to the Sun/Moon/a
+// planet still snaps to it rather than to a smaller star whose centre happens to sit nearer.
+const BODY_PICK_GRACE = 10;
+
+// Pick footprint (px) for a Sun/Moon/planet marker. The GL pass draws each marker as a solid disc
+// plus a glow halo on a sprite 6x the disc across (MARKER_GLOW_SCALE), and the visible glow reaches
+// roughly 3x the disc radius — that's the "circle" a finger aims at, especially zoomed out where the
+// glow exaggerates the body's true size. Track it, capped so a zoomed-in Moon/Sun whose disc already
+// fills a chunk of the frame doesn't also swallow taps far outside its limb.
+function bodyPickRadius(m, cam) {
+  const disc = markerRadius(m, cam);
+  return Math.min(disc * 3, disc + 18) + BODY_PICK_GRACE;
+}
+
 // Outside edit mode, a tap identifies the nearest visible object and opens its card.
 function onIdentifyTap(x, y) {
   ensureFreshPickData();
@@ -572,7 +586,9 @@ function onIdentifyTap(x, y) {
   const projector = createProjector(cam);
   const candidates = [
     ...skyObjects.map((s) => ({ kind: 'star', id: s.id, name: s.name, mag: s.mag, bv: s.bv, con: s.con, dist: s.dist, altaz: s.altaz })),
-    ...markers.map((m) => ({ kind: m.label === 'Moon' ? 'moon' : m.label === 'Sun' ? 'sun' : 'planet', label: m.label, body: m.body, mag: m.mag, altaz: m.altaz })),
+    // pickR: tap distance is measured from the body's apparent (glow) edge, so the Sun/Moon/planets
+    // beat the faint stars right behind or beside them.
+    ...markers.map((m) => ({ kind: m.label === 'Moon' ? 'moon' : m.label === 'Sun' ? 'sun' : 'planet', label: m.label, body: m.body, mag: m.mag, altaz: m.altaz, pickR: bodyPickRadius(m, cam) })),
     ...dsoObjects,
     ...cometObjects.filter((c) => c.altaz && c.mag <= COMET_MARKER_MAG),
     ...visibleMoons(resolvedPlanets).map(moonPick),
@@ -581,7 +597,7 @@ function onIdentifyTap(x, y) {
     // fully revealed hemisphere while a below-horizon selection holds the fade open (see render).
     || (highlighted && highlighted.altaz && highlighted.altaz.alt < 0)
     || easeBelowFade(belowFadeP) > 0.05);
-  const projected = candidates.map((o) => { const p = projector(o.altaz.az, o.altaz.alt); return { x: p.x, y: p.y, visible: p.visible, ref: o }; });
+  const projected = candidates.map((o) => { const p = projector(o.altaz.az, o.altaz.alt); return { x: p.x, y: p.y, visible: p.visible, r: o.pickR, ref: o }; });
   const hit = pickNearest(projected, x, y, 18);
   if (hit) {
     highlighted = hit;
@@ -1281,6 +1297,13 @@ function drawHighlight(ctx, cam) {
   ctx.stroke();
 }
 
+// Module scope, NOT inside boot(): Chrome fires beforeinstallprompt once per page load, the
+// moment its installability check completes — on a warm revisit that's before boot() finishes
+// awaiting the catalogues, and an event with no listener yet is lost for the whole session
+// (the menu's Install button then never appears). Module evaluation runs in the load task
+// itself, so the listener provably exists before the event can fire.
+const install = watchInstallability({ windowRef: window });
+
 async function boot() {
   try {
     const res = await fetch('./data/stars.json');
@@ -1356,9 +1379,6 @@ async function boot() {
     render();
     saveComposite(useGL ? [glCanvas, canvas] : [canvas], canvas.width, canvas.height, screenshotName());
   };
-  // Created before the menu so a beforeinstallprompt that fires mid-boot isn't missed
-  // (the menu button syncs to the watcher's current state when built).
-  const install = watchInstallability({ windowRef: window });
   const menu = buildMenu(store, { onScreenshot, onScreensaver: () => screensaver.start(), install });
   const skyToggles = buildSkyToggles(store);
   const screensaver = createScreensaver(store, {
