@@ -14,7 +14,8 @@ const SLEW_MS = [4000, 8000];      // randomized slew duration range
 const DWELL_MS = [10000, 20000];   // randomized dwell duration range
 const DRIFT_RAMP_MS = 3000;        // ease the dwell drift in from zero
 const PAN_MS = 10000;              // fallback horizon pan length before re-picking
-const PAN_ALT = 30, PAN_FOV = 70;  // fallback pan framing
+const PAN_ALT = 30;                // fallback pan altitude (deg)
+const PAN_FOV = 70;                // fallback pan field of view (deg)
 const PAN_RATE = 0.4;              // fallback pan, degrees of azimuth per real second
 
 // Worst-case SIM time one visit can take (longest slew + dwell): the "will it still be
@@ -37,8 +38,9 @@ export function framingFov(target, rng = Math.random) {
 }
 
 // The "slight chill movement" during a dwell: a slow Lissajous wander scaled to the FOV.
-// Two incommensurate periods so the path never visibly repeats; az starts at zero so the
-// dwell begins exactly on target.
+// Two incommensurate periods so the path never visibly repeats. alt starts mid-swing
+// (phase 1.3) for variety; the controller ramps the whole offset in from zero over
+// DRIFT_RAMP_MS, so the dwell still begins exactly on target.
 export function driftOffset(tMs, fov) {
   const a = fov * 0.06;
   return {

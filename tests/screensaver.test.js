@@ -11,6 +11,7 @@ test('framingFov frames each target type appropriately', () => {
     'huge disc clamps to the ceiling');
   assert.equal(framingFov({ type: 'dso', sizeArcmin: 180 }), 9, 'big DSO -> 3x its size');
   assert.equal(framingFov({ type: 'dso', sizeArcmin: 10 }), 4, 'small DSO hits the 4-deg floor');
+  assert.equal(framingFov({ type: 'dso' }), 4, 'missing size falls back to a modest field');
   assert.equal(framingFov({ type: 'star' }), 30, 'stars stay wide-field');
   assert.equal(framingFov({ type: 'comet' }), 5, 'comets get a medium field');
   const c = framingFov({ type: 'constellation' }, () => 0.5);
@@ -28,4 +29,5 @@ test('driftOffset is a slow bounded wander scaled to the fov', () => {
   }
   const a = driftOffset(10000, fov), b = driftOffset(20000, fov);
   assert.ok(Math.abs(a.az - b.az) > 1e-3, 'the offset actually moves over time');
+  assert.ok(Math.abs(a.alt - b.alt) > 1e-3, 'the alt offset moves too');
 });
