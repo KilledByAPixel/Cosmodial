@@ -229,14 +229,18 @@ body.night #night-overlay { display: block; }
 .time-panel input[type="datetime-local"] { width: 100%; }
 
 /* Screensaver mode: the chrome fades away and the cursor hides; the sky keeps rendering.
-   The opacity transition also eases everything back in on exit. */
+   The opacity transition also eases everything back in on exit. body.timelapse (the debug
+   't' time-lapse) borrows the same hide for clean recordings — but NOT the brand/caption
+   below, which are the show's signature. */
 #controls, #card-host, #favorites-host { transition: opacity 1.2s ease; }
-body.screensaver { cursor: none; }
-body.screensaver #controls, body.screensaver #card-host, body.screensaver #favorites-host {
+body.screensaver, body.timelapse { cursor: none; }
+body.screensaver #controls, body.screensaver #card-host, body.screensaver #favorites-host,
+body.timelapse #controls, body.timelapse #card-host, body.timelapse #favorites-host {
   opacity: 0;
   pointer-events: none;
 }
-body.screensaver #controls *, body.screensaver #card-host *, body.screensaver #favorites-host * {
+body.screensaver #controls *, body.screensaver #card-host *, body.screensaver #favorites-host *,
+body.timelapse #controls *, body.timelapse #card-host *, body.timelapse #favorites-host * {
   pointer-events: none; /* children with their own pointer-events would re-enable inside a none parent */
 }
 

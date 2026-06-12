@@ -27,6 +27,15 @@ export function toggleKeyAction(key) {
   return null;
 }
 
+// Map a key to a time-lapse action: 't' toggles the debug time-lapse, '+'/'-' change its
+// speed while it runs ('=' is unshifted '+', '_' shifted '-'). Null if the key isn't one.
+export function timeLapseKeyAction(key) {
+  if (key === 't' || key === 'T') return 'toggle';
+  if (key === '+' || key === '=') return 'faster';
+  if (key === '-' || key === '_') return 'slower';
+  return null;
+}
+
 // Single-finger drag steers the aim only when gyroscope aim mode is OFF. In gyro mode the device
 // orientation owns the aim, so a stray finger drag must not fight it. (Pinch-zoom and tap still work.)
 export function dragAimEnabled(flags) { return !flags.gyro; }
@@ -192,7 +201,9 @@ export function attachInput(canvas, store, opts = {}) {
       if (e.key === 'p' || e.key === 'P') { opts.onAction('prev'); return; }
     }
     const flag = toggleKeyAction(e.key);
-    if (flag) store.setFlag(flag, !store.getState().flags[flag]);
+    if (flag) { store.setFlag(flag, !store.getState().flags[flag]); return; }
+    const lapse = timeLapseKeyAction(e.key);
+    if (lapse && opts.onTimeLapse) opts.onTimeLapse(lapse);
   };
 
   canvas.addEventListener('pointerdown', onDown);

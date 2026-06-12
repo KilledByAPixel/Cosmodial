@@ -15,6 +15,7 @@ import { createStarfield, hexToRgb01 } from './render/starfield-gl.js';
 import { drawHud, azToCompass } from './render/hud.js';
 import { createRenderScheduler } from './core/scheduler.js';
 import { attachInput } from './ui/input.js';
+import { createTimeLapse } from './ui/timelapse.js';
 import { splitSegments, toggleEdge, pickNearest, circularCentroid, exportFigures } from './edit/figures.js';
 import { createProjector, vec, focalPx } from './core/projection.js';
 import { skyParams, spaceSkyParams, stepBelowFade, easeBelowFade, enuToGalMatrix, eclipseDarkenedSunAlt, eclipseDeepFraction, extinction } from './render/atmosphere.js';
@@ -99,6 +100,7 @@ let selected = null;        // first star picked in edit mode (a skyObjects entr
 let highlighted = null;     // object whose card is currently open (gets a ring on canvas)
 let followTarget = null;    // object kept centred as time changes (set by Find/search; cleared on drag/tap)
 let screensaverOn = false;  // hides canvas-drawn chrome (HUD, all labels) while the tour runs
+let timeLapseOn = false;    // debug time-lapse ('t'): same chrome hide, for clean recordings
 let consFocus = null;       // { name, alpha }: the screensaver's focused constellation figure fade
 let bodyInputs = [];   // per-recompute lit-sphere inputs (Moon + planets); see computeSky()
 let planetMoons = [];       // all systems, flat [{planet, name, altaz, mag, behind}]; drawn when planet resolves
@@ -345,15 +347,23 @@ function render() {
   }
   const view = resizeCanvas(canvas);
   const st = store.getState();
+  // Canvas chrome (HUD, labels, grids, figures) hides for BOTH chrome-free modes: the
+  // screensaver's show and the debug time-lapse (recording-friendly, see createTimeLapse).
+  const chromeOff = screensaverOn || timeLapseOn;
   // Aim-driven reveal of the lower hemisphere, faded over TIME (~1 s), not by dip angle: crossing
   // the horizon starts the fade, recrossing reverses it from wherever it is (see stepBelowFade).
-  // A SELECTED object below the horizon overrides it to fully revealed — searching or following
-  // something that has set would otherwise show a ghost (or nothing) at gentle aim altitudes.
+  // A SELECTED or FOLLOWED object below the horizon overrides it to fully revealed — searching or
+  // following something that has set would otherwise show a ghost (or nothing) at gentle aim
+  // altitudes. Both must be checked: a lock-on can outlive the selection (card closed, or the
+  // time-lapse's chrome hide), and without the follow check a tracked body popped out at the
+  // horizon crossing and ~1s-faded back in as the aim-driven reveal caught up.
   // The screensaver always shows the full sphere: no ground line breaks the wandering frame.
   const fadeNowMs = performance.now();
   belowFadeP = stepBelowFade(belowFadeP, st.aim.alt < 0, Math.min(fadeNowMs - belowFadeAtMs, 100)); // dt clamped: an idle gap shouldn't snap the fade
   belowFadeAtMs = fadeNowMs;
-  const selBelow = highlighted && highlighted.altaz && highlighted.altaz.alt < 0;
+  const followAA = followTarget ? resolveFollowAltAz() : null;
+  const selBelow = (highlighted && highlighted.altaz && highlighted.altaz.alt < 0)
+    || (followAA && followAA.alt < 0);
   const belowFade = (st.flags.edit || selBelow || screensaverOn) ? 1 : easeBelowFade(belowFadeP);
   // Lift the compass ribbon/readout above the on-screen control bar so they aren't hidden behind
   // it. Measured from where the bar actually sits in the viewport (not just its height): if the
@@ -369,12 +379,13 @@ function render() {
     ? (highlighted && highlighted.kind === 'constellation' ? highlighted.name
       : followTarget && followTarget.kind === 'constellation' ? followTarget.name : null)
     : null;
-  // The screensaver never shows the flag's all-figures layer (whatever the toggle says) — only
-  // its own focused figure, drawn via the consFocus fade overlay below.
+  // Chrome-free modes never show figures (whatever the toggle says): the screensaver draws only
+  // its own focused figure via the consFocus fade overlay below, the time-lapse keeps the frame bare.
   const visibleCons = st.flags.edit
     ? (constellations[editIndex] ? [constellations[editIndex]] : [])
-    : (st.flags.lines && !screensaverOn ? constellations
-      : selCons ? constellations.filter((c) => c.name === selCons) : []);
+    : chromeOff ? []
+      : (st.flags.lines ? constellations
+        : selCons ? constellations.filter((c) => c.name === selCons) : []);
   // Comets bright enough to draw, as plain glow-dot markers (kept out of the module `markers`
   // array so conjunctions/body code never see them).
   const cometMarkers = st.flags.edit ? [] : cometObjects
@@ -397,7 +408,7 @@ function render() {
   // One EQJ->ENU rotation per frame, shared by the GPU star transform and the equatorial grid:
   // stars sweep smoothly in live/play/scrub at zero per-star CPU cost, and the grid stays glued
   // to them because both use the SAME rotation.
-  const wantEqGrid = st.flags.eqgrid && !st.flags.edit && !screensaverOn;
+  const wantEqGrid = st.flags.eqgrid && !st.flags.edit && !chromeOff;
   const eqjToEnu = (useGL || wantEqGrid)
     ? eqjToEnuMatrix(horToEqjRotation(makeObserver(st.location.lat, st.location.lng),
         makeTime(st.time.instant ? new Date(st.time.instant) : new Date())))
@@ -479,14 +490,14 @@ function render() {
     constellations: visibleCons,
     cam,
     edit: st.flags.edit,
-    labels: st.flags.labels && !screensaverOn, // the show is text-free; the flag itself is untouched
-    grid: st.flags.grid && !st.flags.edit && !screensaverOn, // hide the grid in edit mode (figure clarity) and in the show (sky furniture)
+    labels: st.flags.labels && !chromeOff, // chrome-free frames are text-free; the flag itself is untouched
+    grid: st.flags.grid && !st.flags.edit && !chromeOff, // hide the grid in edit mode (figure clarity) and chrome-free modes (sky furniture)
     eqGrid: wantEqGrid ? eqjToEnu : null,    // RA/Dec grid rides the same per-frame rotation as the stars
     belowFade,                               // below-horizon content fades in as the aim dips
     drawStarPoints: !useGL,                  // GL draws the star discs; 2D only as the fallback
     drawMarkerDiscs: !useGL,                 // GL draws the marker discs; 2D keeps only their labels
     dsos: st.flags.edit ? [] : dsoObjects,   // deep-sky glow/symbols (hidden in edit mode)
-    deepsky: st.flags.deepsky && !screensaverOn, // no atlas symbols in the show — DSOs appear as bare glows
+    deepsky: st.flags.deepsky && !chromeOff, // no atlas symbols in chrome-free frames — DSOs appear as bare glows
     selectedDsoId: highlighted && highlighted.kind === 'dso' ? highlighted.id : null,
     selectedStarId: highlighted && highlighted.kind === 'star' ? highlighted.id : null,
   });
@@ -499,11 +510,11 @@ function render() {
   }
   // In GL mode the star discs live on the GL canvas, so their labels are drawn here, after the
   // constellation lines (so labels sit on top), matching the old single-canvas order.
-  if (useGL) drawStarLabels(ctx, skyObjects, createProjector(cam), cam, st.flags.labels && !screensaverOn, belowFade);
+  if (useGL) drawStarLabels(ctx, skyObjects, createProjector(cam), cam, st.flags.labels && !chromeOff, belowFade);
   if (!st.flags.edit) drawCorona(ctx, cam);
-  if (!screensaverOn) drawHud(ctx, cam, { horizon: st.flags.horizon }); // the show is chrome-free: no horizon, cardinals, or pill
+  if (!chromeOff) drawHud(ctx, cam, { horizon: st.flags.horizon }); // chrome-free frame: no horizon, cardinals, or pill
   if (st.flags.edit) drawEditOverlay(ctx, cam);
-  drawHighlight(ctx, cam);
+  if (!chromeOff) drawHighlight(ctx, cam); // a stray tap mid-recording must not ring the frame
   // Mid-fade below-horizon reveal: keep frames coming so the 1 s fade animates even while time
   // is paused (drags only render on input; the fade needs the in-between frames).
   if (belowFadeP > 0 && belowFadeP < 1) requestRender();
@@ -580,7 +591,9 @@ function bodyPickRadius(m, cam) {
 // Outside edit mode, a tap identifies the nearest visible object and opens its card.
 function onIdentifyTap(x, y) {
   ensureFreshPickData();
-  followTarget = null; // tapping/selecting exits lock-on mode
+  // Mid-time-lapse, a tap RETARGETS the lock instead (below): clearing it here would un-track
+  // the recording on a stray tap, and the chrome-free frame has no card/ring to manage anyway.
+  if (!timeLapseOn) followTarget = null; // tapping/selecting exits lock-on mode
   const st = store.getState();
   const observer = makeObserver(st.location.lat, st.location.lng);
   const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
@@ -602,11 +615,19 @@ function onIdentifyTap(x, y) {
   const projected = candidates.map((o) => { const p = projector(o.altaz.az, o.altaz.alt); return { x: p.x, y: p.y, visible: p.visible, r: o.pickR, ref: o }; });
   const hit = pickNearest(projected, x, y, 18);
   if (hit) {
+    // During the time-lapse: lock onto the tapped object (the follow re-aim centres and tracks
+    // it) with no card or ring — the frame stays clean for recording. A non-followable pick
+    // leaves the existing lock alone rather than dropping it.
+    if (timeLapseOn) {
+      followTarget = followIdentity(hit) || followTarget;
+      requestRender();
+      return;
+    }
     highlighted = hit;
     openCard(hit, cardCtx(observer, time, eclipseForCard(hit.kind)));
     requestRender();
   }
-  else { highlighted = null; closeCard(); requestRender(); }
+  else if (!timeLapseOn) { highlighted = null; closeCard(); requestRender(); } // a mid-lapse miss keeps the lock
 }
 
 // The eclipse to attach to a Moon card: the live timeline if one's in progress, else the next one,
@@ -1384,7 +1405,32 @@ async function boot() {
   setInterval(() => { if (store.getState().time.live) requestFullRecompute(); }, 30000); // events/favorites/pick array (and the 2D fallback's whole live refresh)
   store.subscribe(onEditToggle);
   window.addEventListener('resize', requestRender);
-  attachInput(canvas, store, { onTap, onAction: onEditAction, onViewDrag: () => { followTarget = null; } });
+  // Debug time-lapse ('t', then '+'/'-' for speed). Keyed out during the screensaver: the
+  // show drives its own clock, and a second writer would fight it frame by frame.
+  // While it runs the frame goes chrome-free for clean recordings: DOM bars (body.timelapse),
+  // canvas HUD/labels/grids (chromeOff in render), and any open card + its selection ring.
+  // The camera stays trained on the object of interest: an existing follow lock (Find/search)
+  // is KEPT, and a merely-SELECTED object (card open, no lock-on) is promoted to one — so a
+  // tap + 't' records the target tracking through the lapse. Non-followable picks (a
+  // conjunction midpoint, a shower radiant) promote to null and the frame just holds still.
+  // onActive also fires when the lapse self-stops (another writer took the clock), so the
+  // chrome always comes back.
+  const timelapse = createTimeLapse(store, {
+    onActive: (on) => {
+      timeLapseOn = on;
+      if (on) {
+        if (highlighted && !followTarget) followTarget = followIdentity(highlighted);
+        closeCard();
+        highlighted = null;
+      }
+      document.body.classList.toggle('timelapse', on);
+      requestRender();
+    },
+  });
+  attachInput(canvas, store, {
+    onTap, onAction: onEditAction, onViewDrag: () => { followTarget = null; },
+    onTimeLapse: (action) => { if (!screensaverOn) timelapse[action](); },
+  });
   const controls = document.getElementById('controls');
   const bodyLabels = ['Moon', 'Sun', ...PLANETS.map((p) => p.name)];
   const search = buildSearch(buildSearchIndex(stars, figures, bodyLabels, dsos, COMETS, PLANET_MOONS, SATELLITES), { onSelect: onSearchSelect });
@@ -1422,7 +1468,7 @@ async function boot() {
     },
     setUiHidden: (on) => {
       screensaverOn = on;
-      if (on) { closeCard(); highlighted = null; followTarget = null; }
+      if (on) { timelapse.stop(); closeCard(); highlighted = null; followTarget = null; }
       document.body.classList.toggle('screensaver', on);
     },
     onConsFocus: (name, alpha) => { consFocus = name && alpha > 0 ? { name, alpha } : null; },

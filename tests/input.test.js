@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { wheelToFov, pinchToFov, toggleKeyAction, dragAimEnabled, dampedGrabAz, aimApproach, ghostPointerIds } from '../js/ui/input.js';
+import { wheelToFov, pinchToFov, toggleKeyAction, timeLapseKeyAction, dragAimEnabled, dampedGrabAz, aimApproach, ghostPointerIds } from '../js/ui/input.js';
 
 test('aimApproach eases toward the target: shortest-path azimuth, frame-rate independent', () => {
   // dt == tau -> factor 1 - 1/e ~= 0.632; az 350 -> 10 goes the short way THROUGH north
@@ -47,6 +47,16 @@ test('toggleKeyAction maps c/l/g/a/e keys to flags (case-insensitive), ignores o
   assert.equal(toggleKeyAction('d'), 'deepsky');
   assert.equal(toggleKeyAction('D'), 'deepsky');
   assert.equal(toggleKeyAction('x'), null);
+});
+
+test('timeLapseKeyAction: t toggles, +/- (and their unshifted/shifted twins) change speed', () => {
+  assert.equal(timeLapseKeyAction('t'), 'toggle');
+  assert.equal(timeLapseKeyAction('T'), 'toggle');
+  assert.equal(timeLapseKeyAction('+'), 'faster');
+  assert.equal(timeLapseKeyAction('='), 'faster', 'unshifted plus key');
+  assert.equal(timeLapseKeyAction('-'), 'slower');
+  assert.equal(timeLapseKeyAction('_'), 'slower', 'shifted minus key');
+  assert.equal(timeLapseKeyAction('x'), null);
 });
 
 test('ghostPointerIds: a primary pointerdown evicts stale same-type pointers only', () => {
