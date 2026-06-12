@@ -134,7 +134,7 @@ export function buildMenu(store, opts = {}) {
   const tools = [];
   if (opts.onScreenshot) tools.push(makeAction('📷 Screenshot', 'Save the current view as a PNG', opts.onScreenshot));
   if (opts.onScreensaver) {
-    tools.push(makeAction('🌌 Screensaver', 'Hide the controls and tour the sky — any tap or key exits',
+    tools.push(makeAction('🌌 Sky Tour', 'Sit back and tour the sky — a tap, Space, Enter, or Esc exits',
       () => { pop.close(); opts.onScreensaver(); }));
   }
   if (tools.length) panel.append(section('Tools', ...tools));

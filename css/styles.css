@@ -254,3 +254,14 @@ body.screensaver #screensaver-label {
 }
 body.screensaver #screensaver-label.show { animation: ss-caption-in 1.6s ease forwards; }
 @keyframes ss-caption-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* The app signs its own show: the name in the top-right corner, serif caps like the boot splash,
+   faded in with the same caption ease. Under #night-overlay so night mode tints it too. */
+#screensaver-brand { display: none; }
+body.screensaver #screensaver-brand {
+  display: block;
+  position: fixed; top: calc(12px + env(safe-area-inset-top)); right: 16px;
+  font: 15px Georgia, 'Times New Roman', serif; letter-spacing: 0.3em; text-transform: uppercase;
+  color: rgba(220, 227, 240, 0.55);
+  animation: ss-caption-in 1.6s ease forwards;
+}
