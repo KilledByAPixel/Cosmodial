@@ -1,6 +1,7 @@
 // Screensaver mode: hide the chrome and wander the sky on autopilot — long eased slews
 // between interesting targets, calm dwells with a slight drift, and a gentle time-lapse
-// that skips daytime. Any tap/key/scroll exits and restores the exact prior view and time.
+// that skips daytime. A tap/mouse button or Space/Enter/Escape exits (the wake gating
+// lives in main.js's bindExit) and restores the exact prior view and time.
 // The choreography helpers are pure (exported for tests); createScreensaver owns the loop.
 
 import { clamp } from '../core/angles.js';

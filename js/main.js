@@ -1355,9 +1355,10 @@ async function boot() {
       if (name) label.classList.add('show');
     },
     // Wake-up listeners: capture-phase on window so the waking input never reaches the
-    // app. pointermove deliberately excluded (a nudged mouse shouldn't end the show), and
-    // the follow-on click/context-menu is swallowed with a self-expiring trap so it can't
-    // press a just-restored button or pop the native context menu.
+    // app. Only deliberate inputs exit (mouse button / tap, Space / Enter / Escape) — a
+    // nudged mouse, scroll, or stray key keeps the show running — and the follow-on
+    // click/context-menu is swallowed with a self-expiring trap so it can't press a
+    // just-restored button or pop the native context menu.
     bindExit: (onExit) => {
       // Swallow the wake-up input's follow-on events so they can't press a just-restored
       // button or pop the native context menu. The swallowers self-expire: a wake that
@@ -1369,6 +1370,10 @@ async function boot() {
         setTimeout(() => window.removeEventListener(type, swallow, { capture: true }), 600);
       };
       const wake = (e) => {
+        // Deliberate exits only: a mouse button / tap, or Space / Enter / Escape. Other keys
+        // (volume, media, modifiers, an accidental brush of the keyboard) and the scroll wheel
+        // leave the show running.
+        if (e.type === 'keydown' && !['Escape', 'Enter', ' '].includes(e.key)) return;
         e.preventDefault();
         e.stopPropagation();
         if (e.type === 'pointerdown') {
@@ -1379,11 +1384,9 @@ async function boot() {
       };
       window.addEventListener('pointerdown', wake, true);
       window.addEventListener('keydown', wake, true);
-      window.addEventListener('wheel', wake, { capture: true, passive: false });
       return () => {
         window.removeEventListener('pointerdown', wake, true);
         window.removeEventListener('keydown', wake, true);
-        window.removeEventListener('wheel', wake, { capture: true });
       };
     },
   });
