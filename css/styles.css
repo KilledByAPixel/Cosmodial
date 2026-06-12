@@ -251,18 +251,3 @@ body.screensaver #screensaver-label {
 }
 body.screensaver #screensaver-label.show { animation: ss-caption-in 1.6s ease forwards; }
 @keyframes ss-caption-in { from { opacity: 0; } to { opacity: 1; } }
-
-/* Screensaver watermark: the app name, top right, in the boot splash's serif branding. */
-#screensaver-brand { display: none; }
-body.screensaver #screensaver-brand {
-  display: block;
-  position: fixed;
-  top: 18px; right: 22px;
-  z-index: 4; /* with the caption: above the canvases, below the UI panels */
-  font: 15px Georgia, 'Times New Roman', serif;
-  letter-spacing: 0.35em;
-  text-transform: uppercase;
-  color: rgba(220, 227, 240, 0.5);
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
-  pointer-events: none;
-}
