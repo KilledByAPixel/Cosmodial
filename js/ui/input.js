@@ -31,6 +31,16 @@ export function toggleKeyAction(key) {
 // orientation owns the aim, so a stray finger drag must not fight it. (Pinch-zoom and tap still work.)
 export function dragAimEnabled(flags) { return !flags.gyro; }
 
+// Ghost pointers: a pointerdown with isPrimary set asserts the browser sees no OTHER active pointer
+// of that type, so any same-type ids still tracked lost their pointerup/pointercancel (e.g. a touch
+// that began and ended while the page was janked mid-load). Left tracked, a ghost finger turns every
+// later one-finger drag into a phantom pinch — until a reload. Returns the stale ids to evict.
+// tracked: Map pointerId -> { type }; down: the new pointerdown event. PURE — unit-tested.
+export function ghostPointerIds(tracked, down) {
+  if (!down.isPrimary) return [];
+  return [...tracked].filter(([, p]) => p.type === down.pointerType).map(([id]) => id);
+}
+
 // Damped azimuth for grab-drags near the zenith/nadir. The exact grab solve spins the view
 // arbitrarily fast when the grabbed point is angularly close to a pole (like spinning a record
 // by a point near its centre — az sensitivity grows as 1/distance-from-pole). Within `zone`
@@ -112,8 +122,10 @@ export function attachInput(canvas, store, opts = {}) {
 
   const onDown = (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return; // ignore right/middle mouse buttons
+    const ghosts = ghostPointerIds(pointers, e);
+    if (ghosts.length) { for (const id of ghosts) pointers.delete(id); pinch = null; }
     canvas.setPointerCapture(e.pointerId);
-    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType });
     if (pointers.size === 1) stopChase(); // grabbing the sky stops any residual glide, mid-flight
     if (pointers.size === 1) downAt = { x: e.clientX, y: e.clientY, moved: false };
     if (pointers.size === 1) grabDir = unproject(e.clientX, e.clientY, camNow());
@@ -125,7 +137,7 @@ export function attachInput(canvas, store, opts = {}) {
     const prev = pointers.get(e.pointerId);
     if (!prev) return;
     if (downAt) downAt.moved = downAt.moved || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 5;
-    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); // keep both fingers current so a 2->1 lift resumes drag without a jump
+    pointers.set(e.pointerId, { ...prev, x: e.clientX, y: e.clientY }); // keep both fingers current so a 2->1 lift resumes drag without a jump
     if (pointers.size === 2 && pinch) { // pinch-zoom takes over from drag
       store.setFov(pinchToFov(pinch.startFov, pinch.startDist, twoPointerDist()));
       return;
@@ -161,6 +173,13 @@ export function attachInput(canvas, store, opts = {}) {
     store.setFov(wheelToFov(store.getState().fov, e.deltaY));
   };
 
+  // Touches that end while the page is hidden never deliver a pointerup; drop all gesture state
+  // rather than resume with ghost fingers when the app comes back.
+  const onHidden = () => {
+    if (!document.hidden) return;
+    pointers.clear(); pinch = null; downAt = null; grabDir = null;
+  };
+
   const onKey = (e) => {
     const tag = e.target && e.target.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) return;
@@ -182,6 +201,7 @@ export function attachInput(canvas, store, opts = {}) {
   canvas.addEventListener('pointercancel', onEnd);
   canvas.addEventListener('wheel', onWheel, { passive: false });
   window.addEventListener('keydown', onKey);
+  document.addEventListener('visibilitychange', onHidden);
 
   return function detach() {
     canvas.removeEventListener('pointerdown', onDown);
@@ -190,5 +210,6 @@ export function attachInput(canvas, store, opts = {}) {
     canvas.removeEventListener('pointercancel', onEnd);
     canvas.removeEventListener('wheel', onWheel);
     window.removeEventListener('keydown', onKey);
+    document.removeEventListener('visibilitychange', onHidden);
   };
 }

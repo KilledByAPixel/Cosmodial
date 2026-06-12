@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { wheelToFov, pinchToFov, toggleKeyAction, dragAimEnabled, dampedGrabAz, aimApproach } from '../js/ui/input.js';
+import { wheelToFov, pinchToFov, toggleKeyAction, dragAimEnabled, dampedGrabAz, aimApproach, ghostPointerIds } from '../js/ui/input.js';
 
 test('aimApproach eases toward the target: shortest-path azimuth, frame-rate independent', () => {
   // dt == tau -> factor 1 - 1/e ~= 0.632; az 350 -> 10 goes the short way THROUGH north
@@ -47,6 +47,16 @@ test('toggleKeyAction maps c/l/g/a/e keys to flags (case-insensitive), ignores o
   assert.equal(toggleKeyAction('d'), 'deepsky');
   assert.equal(toggleKeyAction('D'), 'deepsky');
   assert.equal(toggleKeyAction('x'), null);
+});
+
+test('ghostPointerIds: a primary pointerdown evicts stale same-type pointers only', () => {
+  const tracked = new Map([[7, { x: 1, y: 2, type: 'touch' }]]); // ghost: its pointerup was lost
+  // A new primary touch proves no other touch exists -> the ghost is stale.
+  assert.deepEqual(ghostPointerIds(tracked, { isPrimary: true, pointerType: 'touch' }), [7]);
+  // A second real finger is NOT primary -> nothing evicted (normal pinch start).
+  assert.deepEqual(ghostPointerIds(tracked, { isPrimary: false, pointerType: 'touch' }), []);
+  // A primary pointer of another type says nothing about touches.
+  assert.deepEqual(ghostPointerIds(tracked, { isPrimary: true, pointerType: 'mouse' }), []);
 });
 
 test('dragAimEnabled: drag steers the aim only when gyro mode is off', () => {
