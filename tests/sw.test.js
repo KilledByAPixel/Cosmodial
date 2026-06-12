@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 
 const swText = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
 
@@ -18,10 +19,11 @@ async function runtimeFilesOnDisk() {
   const files = ['./index.html', './manifest.webmanifest'];
   for (const dir of ['js', 'css', 'data']) {
     const entries = await readdir(new URL(`../${dir}`, import.meta.url), { recursive: true, withFileTypes: true });
+    const base = fileURLToPath(new URL(`../${dir}`, import.meta.url)).replaceAll('\\', '/');
     for (const e of entries) {
       if (!e.isFile()) continue;
       const rel = `${e.parentPath ?? e.path}/${e.name}`.replaceAll('\\', '/');
-      files.push(`./${dir}${rel.split(`/${dir}`).pop()}`);
+      files.push(`./${dir}${rel.slice(base.length)}`);
     }
   }
   // Icons are runtime too (home-screen / install UI); logo.png and the social card are not.
@@ -37,17 +39,21 @@ test('every runtime file on disk is precached (the hand-kept list cannot rot)', 
   const listed = new Set(extractPrecache(swText));
   const missing = (await runtimeFilesOnDisk()).filter((f) => !listed.has(f));
   assert.deepEqual(missing, [], `add these to PRECACHE in sw.js: ${missing.join(', ')}`);
+  const arr = extractPrecache(swText);
+  assert.equal(new Set(arr).size, arr.length, 'PRECACHE has no duplicate entries (addAll would reject)');
 });
 
 test('every precached path exists on disk (no typos, nothing stale)', async () => {
   for (const p of extractPrecache(swText)) {
-    if (PENDING.has(p)) continue;
-    await readFile(new URL(`../${p}`, import.meta.url)).catch(() => {
-      assert.fail(`PRECACHE entry not found on disk: ${p}`);
-    });
+    const exists = await readFile(new URL(`../${p}`, import.meta.url)).then(() => true, () => false);
+    if (PENDING.has(p)) {
+      assert.ok(!exists, `${p} now exists — remove it from the PENDING set`);
+    } else {
+      assert.ok(exists, `PRECACHE entry not found on disk: ${p}`);
+    }
   }
 });
 
 test('precache requests bypass the HTTP cache so version bumps fetch real bytes', () => {
-  assert.match(swText, /cache:\s*'reload'/);
+  assert.match(swText, /new Request\(url, \{ cache: 'reload' \}\)/);
 });
