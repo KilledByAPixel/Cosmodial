@@ -37,6 +37,31 @@ export function framingFov(target, rng = Math.random) {
   }
 }
 
+// Pick the next target: only candidates above MIN_TARGET_ALT now AND at the end of a
+// worst-case visit (so nothing sets mid-dwell), excluding recently-visited names. A
+// priority candidate (the Moon mid-eclipse) preempts the rotation; otherwise roughly
+// uniform across the type pools so the largest catalogue doesn't dominate the show.
+// Null when nothing qualifies (the controller falls back to a horizon pan).
+export function pickTarget(candidates, recentNames, opts) {
+  const { rng = Math.random, at, visitSimMs = MAX_VISIT_SIM_MS } = opts;
+  const later = new Date(at.getTime() + visitSimMs);
+  const eligible = candidates.filter((c) =>
+    !recentNames.includes(c.name) &&
+    c.altAzAt(at).alt >= MIN_TARGET_ALT &&
+    c.altAzAt(later).alt >= MIN_TARGET_ALT);
+  if (!eligible.length) return null;
+  const prio = eligible.filter((c) => c.priority);
+  const pickFrom = prio.length ? prio : eligible;
+  const pools = new Map();
+  for (const c of pickFrom) {
+    if (!pools.has(c.type)) pools.set(c.type, []);
+    pools.get(c.type).push(c);
+  }
+  const types = [...pools.keys()];
+  const pool = pools.get(types[Math.floor(rng() * types.length)]);
+  return pool[Math.floor(rng() * pool.length)];
+}
+
 // The "slight chill movement" during a dwell: a slow Lissajous wander scaled to the FOV.
 // Two incommensurate periods so the path never visibly repeats. alt starts mid-swing
 // (phase 1.3) for variety; the controller ramps the whole offset in from zero over
