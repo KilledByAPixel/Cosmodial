@@ -283,6 +283,15 @@ export function nextVenusPeakMagnitude(refDate) {
   return { date: i.time.date, mag: i.mag };
 }
 
+// Next Mercury/Venus transit across the Sun's face after refDate: start/peak/finish as JS Dates.
+// RARE (Mercury ~14 per century; Venus not again until 2117), and the vendor search pays for that
+// rarity by scanning synodic period after synodic period — ~15-30 ms per call, so callers should
+// memoize (main.js caches per body and re-searches only when the viewed time leaves the span).
+export function nextTransit(body, refDate) {
+  const t = Astronomy.SearchTransit(body, makeTime(refDate));
+  return { start: t.start.date, peak: t.peak.date, finish: t.finish.date };
+}
+
 // Next full moon after refDate, with its geocentric distance (km) for the supermoon call.
 export function nextFullMoon(refDate) {
   let q = Astronomy.SearchMoonQuarter(makeTime(refDate));

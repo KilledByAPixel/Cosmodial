@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Body, nextMaxElongation, nextOpposition, nextVenusPeakMagnitude, nextFullMoon } from '../js/core/astro.js';
+import { Body, nextMaxElongation, nextOpposition, nextVenusPeakMagnitude, nextFullMoon, nextTransit } from '../js/core/astro.js';
 
 const DAY_MS = 86400000;
 const daysOff = (date, iso) => Math.abs(date.getTime() - new Date(iso).getTime()) / DAY_MS;
@@ -36,6 +36,15 @@ test('nextFullMoon lands on a known full moon and carries a sane distance', () =
   const fm = nextFullMoon(new Date('2025-01-01T00:00:00Z'));
   assert.ok(daysOff(fm.date, '2025-01-13T22:27:00Z') < 0.25, 'January 2025 full moon');
   assert.ok(fm.distKm > 350000 && fm.distKm < 410000, `distance ${fm.distKm} outside the lunar range`);
+});
+
+test('nextTransit finds the famous transits with ordered contacts', () => {
+  const m = nextTransit(Body.Mercury, new Date('2019-01-01T00:00:00Z'));
+  assert.ok(daysOff(m.peak, '2019-11-11T15:20:00Z') < 0.05, 'November 2019 Mercury transit');
+  assert.ok(m.start < m.peak && m.peak < m.finish, 'contacts in order');
+  assert.ok((m.finish - m.start) / 3600000 < 9, 'a transit lasts hours, not days');
+  const v = nextTransit(Body.Venus, new Date('2012-01-01T00:00:00Z'));
+  assert.ok(daysOff(v.peak, '2012-06-06T01:30:00Z') < 0.05, 'June 2012 Venus transit');
 });
 
 test('supermoon vs micromoon distances split across the 360k km cut', () => {

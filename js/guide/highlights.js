@@ -3,8 +3,9 @@
 
 // How many days either side of an event's exact moment it still earns a highlight row. Oppositions
 // and elongations are gradual (the view is essentially as good all week); Venus's peak and the full
-// moon are more of a "tonight" thing.
-export const HIGHLIGHT_WINDOW_DAYS = { opposition: 3, elongation: 3, venusPeak: 2, fullMoon: 0.5 };
+// moon are more of a "tonight" thing. transit is the heads-up before first contact (the row then
+// stays up through the crossing itself and drops at last contact).
+export const HIGHLIGHT_WINDOW_DAYS = { opposition: 3, elongation: 3, venusPeak: 2, fullMoon: 0.5, transit: 1 };
 
 // A full moon closer than this (geocentric, km) is popularly a "supermoon" (~perigee syzygy).
 export const SUPERMOON_KM = 360000;
