@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeObserver, altAzOfStar, altAzOfBody, precessToDate, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, makeStarAltAz, nightWindow, bodyDistanceAu, moonPhaseName, moonPhaseInfo, searchLunarEclipse, nextLunarEclipse, nextSunEvent, PLANET_MOONS, nextSunBelowAlt } from '../js/core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, precessToDate, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, makeStarAltAz, nightWindow, bodyDistanceAu, moonPhaseName, moonPhaseInfo, searchLunarEclipse, nextLunarEclipse, nextSunEvent, sunGeometricAlt, PLANET_MOONS, nextSunBelowAlt } from '../js/core/astro.js';
 
 // Angular separation (deg) between two equatorial points given in degrees.
 function sepDeg(ra1, dec1, ra2, dec2) {
@@ -158,4 +158,18 @@ test('nextSunBelowAlt finds the Sun descending through -6° within a day', () =>
   // altAzOfBody applies refraction but SearchAltitude is geometric — allow that gap.
   const alt = altAzOfBody(Body.Sun, obs, makeTime(when)).alt;
   assert.ok(Math.abs(alt + 6) < 0.7, `sun alt ${alt} should be ~-6`);
+});
+
+test('sunGeometricAlt pairs with nextSunBelowAlt — one altitude definition for the dusk check', () => {
+  const obs = makeObserver(29.76, -95.37);
+  const when = nextSunBelowAlt(obs, new Date('2026-06-11T18:00:00Z'), -6);
+  // At the found crossing the geometric altitude IS the threshold...
+  assert.ok(Math.abs(sunGeometricAlt(obs, when) + 6) < 0.05, 'crossing sits at -6 geometric');
+  // ...and a minute later (the screensaver's dusk-skip landing point) it is firmly below.
+  assert.ok(sunGeometricAlt(obs, new Date(when.getTime() + 60000)) < -6, 'landing point is past dusk');
+  // The refracted reading is ~0.6° higher and still ABOVE -6 here. Comparing it against
+  // this search's result re-fired the dusk skip every frame: each re-fire found the NEXT
+  // day's dusk, so the show jumped a day per frame (the screensaver day-jump bug).
+  assert.ok(altAzOfBody(Body.Sun, obs, makeTime(when)).alt > -6,
+    'refracted reading disagrees at the crossing - never mix it with this search');
 });

@@ -80,6 +80,9 @@ export function driftOffset(tMs, fov) {
 //   getCandidates(at): candidates at the simulated instant [{ type, name, altAzAt(date), priority?, angularRadiusDeg?, sizeArcmin? }]
 //   sunAltAt(date): Sun altitude (deg) at a simulated instant
 //   nextDusk(date): Date the Sun next sinks below DUSK_SUN_ALT, or null (polar summer)
+//     CONTRACT: sunAltAt and nextDusk must share ONE altitude definition (both geometric
+//     or both refracted). If the check and the search disagree by even a fraction of a
+//     degree, the dusk skip re-fires every frame and the show jumps a day per frame.
 //   setUiHidden(on): hide/show the chrome (and clear any card/lock-on when hiding)
 //   bindExit(onExit): attach the wake-up listeners; returns an unbind function
 //   raf / now / rng: injectable for tests (same pattern as animateSlew)

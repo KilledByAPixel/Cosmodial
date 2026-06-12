@@ -1,5 +1,5 @@
 import { createState } from './core/state.js';
-import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, searchSolarEclipse, nextSolarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, planetMoonsAltAz, moonLibrationDeg, nextSunEvent, cometsAltAz, PLANET_MOONS, lunarShadow, nextSunBelowAlt } from './core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, searchSolarEclipse, nextSolarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, planetMoonsAltAz, moonLibrationDeg, nextSunEvent, cometsAltAz, PLANET_MOONS, lunarShadow, nextSunBelowAlt, sunGeometricAlt } from './core/astro.js';
 import { makeStarAltAz, horToEqjRotation, eqjToGalRotation } from './core/astro.js';
 import { eqjToEnuMatrix } from './render/star-transform.js';
 import { bodyScreenOrientation, altazSepDeg, discObscuration, frameFovDeg, planetResolveFovDeg } from './core/moon.js';
@@ -1039,9 +1039,14 @@ async function boot() {
   const skyToggles = buildSkyToggles(store);
   const screensaver = createScreensaver(store, {
     getCandidates: screensaverCandidates,
+    // GEOMETRIC altitude, deliberately: nextDusk's search below is geometric too, and the
+    // dusk check must share its altitude definition. The refracted reading sits ~0.6°
+    // higher, which left this check still "daytime" at the spot nextDusk landed on — the
+    // skip then re-fired every frame, each time finding the NEXT day's dusk (the show
+    // jumped a day per frame: streaking Moon, pinned Sun, camera never slewing).
     sunAltAt: (d) => {
       const st = store.getState();
-      return altAzOfBody(Body.Sun, makeObserver(st.location.lat, st.location.lng), makeTime(d)).alt;
+      return sunGeometricAlt(makeObserver(st.location.lat, st.location.lng), d);
     },
     nextDusk: (d) => {
       const st = store.getState();

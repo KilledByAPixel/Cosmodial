@@ -219,10 +219,22 @@ export function nextSunEvent(observer, refDate) {
 // The next moment the Sun DESCENDS through altDeg after refDate (e.g. -6 = end of civil
 // twilight) — the screensaver's skip-the-daytime search. Null when it doesn't happen
 // within limitDays (polar summer). Geometric altitude (no refraction): the ~0.6° difference
-// is irrelevant for "dark enough to start the show".
+// is irrelevant for "dark enough to start the show" — but any check comparing against the
+// SAME threshold must also be geometric (sunGeometricAlt below, NOT the refracted
+// altAzOfBody), or the threshold can wedge between the two definitions.
 export function nextSunBelowAlt(observer, refDate, altDeg, limitDays = 4) {
   const t = Astronomy.SearchAltitude(Body.Sun, observer, -1, Astronomy.MakeTime(refDate), limitDays, altDeg);
   return t ? t.date : null;
+}
+
+// Geometric (no-refraction) Sun altitude in degrees — the partner check for
+// nextSunBelowAlt's geometric search. Mixing this threshold check with the refracted
+// altAzOfBody reading left the screensaver's dusk-skip re-firing every frame: the
+// refracted altitude at the geometric -6° crossing still reads ~-5.4°.
+export function sunGeometricAlt(observer, date) {
+  const time = makeTime(date);
+  const eq = Astronomy.Equator(Body.Sun, time, observer, /*ofdate*/ true, /*aberration*/ true);
+  return Astronomy.Horizon(time, observer, eq.ra, eq.dec).altitude; // refraction arg omitted = none
 }
 
 // Distance to a body (AU) at the given time (topocentric apparent).
