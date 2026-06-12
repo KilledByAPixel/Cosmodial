@@ -121,7 +121,8 @@ export function buildMenu(store, opts = {}) {
       makeToggle(store, 'Labels', 'labels'),
       makeToggle(store, 'Grid', 'grid'),
       makeToggle(store, 'Eq grid', 'eqgrid'),
-      makeToggle(store, 'Deep sky', 'deepsky')),
+      makeToggle(store, 'Deep sky', 'deepsky'),
+      makeToggle(store, 'Horizon', 'horizon')),
   );
   // On narrow screens main.js re-homes the bar's emoji sky toggles (🌅 🌙 📱) into this section
   // to free bar width for the search box; it stays hidden while empty (see placeSkyToggles).

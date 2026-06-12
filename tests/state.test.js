@@ -35,6 +35,13 @@ test('atmo flag defaults ON and toggles', () => {
   assert.equal(s.getState().flags.atmo, false, 'space view');
 });
 
+test('horizon flag defaults ON and toggles (hides the line + cardinal letters when off)', () => {
+  const s = createState();
+  assert.equal(s.getState().flags.horizon, true, 'horizon line on by default');
+  s.setFlag('horizon', false);
+  assert.equal(s.getState().flags.horizon, false);
+});
+
 test('setFov clamps to [MIN_FOV, MAX_FOV]', () => {
   assert.equal(MAX_FOV, 200); // hemisphere + margin at max zoom-out — full horizon circle fits when looking up
   assert.equal(MIN_FOV, 0.005); // deepest zoom doubled again (~0.3 arcmin) for tighter close-ups

@@ -42,6 +42,32 @@ test('drawHud runs over a stubbed canvas without throwing', () => {
   assert.ok(calls.fill >= 1, 'fills the compass pill backdrop');
 });
 
+test('horizon:false hides the line and its cardinal letters but keeps the compass pill', () => {
+  const makeCtx = () => {
+    const calls = { lineTo: 0, fillText: 0, texts: [] };
+    return {
+      calls,
+      set fillStyle(_) {}, get fillStyle() { return ''; },
+      set strokeStyle(_) {}, get strokeStyle() { return ''; },
+      set lineWidth(_) {}, get lineWidth() { return 1; },
+      set font(_) {}, get font() { return ''; },
+      set textAlign(_) {}, get textAlign() { return 'left'; },
+      set textBaseline(_) {}, get textBaseline() { return 'alphabetic'; },
+      fillRect() {}, beginPath() {}, moveTo() {}, lineTo() { calls.lineTo++; }, closePath() {},
+      arc() {}, fill() {}, stroke() {}, save() {}, restore() {}, clip() {},
+      fillText(t, x, y) { calls.fillText++; calls.texts.push({ t, y }); },
+    };
+  };
+  const cam = { az: 180, alt: 10, fov: 60, width: 800, height: 600 }; // horizon well within view
+  const on = makeCtx(); drawHud(on, cam);
+  const off = makeCtx(); drawHud(off, cam, { horizon: false });
+  // The compass pill draws a handful of lineTo calls of its own; the horizon polyline is dozens.
+  assert.ok(on.calls.lineTo - off.calls.lineTo > 50, 'the horizon polyline is gone');
+  assert.ok(off.calls.fillText >= 1, 'compass pill labels still draw');
+  // The pill sits in the bottom strip; the on-sky cardinal letters near mid-screen are gone.
+  assert.ok(off.calls.texts.every(({ y }) => y > 500), 'no cardinal letters out on the sky');
+});
+
 test('looking nearly straight up fully zoomed out, the horizon draws as a closed ring', () => {
   const calls = { lineTo: 0 };
   const ctx = {

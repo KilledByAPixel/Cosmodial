@@ -5,13 +5,13 @@ export const MAX_FOV = 200;   // widest zoom-out, matching Stellarium's stereogr
 export const DEFAULT_FOV = 60; // startup FOV (comfortable naked-eye view); zoom-out can widen to MAX_FOV
 export const MAX_ALT = 90;   // the camera may aim all the way to the zenith/nadir — the level frame stays heading-true at the pole (see cameraBasis)
 const STORE_KEY = 'cosmodial.location';
-const STORE_KEY_VIEW = 'cosmodial.view'; // last aim + fov, so a reload resumes where you were looking
+const STORE_KEY_VIEW = 'cosmodial.view'; // last aim, so a reload resumes where you were looking (zoom intentionally not kept)
 const STORE_KEY_FLAGS = 'cosmodial.flags'; // remembered view toggles (see PERSISTED_FLAGS)
 
 // View toggles that persist across reloads. Deliberately excludes `edit` (a transient mode, never
 // restored). A previously-saved `sphere` key is silently ignored (the full-sphere toggle was
 // replaced by the aim-driven below-horizon fade).
-const PERSISTED_FLAGS = ['lines', 'labels', 'grid', 'eqgrid', 'deepsky', 'night', 'atmo'];
+const PERSISTED_FLAGS = ['lines', 'labels', 'grid', 'eqgrid', 'deepsky', 'horizon', 'night', 'atmo'];
 
 // Default location (used until the user sets one): Houston, TX — Space City.
 const DEFAULT_LOCATION = { lat: 29.76, lng: -95.37, label: 'Houston, TX' };
@@ -30,18 +30,17 @@ function loadSavedLocation() {
   } catch { return null; }
 }
 
-// Restore the last view (aim direction + fov), validated, or null if absent/corrupt.
+// Restore the last AIM direction, validated, or null if absent/corrupt. The zoom is deliberately
+// NOT restored: reloading into a deep telescopic view (a fraction of a degree of featureless sky)
+// is disorienting — instead a reload keeps where you were aimed and reopens fully zoomed out.
 function loadSavedView() {
   if (typeof localStorage === 'undefined') return null;
   try {
     const raw = localStorage.getItem(STORE_KEY_VIEW);
     if (!raw) return null;
     const v = JSON.parse(raw);
-    if (!v || !v.aim || !Number.isFinite(v.aim.az) || !Number.isFinite(v.aim.alt) || !Number.isFinite(v.fov)) return null;
-    return {
-      aim: { az: wrap360(v.aim.az), alt: clamp(v.aim.alt, -MAX_ALT, MAX_ALT) },
-      fov: clamp(v.fov, MIN_FOV, MAX_FOV),
-    };
+    if (!v || !v.aim || !Number.isFinite(v.aim.az) || !Number.isFinite(v.aim.alt)) return null;
+    return { aim: { az: wrap360(v.aim.az), alt: clamp(v.aim.alt, -MAX_ALT, MAX_ALT) } };
   } catch { return null; }
 }
 
@@ -59,13 +58,13 @@ function loadSavedFlags() {
 
 export function createState() {
   const savedView = loadSavedView();
-  const flags = { lines: false, labels: true, grid: false, eqgrid: false, deepsky: false, night: false, atmo: true, edit: false, gyro: false, ...loadSavedFlags() };
+  const flags = { lines: false, labels: true, grid: false, eqgrid: false, deepsky: false, horizon: true, night: false, atmo: true, edit: false, gyro: false, ...loadSavedFlags() };
   const aim = savedView ? savedView.aim : { ...DEFAULT_AIM };
   let state = {
     location: loadSavedLocation() || { ...DEFAULT_LOCATION },
     time: { instant: null, live: true }, // instant set by setTime; null means "use Date.now() at read"
     aim: { az: aim.az, alt: clamp(aim.alt, minAltFor(flags), MAX_ALT) }, // honor the horizon lock on restore
-    fov: savedView ? savedView.fov : DEFAULT_FOV,
+    fov: savedView ? MAX_FOV : DEFAULT_FOV, // returning users reopen wide (saved aim, never saved zoom)
     roll: 0, // camera roll about the viewing axis; nonzero only while gyro/AR aim is active
     flags,
   };
@@ -78,7 +77,7 @@ export function createState() {
     if (typeof localStorage === 'undefined' || viewSaveTimer) return;
     viewSaveTimer = setTimeout(() => {
       viewSaveTimer = null;
-      try { localStorage.setItem(STORE_KEY_VIEW, JSON.stringify({ aim: state.aim, fov: state.fov })); } catch { /* ignore */ }
+      try { localStorage.setItem(STORE_KEY_VIEW, JSON.stringify({ aim: state.aim })); } catch { /* ignore */ }
     }, 250);
   };
   const saveFlags = () => {

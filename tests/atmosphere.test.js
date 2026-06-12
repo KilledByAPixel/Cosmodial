@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { airmass, extinction, skyParams, milkyWayZoomFade, enuToEqjMatrix, enuToGalMatrix, stepBelowFade, easeBelowFade, spaceSkyParams, skyVeil, eclipseDarkenedSunAlt, eclipseDeepFraction } from '../js/render/atmosphere.js';
+import { airmass, extinction, skyParams, milkyWayZoomFade, enuToEqjMatrix, enuToGalMatrix, stepBelowFade, easeBelowFade, BELOW_FADE_MS, spaceSkyParams, skyVeil, eclipseDarkenedSunAlt, eclipseDeepFraction } from '../js/render/atmosphere.js';
 import { makeObserver, makeTime, makeStarAltAz, horToEqjRotation, eqjToGalRotation } from '../js/core/astro.js';
 import * as Astronomy from '../js/vendor/astronomy.js';
 import { vec } from '../js/core/projection.js';
@@ -197,11 +197,12 @@ test('enuToGalMatrix sends known sky directions to their galactic coordinates', 
 });
 
 test('below-horizon fade: time-stepped over BELOW_FADE_MS, clamped, reversible mid-fade', () => {
-  assert.equal(stepBelowFade(0, true, 500), 0.5, 'half the duration fades half-way in');
-  assert.equal(stepBelowFade(0.5, true, 700), 1, 'clamps at fully revealed');
-  assert.equal(stepBelowFade(1, false, 250), 0.75, 'recrossing the horizon reverses from wherever it is');
-  assert.equal(stepBelowFade(0.1, false, 500), 0, 'clamps at fully hidden');
-  assert.equal(stepBelowFade(0, true, 250, 500), 0.5, 'duration is tunable');
+  // Relative to the (freely tunable) duration so retiming the fade can't break this test.
+  assert.equal(stepBelowFade(0, true, BELOW_FADE_MS / 2), 0.5, 'half the duration fades half-way in');
+  assert.equal(stepBelowFade(0.5, true, BELOW_FADE_MS), 1, 'clamps at fully revealed');
+  assert.equal(stepBelowFade(1, false, BELOW_FADE_MS / 4), 0.75, 'recrossing the horizon reverses from wherever it is');
+  assert.equal(stepBelowFade(0.1, false, BELOW_FADE_MS), 0, 'clamps at fully hidden');
+  assert.equal(stepBelowFade(0, true, 250, 500), 0.5, 'duration is tunable per call');
 });
 
 test('easeBelowFade: smoothstep shaping — pinned ends, eased middle, monotonic', () => {

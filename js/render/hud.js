@@ -108,7 +108,9 @@ function drawCompass(ctx, cam) {
   ctx.textAlign = 'left';
 }
 
-export function drawHud(ctx, cam) {
-  drawHorizon(ctx, cam);
+// horizon=false (the menu's Horizon toggle) hides the line + its cardinal letters; the compass
+// pill stays — it's bar chrome, not sky furniture.
+export function drawHud(ctx, cam, { horizon = true } = {}) {
+  if (horizon) drawHorizon(ctx, cam);
   drawCompass(ctx, cam);
 }

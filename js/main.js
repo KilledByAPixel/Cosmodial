@@ -497,7 +497,7 @@ function render() {
   // constellation lines (so labels sit on top), matching the old single-canvas order.
   if (useGL) drawStarLabels(ctx, skyObjects, createProjector(cam), cam, st.flags.labels && !screensaverOn, belowFade);
   if (!st.flags.edit) drawCorona(ctx, cam);
-  if (!screensaverOn) drawHud(ctx, cam); // the show is chrome-free: no horizon, cardinals, or pill
+  if (!screensaverOn) drawHud(ctx, cam, { horizon: st.flags.horizon }); // the show is chrome-free: no horizon, cardinals, or pill
   if (st.flags.edit) drawEditOverlay(ctx, cam);
   drawHighlight(ctx, cam);
   // Mid-fade below-horizon reveal: keep frames coming so the 1 s fade animates even while time
