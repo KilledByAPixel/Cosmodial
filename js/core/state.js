@@ -18,7 +18,8 @@ const DEFAULT_LOCATION = { lat: 29.76, lng: -95.37, label: 'Houston, TX' };
 const DEFAULT_AIM = { az: 180, alt: 45 };
 
 // Lowest altitude the camera may aim at: near the nadir. Aiming below the horizon is always
-// allowed — the below-horizon sky fades in as the aim dips (see belowHorizonFade in atmosphere.js).
+// allowed — the below-horizon sky fades in over time once the aim dips (see stepBelowFade in
+// atmosphere.js; the per-frame stepping lives in main.js render()).
 const minAltFor = () => -MAX_ALT;
 
 function loadSavedLocation() {

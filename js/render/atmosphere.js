@@ -126,13 +126,17 @@ export function skyVeil(dir, sunDir, p) {
   ];
 }
 
-// How visible the below-horizon sky is for a given aim altitude (deg): 0 at/above the horizon,
-// 1 once aiming FULL_BELOW_DEG below, smoothstep-eased between. This replaces the old full-sphere
-// toggle — dip the view under the horizon and the lower hemisphere fades in; tilt back up and it
-// fades away. There is nothing to switch.
-export const FULL_BELOW_DEG = 10;
-export function belowHorizonFade(aimAltDeg) {
-  return smoothstep(0, FULL_BELOW_DEG, -aimAltDeg);
+// How visible the below-horizon sky is: a TIME fade, not an angle fade. Dip the aim under the
+// horizon and the lower hemisphere fades in over BELOW_FADE_MS; tilt back up and it fades back
+// out — crossing the horizon mid-fade just reverses it from wherever it is. stepBelowFade
+// advances the linear progress (0..1) by the elapsed frame time; easeBelowFade shapes it for
+// display. The progress state lives in main.js, which owns the frame loop.
+export const BELOW_FADE_MS = 1000;
+export function stepBelowFade(p, on, dtMs, durMs = BELOW_FADE_MS) {
+  return clamp(p + (on ? dtMs : -dtMs) / durMs, 0, 1);
+}
+export function easeBelowFade(p) {
+  return smoothstep(0, 1, p);
 }
 
 // Sky params with the atmosphere switched OFF ("space view"): pure black sky, no Sun glow or

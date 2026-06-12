@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { airmass, extinction, skyParams, milkyWayZoomFade, enuToEqjMatrix, enuToGalMatrix, belowHorizonFade, spaceSkyParams, skyVeil, eclipseDarkenedSunAlt, eclipseDeepFraction } from '../js/render/atmosphere.js';
+import { airmass, extinction, skyParams, milkyWayZoomFade, enuToEqjMatrix, enuToGalMatrix, stepBelowFade, easeBelowFade, spaceSkyParams, skyVeil, eclipseDarkenedSunAlt, eclipseDeepFraction } from '../js/render/atmosphere.js';
 import { makeObserver, makeTime, makeStarAltAz, horToEqjRotation, eqjToGalRotation } from '../js/core/astro.js';
 import * as Astronomy from '../js/vendor/astronomy.js';
 import { vec } from '../js/core/projection.js';
@@ -196,17 +196,23 @@ test('enuToGalMatrix sends known sky directions to their galactic coordinates', 
   assert.ok(angularSep(anti.l, 180) < 0.3, `galactic anticentre longitude ~180 (got ${anti.l.toFixed(2)})`);
 });
 
-test('belowHorizonFade: 0 at/above the horizon, 1 by 10° below, eased between', () => {
-  assert.equal(belowHorizonFade(45), 0, 'aiming up — lower hemisphere hidden');
-  assert.equal(belowHorizonFade(0), 0, 'exactly at the horizon — still hidden');
-  assert.equal(belowHorizonFade(-10), 1, 'fully faded in 10° below');
-  assert.equal(belowHorizonFade(-89), 1, 'stays fully on below that');
-  const mid = belowHorizonFade(-5);
-  assert.ok(Math.abs(mid - 0.5) < 1e-9, 'smoothstep midpoint is exactly 0.5');
+test('below-horizon fade: time-stepped over BELOW_FADE_MS, clamped, reversible mid-fade', () => {
+  assert.equal(stepBelowFade(0, true, 500), 0.5, 'half the duration fades half-way in');
+  assert.equal(stepBelowFade(0.5, true, 700), 1, 'clamps at fully revealed');
+  assert.equal(stepBelowFade(1, false, 250), 0.75, 'recrossing the horizon reverses from wherever it is');
+  assert.equal(stepBelowFade(0.1, false, 500), 0, 'clamps at fully hidden');
+  assert.equal(stepBelowFade(0, true, 250, 500), 0.5, 'duration is tunable');
+});
+
+test('easeBelowFade: smoothstep shaping — pinned ends, eased middle, monotonic', () => {
+  assert.equal(easeBelowFade(0), 0);
+  assert.equal(easeBelowFade(1), 1);
+  assert.ok(Math.abs(easeBelowFade(0.5) - 0.5) < 1e-9, 'midpoint is exactly 0.5');
+  assert.ok(easeBelowFade(0.1) < 0.1 && easeBelowFade(0.9) > 0.9, 'eases in and out');
   let prev = 0;
-  for (let alt = 0; alt >= -12; alt -= 0.5) {
-    const f = belowHorizonFade(alt);
-    assert.ok(f >= prev, `fade never decreases while tilting down (alt ${alt})`);
+  for (let p = 0; p <= 1; p += 0.05) {
+    const f = easeBelowFade(p);
+    assert.ok(f >= prev, `never decreases (p ${p.toFixed(2)})`);
     prev = f;
   }
 });

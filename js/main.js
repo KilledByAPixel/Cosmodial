@@ -17,7 +17,7 @@ import { createRenderScheduler } from './core/scheduler.js';
 import { attachInput } from './ui/input.js';
 import { splitSegments, toggleEdge, pickNearest, circularCentroid, exportFigures } from './edit/figures.js';
 import { createProjector, vec, focalPx } from './core/projection.js';
-import { skyParams, spaceSkyParams, belowHorizonFade, enuToGalMatrix, eclipseDarkenedSunAlt, eclipseDeepFraction, extinction } from './render/atmosphere.js';
+import { skyParams, spaceSkyParams, stepBelowFade, easeBelowFade, enuToGalMatrix, eclipseDarkenedSunAlt, eclipseDeepFraction, extinction } from './render/atmosphere.js';
 import { openCard, closeCard, constellationName, isCardOpen } from './ui/card.js';
 import { altazToWhere } from './guide/ranking.js';
 import { createFavorites, displayName } from './core/favorites.js';
@@ -87,6 +87,8 @@ let skyEvents = [];         // date-window events near the viewed time (oppositi
 let satRecs = {};           // satellite id -> parsed TLE (satrec); empty until the optional fetch lands
 let satObjs = [];           // per-recompute trackable satellites [{ sat, altaz, mag, rangeKm }]
 let satPasses = [];         // full pass: next watchable pass per satellite [{ sat, pass }], soonest first
+let belowFadeP = 0;   // below-horizon reveal progress (0..1), stepped by frame time in render()
+let belowFadeAtMs = 0; // timestamp of the previous fade step
 let skyDirty = true;  // next render runs the FREQUENT recompute (markers/spheres/lines/labels/DSOs)
 let fullDirty = true; // next recompute also runs the FULL pass (100k pick array, eclipse, favorites/events)
 let selected = null;        // first star picked in edit mode (a skyObjects entry)
@@ -339,12 +341,16 @@ function render() {
   }
   const view = resizeCanvas(canvas);
   const st = store.getState();
-  // Aim-driven reveal of the lower hemisphere: 0 above the horizon, 1 by 10° below (smoothstep).
+  // Aim-driven reveal of the lower hemisphere, faded over TIME (~1 s), not by dip angle: crossing
+  // the horizon starts the fade, recrossing reverses it from wherever it is (see stepBelowFade).
   // A SELECTED object below the horizon overrides it to fully revealed — searching or following
   // something that has set would otherwise show a ghost (or nothing) at gentle aim altitudes.
   // The screensaver always shows the full sphere: no ground line breaks the wandering frame.
+  const fadeNowMs = performance.now();
+  belowFadeP = stepBelowFade(belowFadeP, st.aim.alt < 0, Math.min(fadeNowMs - belowFadeAtMs, 100)); // dt clamped: an idle gap shouldn't snap the fade
+  belowFadeAtMs = fadeNowMs;
   const selBelow = highlighted && highlighted.altaz && highlighted.altaz.alt < 0;
-  const belowFade = (st.flags.edit || selBelow || screensaverOn) ? 1 : belowHorizonFade(st.aim.alt);
+  const belowFade = (st.flags.edit || selBelow || screensaverOn) ? 1 : easeBelowFade(belowFadeP);
   // Lift the compass ribbon/readout above the on-screen control bar so they aren't hidden behind
   // it. Measured from where the bar actually sits in the viewport (not just its height): if the
   // canvas runs taller than the visible area (mobile URL-bar quirks), height-based math would put
@@ -494,6 +500,9 @@ function render() {
   if (!screensaverOn) drawHud(ctx, cam); // the show is chrome-free: no horizon, cardinals, or pill
   if (st.flags.edit) drawEditOverlay(ctx, cam);
   drawHighlight(ctx, cam);
+  // Mid-fade below-horizon reveal: keep frames coming so the 1 s fade animates even while time
+  // is paused (drags only render on input; the fade needs the in-between frames).
+  if (belowFadeP > 0 && belowFadeP < 1) requestRender();
   // Live mode: self-sustaining render loop (one render per animation frame) so the sky moves smoothly —
   // the GPU stars get a fresh matrix and the frequent recompute (~3 ms: markers, spheres, lines, labels)
   // runs per frame. Ends the moment live is switched off; rAF itself pauses in background tabs.
@@ -568,7 +577,7 @@ function onIdentifyTap(x, y) {
   ].filter((o) => o.altaz.alt >= 0 // faded-in below-horizon objects are pickable too, incl. the
     // fully revealed hemisphere while a below-horizon selection holds the fade open (see render).
     || (highlighted && highlighted.altaz && highlighted.altaz.alt < 0)
-    || belowHorizonFade(st.aim.alt) > 0.05);
+    || easeBelowFade(belowFadeP) > 0.05);
   const projected = candidates.map((o) => { const p = projector(o.altaz.az, o.altaz.alt); return { x: p.x, y: p.y, visible: p.visible, ref: o }; });
   const hit = pickNearest(projected, x, y, 18);
   if (hit) {
