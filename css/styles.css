@@ -120,6 +120,7 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 .copy-toast.gone { opacity: 0; }
 /* Tappable variant (app-update notice): visibly a button, and must accept the tap. */
 .copy-toast.action { pointer-events: auto; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.copy-toast.action.gone { pointer-events: none; } /* a fading (invisible) toast must not catch taps */
 
 .fav-panel { position: fixed; top: 8px; left: 8px; z-index: 6; width: min(320px, calc(100vw - 16px));
   font: 13px/1.4 system-ui, sans-serif; color: #dce3f0; }
