@@ -83,15 +83,16 @@ export function eclipseDeepFraction(obscuration) {
 }
 
 // During a deep solar eclipse the sky itself darkens. Maps the TRUE Sun altitude to the EFFECTIVE
-// altitude skyParams should render: totality renders like civil twilight (Sun at -9°) — the
-// atmosphere dims and starDayFade lets the bright stars out, just as real totality does.
-// Never raises the altitude (an alignment with the Sun already below -9° must not brighten the sky).
+// altitude skyParams should render: totality renders near-NIGHT (Sun at -16°, ~90% of the night
+// palette) — the sky plunges dark, the stars and Milky Way come out, with just a whisper of
+// twilight left in the blend, the way real totality reads to the eye.
+// Never raises the altitude (an alignment with the Sun already below -16° must not brighten the sky).
 // NOTE for callers: the effective twilight would put skyParams' warm dusk lobe AT the eclipsed Sun,
 // which real totality doesn't have (the warm light rings the horizon instead) — scale
 // sunGlowStrength down by eclipseDeepFraction to suppress it.
 export function eclipseDarkenedSunAlt(sunAltDeg, obscuration) {
   const w = eclipseDeepFraction(obscuration);
-  return Math.min(sunAltDeg, sunAltDeg * (1 - w) - 9 * w);
+  return Math.min(sunAltDeg, sunAltDeg * (1 - w) - 16 * w);
 }
 
 // How far below the horizon (in sin-altitude units; 0.1 ~ the first 5.7°) the sky/star shaders

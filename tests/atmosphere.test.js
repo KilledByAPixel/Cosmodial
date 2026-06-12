@@ -259,13 +259,13 @@ test('milkyWayZoomFade: full at wide FOV, gone when zoomed in', () => {
   }
 });
 
-test('eclipseDarkenedSunAlt: bright partials leave the sky alone, totality reaches twilight, never brightens', () => {
+test('eclipseDarkenedSunAlt: bright partials leave the sky alone, totality goes near-night, never brightens', () => {
   assert.equal(eclipseDarkenedSunAlt(65, 0), 65, 'no eclipse');
   assert.equal(eclipseDarkenedSunAlt(65, 0.5), 65, 'shallow partial: sky stays deceptively bright');
   assert.equal(eclipseDarkenedSunAlt(65, 0.65), 65, 'ramp starts above 65%');
-  assert.equal(eclipseDarkenedSunAlt(65, 1), -9, 'totality renders as civil twilight');
+  assert.equal(eclipseDarkenedSunAlt(65, 1), -16, 'totality renders near-night (mostly night palette)');
   const deep = eclipseDarkenedSunAlt(65, 0.95), deeper = eclipseDarkenedSunAlt(65, 0.99);
-  assert.ok(deep < 65 && deeper < deep && deeper > -9, `monotonic ramp: ${deep} -> ${deeper}`);
+  assert.ok(deep < 65 && deeper < deep && deeper > -16, `monotonic ramp: ${deep} -> ${deeper}`);
   assert.equal(eclipseDarkenedSunAlt(-30, 1), -30, 'a below-horizon alignment must not brighten the night');
 });
 
