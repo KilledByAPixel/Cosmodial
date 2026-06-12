@@ -1,4 +1,4 @@
-# 🌌 Cosmodial Sky Atlas
+# 🔭🌌 Cosmodial Sky Atlas
 
 **The whole night sky, in your browser. No app store, no signup, no clouds.**
 
