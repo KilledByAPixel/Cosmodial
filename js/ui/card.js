@@ -163,6 +163,19 @@ function bodyLines(obj, ctx) {
     } else {
       lines.push(row(`<b>No position for this date</b> — orbit data covers ${obj.coverage}.`));
     }
+  } else if (obj.kind === 'iss') {
+    lines.push(row(`The International Space Station — humanity's outpost in orbit, around the Earth every 93 minutes.`));
+    if (obj.altaz) {
+      lines.push(row(`<b>Distance:</b> ${Math.round(obj.rangeKm).toLocaleString()} km away`));
+      lines.push(row(`<b>How to see it:</b> naked eye (magnitude ${obj.mag.toFixed(1)}) — a steady light, visibly moving`));
+      if (obj.nextPass) {
+        const p = obj.nextPass;
+        const t = p.start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        lines.push(row(`<b>Next good pass:</b> ${t} — ${azToCompass(p.startAz)} to ${azToCompass(p.endAz)}, peaking ${Math.round(p.peakAlt)}° up`));
+      }
+    } else {
+      lines.push(row(`<b>No position for this date</b> — its published orbit only covers about ten days around today.`));
+    }
   } else if (obj.kind === 'constellation') {
     lines.push(row(`${obj.name} — a constellation.`));
     if (obj.brightest) {
@@ -191,6 +204,7 @@ function titleOf(obj) {
   if (obj.kind === 'dso') return obj.name;
   if (obj.kind === 'comet') return obj.name;
   if (obj.kind === 'constellation') return obj.name;
+  if (obj.kind === 'iss') return 'ISS (Space Station)';
   return obj.label;
 }
 

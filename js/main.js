@@ -528,6 +528,7 @@ function onIdentifyTap(x, y) {
     ...dsoObjects,
     ...cometObjects.filter((c) => c.altaz && c.mag <= COMET_MARKER_MAG),
     ...visibleMoons(resolvedPlanets).map(moonPick),
+    ...(issObj ? [issPick()] : []), // the drawn ISS dot is tappable like any marker
   ].filter((o) => o.altaz.alt >= 0 // faded-in below-horizon objects are pickable too, incl. the
     // fully revealed hemisphere while a below-horizon selection holds the fade open (see render).
     || (highlighted && highlighted.altaz && highlighted.altaz.alt < 0)
@@ -964,6 +965,7 @@ function followIdentity(pick) {
   if (pick.kind === 'dso') return { kind: 'dso', id: pick.id };
   if (pick.kind === 'comet') return { kind: 'comet', id: pick.id };
   if (pick.kind === 'constellation') return { kind: 'constellation', name: pick.name };
+  if (pick.kind === 'iss') return { kind: 'iss' };
   if (pick.kind === 'planet-moon') return { kind: 'planet-moon', label: pick.label };
   if (pick.kind === 'moon' || pick.kind === 'sun' || pick.kind === 'planet') return { kind: 'body', label: pick.label };
   return null;
@@ -1021,7 +1023,7 @@ function onFindObject(pick) {
 
 // Go-to zoom per kind: planets close enough that their moons resolve; Moon/Sun framed; stars and
 // DSOs wider. Tuned by eye.
-const GOTO_FOV = { planet: 0.5, moon: 1.5, sun: 1.5, star: 2, dso: 4, comet: 4, constellation: 55 };
+const GOTO_FOV = { planet: 0.5, moon: 1.5, sun: 1.5, star: 2, dso: 4, comet: 4, constellation: 55, iss: 20 }; // ISS stays wide: it crosses ~1°/s, lock-on does the chasing
 
 // A favorites row was clicked: same as Find, but zoomed to the kind's close-up FOV.
 function onGoToFavorite(rec) {
@@ -1035,7 +1037,7 @@ function onGoToFavorite(rec) {
 // kinds get a fixed deep zoom. setFov clamps to MIN_FOV, so small planets just bottom out fully
 // zoomed. Tuned by eye.
 const INSPECT_FILL = { planet: 0.6, moon: 0.5, sun: 0.5 }; // fraction of the view the disc spans
-const INSPECT_FOV = { star: 1, dso: 1.5, comet: 1.5, 'planet-moon': 0.3, constellation: 40 }; // no disc: fixed zoom (constellations frame the figure)
+const INSPECT_FOV = { star: 1, dso: 1.5, comet: 1.5, 'planet-moon': 0.3, constellation: 40, iss: 5 }; // no disc: fixed zoom (constellations frame the figure; the ISS keeps margin to chase)
 
 function inspectFov(kind, radiusDeg) {
   const fill = INSPECT_FILL[kind];
@@ -1106,6 +1108,17 @@ function onSearchSelect(entry) {
     highlighted = c;
     followTarget = null;
     openCard(c, cardCtx(observer, time));
+    requestRender();
+  }
+  // The ISS without a live track (no TLE yet, offline, or time-traveled outside its window):
+  // open the card — it explains the data coverage — without slewing or locking on.
+  if (entry.type === 'iss') {
+    const st = store.getState();
+    const observer = makeObserver(st.location.lat, st.location.lng);
+    const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
+    highlighted = issPick();
+    followTarget = null;
+    openCard(highlighted, cardCtx(observer, time));
     requestRender();
   }
 }
@@ -1223,7 +1236,14 @@ async function boot() {
   loadIssTle().then((tle) => {
     if (!tle) return;
     issRec = parseTle(tle.line1, tle.line2);
-    if (issRec) requestFullRecompute(); // surface the marker and tonight's pass row
+    if (!issRec) return;
+    requestFullRecompute(); // surface the marker and tonight's pass row
+    // A shared ISS link (or an early search) can land before the TLE does, leaving a card open
+    // with no position. Once the recompute above has actually run (double rAF, like the boot
+    // splash), replay the selection so it slews and locks on.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (highlighted && highlighted.kind === 'iss' && !highlighted.altaz) onSearchSelect({ type: 'iss', ref: 'ISS' });
+    }));
   }).catch(() => { /* absence, not error */ });
   let loaded = [];
   try {
@@ -1265,7 +1285,8 @@ async function boot() {
   attachInput(canvas, store, { onTap, onAction: onEditAction, onViewDrag: () => { followTarget = null; } });
   const controls = document.getElementById('controls');
   const bodyLabels = ['Moon', 'Sun', ...PLANETS.map((p) => p.name)];
-  const search = buildSearch(buildSearchIndex(stars, figures, bodyLabels, dsos, COMETS, PLANET_MOONS), { onSelect: onSearchSelect });
+  const search = buildSearch(buildSearchIndex(stars, figures, bodyLabels, dsos, COMETS, PLANET_MOONS,
+    [{ label: 'ISS', aliases: ['International Space Station', 'Space Station'] }]), { onSelect: onSearchSelect });
   // Screenshot: re-render synchronously, then composite GL sky + 2D overlay in the SAME task —
   // the GL context has no preserveDrawingBuffer, so its pixels only survive until the task ends.
   const onScreenshot = () => {

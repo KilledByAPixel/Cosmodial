@@ -60,6 +60,14 @@ test('buildSearchIndex includes planetary moons with a per-entry hint', () => {
   assert.ok(searchIndex(index, 'tit').some((e) => e.ref === 'Titan'), 'findable by prefix');
 });
 
+test('buildSearchIndex includes the ISS, findable by name and full-name aliases', () => {
+  const sats = [{ label: 'ISS', aliases: ['International Space Station', 'Space Station'] }];
+  const index = buildSearchIndex([], [], [], [], [], [], sats);
+  assert.deepEqual(index, [{ label: 'ISS', type: 'iss', ref: 'ISS', aliases: ['International Space Station', 'Space Station'] }]);
+  assert.ok(searchIndex(index, 'iss').some((e) => e.type === 'iss'), 'found by name');
+  assert.ok(searchIndex(index, 'space station').some((e) => e.type === 'iss'), 'found by alias');
+});
+
 test('searchIndex ranks Titan ahead of Titania for the query "titan"', () => {
   const moons = [{ planet: 'Uranus', name: 'Titania' }, { planet: 'Saturn', name: 'Titan' }];
   const index = buildSearchIndex([], [], [], [], [], moons);

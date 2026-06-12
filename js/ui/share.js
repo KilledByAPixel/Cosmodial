@@ -5,7 +5,7 @@ import { keyOf } from '../core/favorites.js';
 
 // Kinds a link may carry — exactly what onSearchSelect can resolve. (keyOf folds moon/sun/planet
 // into 'body'; stars key by numeric catalog id, the rest by string id/label/name.)
-const LINK_KINDS = new Set(['body', 'star', 'dso', 'comet', 'planet-moon', 'constellation']);
+const LINK_KINDS = new Set(['body', 'star', 'dso', 'comet', 'planet-moon', 'constellation', 'iss']);
 
 // The shareable URL for a card object. `base` defaults to the live page sans any current params.
 export function shareUrlFor(obj, base = `${window.location.origin}${window.location.pathname}`) {
