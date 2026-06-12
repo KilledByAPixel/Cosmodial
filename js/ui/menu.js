@@ -116,15 +116,16 @@ export function buildMenu(store, opts = {}) {
   const skySection = section('Sky');
   skySection.hidden = true;
   panel.append(skySection);
-  if (opts.onScreenshot) {
-    panel.append(section('Capture', makeAction('📷 Screenshot', 'Save the current view as a PNG', opts.onScreenshot)));
-  }
-  let pop; // assigned below; the action closes the menu before the chrome fades
+  // One-shot tools share a section (a heading per single button read as clutter). The screensaver
+  // action closes the menu first so the chrome is already gone when the tour starts.
+  let pop; // assigned below
+  const tools = [];
+  if (opts.onScreenshot) tools.push(makeAction('📷 Screenshot', 'Save the current view as a PNG', opts.onScreenshot));
   if (opts.onScreensaver) {
-    panel.append(section('Screensaver',
-      makeAction('🌌 Start', 'Hide the controls and tour the sky — any tap or key exits',
-        () => { pop.close(); opts.onScreensaver(); })));
+    tools.push(makeAction('🌌 Screensaver', 'Hide the controls and tour the sky — any tap or key exits',
+      () => { pop.close(); opts.onScreensaver(); }));
   }
+  if (tools.length) panel.append(section('Tools', ...tools));
   panel.append(section('Info', makeAction('✨ About Cosmodial', 'About this app', openAbout)));
   el.append(btn, panel);
   pop = attachPopover(btn, panel);
