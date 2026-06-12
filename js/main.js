@@ -284,8 +284,9 @@ function render() {
   // Aim-driven reveal of the lower hemisphere: 0 above the horizon, 1 by 10° below (smoothstep).
   // A SELECTED object below the horizon overrides it to fully revealed — searching or following
   // something that has set would otherwise show a ghost (or nothing) at gentle aim altitudes.
+  // The screensaver always shows the full sphere: no ground line breaks the wandering frame.
   const selBelow = highlighted && highlighted.altaz && highlighted.altaz.alt < 0;
-  const belowFade = (st.flags.edit || selBelow) ? 1 : belowHorizonFade(st.aim.alt);
+  const belowFade = (st.flags.edit || selBelow || screensaverOn) ? 1 : belowHorizonFade(st.aim.alt);
   // Lift the compass ribbon/readout above the on-screen control bar so they aren't hidden behind
   // it. Measured from where the bar actually sits in the viewport (not just its height): if the
   // canvas runs taller than the visible area (mobile URL-bar quirks), height-based math would put
