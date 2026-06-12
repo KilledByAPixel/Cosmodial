@@ -118,6 +118,8 @@ input, textarea { -webkit-user-select: text; user-select: text; }
   border: 1px solid #2a3550; color: #dce3f0; font: 13px system-ui, sans-serif;
   pointer-events: none; transition: opacity 0.5s; }
 .copy-toast.gone { opacity: 0; }
+/* Tappable variant (app-update notice): visibly a button, and must accept the tap. */
+.copy-toast.action { pointer-events: auto; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 
 .fav-panel { position: fixed; top: 8px; left: 8px; z-index: 6; width: min(320px, calc(100vw - 16px));
   font: 13px/1.4 system-ui, sans-serif; color: #dce3f0; }
