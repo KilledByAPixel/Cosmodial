@@ -5,9 +5,6 @@ import { fileURLToPath } from 'node:url';
 
 const swText = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
 
-// Files created by later tasks, allowed to be listed before they exist on disk.
-// Empty this set as the tasks land; it must be empty when the feature ships.
-const PENDING = new Set(['./js/ui/update.js']);
 
 function extractPrecache(src) {
   const m = src.match(/const PRECACHE = \[([\s\S]*?)\];/);
@@ -46,11 +43,7 @@ test('every runtime file on disk is precached (the hand-kept list cannot rot)', 
 test('every precached path exists on disk (no typos, nothing stale)', async () => {
   for (const p of extractPrecache(swText)) {
     const exists = await readFile(new URL(`../${p}`, import.meta.url)).then(() => true, () => false);
-    if (PENDING.has(p)) {
-      assert.ok(!exists, `${p} now exists — remove it from the PENDING set`);
-    } else {
-      assert.ok(exists, `PRECACHE entry not found on disk: ${p}`);
-    }
+    assert.ok(exists, `PRECACHE entry not found on disk: ${p}`);
   }
 });
 
