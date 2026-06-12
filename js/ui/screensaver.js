@@ -77,7 +77,7 @@ export function driftOffset(tMs, fov) {
 
 // The screensaver controller. Drives the app only through the store API; everything
 // environmental comes in via deps so the loop is testable with fakes:
-//   getCandidates(): [{ type, name, altAzAt(date), priority?, angularRadiusDeg?, sizeArcmin? }]
+//   getCandidates(at): candidates at the simulated instant [{ type, name, altAzAt(date), priority?, angularRadiusDeg?, sizeArcmin? }]
 //   sunAltAt(date): Sun altitude (deg) at a simulated instant
 //   nextDusk(date): Date the Sun next sinks below DUSK_SUN_ALT, or null (polar summer)
 //   setUiHidden(on): hide/show the chrome (and clear any card/lock-on when hiding)
@@ -103,7 +103,8 @@ export function createScreensaver(store, deps) {
   function nextShot() {
     const st = store.getState();
     const from = { az: st.aim.az, alt: st.aim.alt, fov: st.fov };
-    const target = pickTarget(deps.getCandidates(), recent, { rng, at: new Date(simMs) });
+    const at = new Date(simMs);
+    const target = pickTarget(deps.getCandidates(at), recent, { rng, at });
     if (!target) {
       shot = { mode: 'pan', from, startReal: now() };
       return;

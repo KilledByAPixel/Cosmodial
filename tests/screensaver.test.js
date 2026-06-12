@@ -267,3 +267,10 @@ test('constellation dwells hold a fixed frame so the stars stream through', () =
   assert.ok(Math.abs(st.aim.az - 100) < 4 && Math.abs(st.aim.alt - 45) < 4,
     'aim stayed on the frozen frame (drift only), not the moved target');
 });
+
+test('the picker sees the simulated instant, not the wall clock', () => {
+  let seenAt = null;
+  const h = harness({ getCandidates: (at) => { seenAt = at; return [cand({ name: 'A' })]; } });
+  h.ss.start();
+  assert.equal(seenAt.getTime(), T0, 'first pick happens at the starting sim instant');
+});

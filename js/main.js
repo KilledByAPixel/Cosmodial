@@ -549,14 +549,14 @@ function resolveFavorite(rec) {
 // barely-there dot is no show).
 const SCREENSAVER_COMET_MAG = 6;
 
-// Candidate targets for the screensaver tour. Each carries a live alt-az resolver so the
-// eligibility checks and the per-frame chase both track the time-lapse. The Sun is
-// excluded (daytime is skipped anyway) and so is untextured Pluto (mag ~14.5 — dwelling
-// on a barely-there dot is no show).
-function screensaverCandidates() {
+// Candidate targets for the screensaver tour, built at the given simulated instant. Each
+// carries a live alt-az resolver so the eligibility checks and the per-frame chase both
+// track the time-lapse. The Sun is excluded (daytime is skipped anyway) and so is
+// untextured Pluto (mag ~14.5 — dwelling on a barely-there dot is no show).
+function screensaverCandidates(at) {
   const st = store.getState();
   const observer = makeObserver(st.location.lat, st.location.lng);
-  const atDate = st.time.instant ? new Date(st.time.instant) : new Date();
+  const atDate = at || (st.time.instant ? new Date(st.time.instant) : new Date());
   const atNow = makeTime(atDate);
   // A lunar eclipse with its umbral phase underway at the viewed time makes the Moon the
   // must-see (the disc turns coppery in Earth's shadow). Searching from 2 days back
@@ -1052,14 +1052,25 @@ async function boot() {
     },
     // Wake-up listeners: capture-phase on window so the waking input never reaches the
     // app. pointermove deliberately excluded (a nudged mouse shouldn't end the show), and
-    // the click that follows the waking pointerdown is swallowed so it can't press a
-    // just-restored button.
+    // the follow-on click/context-menu is swallowed with a self-expiring trap so it can't
+    // press a just-restored button or pop the native context menu.
     bindExit: (onExit) => {
-      const swallowClick = (e) => { e.preventDefault(); e.stopPropagation(); };
+      // Swallow the wake-up input's follow-on events so they can't press a just-restored
+      // button or pop the native context menu. The swallowers self-expire: a wake that
+      // never produces its follow-on (cancelled touch, odd buttons) must not leave a
+      // live trap for the user's next real click.
+      const swallow = (e) => { e.preventDefault(); e.stopPropagation(); };
+      const armSwallower = (type) => {
+        window.addEventListener(type, swallow, { capture: true, once: true });
+        setTimeout(() => window.removeEventListener(type, swallow, { capture: true }), 600);
+      };
       const wake = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (e.type === 'pointerdown') window.addEventListener('click', swallowClick, { capture: true, once: true });
+        if (e.type === 'pointerdown') {
+          if (e.button === 0) armSwallower('click');
+          if (e.button === 2) armSwallower('contextmenu');
+        }
         onExit();
       };
       window.addEventListener('pointerdown', wake, true);
