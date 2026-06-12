@@ -352,3 +352,22 @@ test('a constellation shot fades its figure in with the slew and out at the dwel
   h.tick(1000);                                // dwell ends -> the next shot clears the fade
   assert.deepEqual(focus[focus.length - 1], [null, 0], 'cleared when the shot moves on');
 });
+
+test('leaving a tight close-up always pulls back to a wide vista before the next move', () => {
+  // One planet-like target: framing ~4.2 deg (well under the tight threshold). rng is a
+  // constant 0.5, so the 20% vista chance alone would NEVER fire - the pull-back must come
+  // from the tight-fov rule.
+  const planet = cand({ type: 'body', name: 'P', angularRadiusDeg: 0.26, altAzAt: fixed(45, 100) });
+  const names = [];
+  const h = harness({ getCandidates: () => [planet], onShot: (n) => names.push(n) });
+  h.ss.start();
+  for (let i = 0; i < 12; i++) h.tick(1000); // distance-scaled slew to P completes
+  assert.ok(h.store.getState().fov < 5, 'arrived at the tight planet framing');
+  for (let i = 0; i < 15; i++) h.tick(1000); // 15s dwell (rng 0.5) ends -> next shot begins
+  for (let i = 0; i < 4; i++) h.tick(1000);  // the pull-back ease completes
+  const st = h.store.getState();
+  assert.ok(st.fov > 100, `zoomed way out before any new target (${st.fov})`);
+  assert.ok(Math.abs(st.aim.az - 100) < 2 && Math.abs(st.aim.alt - 45) < 2,
+    'the pull-back holds the aim - no whip-pan while zoomed in');
+  assert.deepEqual(names, ['P', null], 'the wide breather is captionless');
+});

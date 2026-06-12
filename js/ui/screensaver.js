@@ -21,6 +21,7 @@ const DRIFT_RAMP_MS = 3000;        // ease the dwell drift in from zero
 const ESTABLISH_FOV = 90;          // entry eases out to this wide view before the first target
 const ESTABLISH_MS = 2500;         // entry zoom-out duration
 const VISTA_CHANCE = 0.2;          // odds a target shot is followed by a wide pull-back vista
+const TIGHT_FOV = 15;              // leaving a shot tighter than this ALWAYS pulls back first
 const VISTA_FOV = 120;             // vista width — well past any target framing
 const VISTA_EASE_MS = 4000;        // vista pull-back duration
 const VISTA_HOLD_MS = [8000, 14000]; // how long a vista holds before the next target
@@ -132,7 +133,11 @@ export function createScreensaver(store, deps) {
     if (deps.onConsFocus) deps.onConsFocus(null, 0); // a new shot clears any figure fade
     // After a target shot, sometimes step back and take in the region — nonstop
     // close-ups make the tour feel busier than it is. Never two vistas in a row.
-    if (shot && shot.target && rng() < VISTA_CHANCE) {
+    // A TIGHT close-up (deep zoom on a planet/DSO) always steps back: slewing to the next
+    // target while zoomed deep whips the sky past at nausea speed, so zoom out, breathe at
+    // the wide view, and only then move on. (The || order keeps rng() consumption identical
+    // for wider shots.)
+    if (shot && shot.target && (from.fov < TIGHT_FOV || rng() < VISTA_CHANCE)) {
       if (deps.onShot) deps.onShot(null); // no caption: the vista frames the sky, not a thing
       shot = { mode: 'wide', from, startReal: now(), easeMs: VISTA_EASE_MS, holdMs: randIn(VISTA_HOLD_MS), fov: VISTA_FOV };
       return;
