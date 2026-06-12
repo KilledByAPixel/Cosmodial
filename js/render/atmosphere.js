@@ -76,23 +76,26 @@ export function skyParams(sunAltDeg) {
 
 // How "deep" a solar eclipse is for sky purposes: 0 below 65% obscuration (a real partial eclipse
 // leaves the sky deceptively bright), ramping to 1 at totality. One curve drives all the eclipse
-// sky effects (darkening, dusk-lobe suppression, the Moon's veil) so they stay in step. The 2.5
-// exponent keeps the onset gentle when scrubbing — the visible plunge still lands near totality.
+// sky effects (darkening, dusk-lobe suppression, the Moon's veil) so they stay in step. The gentle
+// 1.2 exponent makes the ramp scrub-findable: a strictly realistic curve kept the sky daylight-blue
+// past 97% coverage, hiding the whole show in the last seconds before totality.
 export function eclipseDeepFraction(obscuration) {
-  return Math.pow(clamp((obscuration - 0.65) / 0.35, 0, 1), 2.5);
+  return Math.pow(clamp((obscuration - 0.65) / 0.35, 0, 1), 1.2);
 }
 
 // During a deep solar eclipse the sky itself darkens. Maps the TRUE Sun altitude to the EFFECTIVE
 // altitude skyParams should render: totality renders near-NIGHT (Sun at -16°, ~90% of the night
 // palette) — the sky plunges dark, the stars and Milky Way come out, with just a whisper of
-// twilight left in the blend, the way real totality reads to the eye.
+// twilight left in the blend. The (1-w)² on the daylight term collapses the blue sky through the
+// DEEP partials (a high Sun otherwise held the sky in full day until ~97% coverage): roughly,
+// 90% coverage reads as civil dusk, 95% as star-filled twilight, totality as near-night.
 // Never raises the altitude (an alignment with the Sun already below -16° must not brighten the sky).
 // NOTE for callers: the effective twilight would put skyParams' warm dusk lobe AT the eclipsed Sun,
 // which real totality doesn't have (the warm light rings the horizon instead) — scale
 // sunGlowStrength down by eclipseDeepFraction to suppress it.
 export function eclipseDarkenedSunAlt(sunAltDeg, obscuration) {
   const w = eclipseDeepFraction(obscuration);
-  return Math.min(sunAltDeg, sunAltDeg * (1 - w) - 16 * w);
+  return Math.min(sunAltDeg, sunAltDeg * (1 - w) * (1 - w) - 16 * w);
 }
 
 // How far below the horizon (in sin-altitude units; 0.1 ~ the first 5.7°) the sky/star shaders
