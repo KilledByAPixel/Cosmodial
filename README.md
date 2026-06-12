@@ -32,7 +32,7 @@ Cosmodial knows. Tell it where you are and it paints the actual sky above your h
 
 ## By the numbers
 
-- ⭐ Over 100k stars - each in its true color, sized by brightness
+- ⭐ 101,234 stars - each in its true color, sized by brightness
 - 🏷️ 417 named stars - Sirius, Betelgeuse, and friends
 - 🪐 The Sun, Moon, 7 planets + Pluto - computed live, fully textured
 - 🌕 16 planetary moons -positions checked against NASA's numbers
