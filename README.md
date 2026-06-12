@@ -38,6 +38,7 @@ Cosmodial knows. Tell it where you are and it paints the actual sky above your h
 - 🌕 16 planetary moons -positions checked against NASA's numbers
 - 🌌 30 deep-sky objects - galaxies, nebulae, and clusters
 - ☄️ 7 famous comets + all 3 interstellar visitors
+- 🛰️ 2 space stations - tracked live from fresh orbital data
 
 ## Credits
 
@@ -47,6 +48,7 @@ Cosmodial stands on some wonderful shoulders:
 - Star data from the [HYG Database](https://github.com/astronexus/HYG-Database)
 - Constellation lines from [d3-celestial](https://github.com/ofrohn/d3-celestial)
 - Milky Way and planet textures from [Solar System Scope](https://www.solarsystemscope.com/textures/)
+- [satellite.js](https://github.com/shashwatak/satellite-js) flies the space stations, on orbits from [CelesTrak](https://celestrak.org)
 - Moon orbits verified against [JPL Horizons](https://ssd.jpl.nasa.gov/horizons/)
 - Programming assisted by [Claude](https://claude.com/claude-code)
 
