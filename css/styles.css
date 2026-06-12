@@ -175,14 +175,15 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 body.night #night-overlay { display: block; }
 .night-toggle.on { color: #ff9a8c; border-color: #5a2a26; }
 
-/* Tonight's event: a highlighted first row inside the opened panel (the collapsed chip carries
-   the event's emoji instead — see chipLabel). */
-.fav-event {
+/* Tonight's events: highlighted rows at the top of the opened panel, best-first (the collapsed
+   chip carries the top event's emoji instead — see chipLabel). */
+.fav-event { display: flex; flex-direction: column; gap: 4px; margin: 0 0 6px; }
+.fav-event[hidden] { display: none; }
+.fav-event .event-row {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  margin: 0 0 6px; padding: 6px 10px; border-radius: 8px; font-size: 13px;
+  padding: 6px 10px; border-radius: 8px; font-size: 13px;
   color: #dce4f5; background: rgba(70,110,210,0.20); border: 1px solid rgba(120,160,255,0.35);
 }
-.fav-event[hidden] { display: none; }
 .fav-event .event-text { line-height: 1.3; }
 .fav-event .event-action {
   flex: none; cursor: pointer; font: inherit; color: #dce4f5;

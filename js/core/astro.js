@@ -261,6 +261,35 @@ export function moonPhaseInfo(time) {
   return { illumPct: Math.round(illum.phase_fraction * 100), phaseName: moonPhaseName(Astronomy.MoonPhase(time)) };
 }
 
+// Next greatest elongation of Mercury or Venus after refDate: the planet at its farthest from the
+// Sun in the sky — the best stretch of mornings/evenings to actually spot it (Mercury especially
+// never strays far from twilight). visibility is the vendor's 'morning' | 'evening'.
+export function nextMaxElongation(body, refDate) {
+  const e = Astronomy.SearchMaxElongation(body, makeTime(refDate));
+  return { date: e.time.date, visibility: e.visibility, elongationDeg: e.elongation };
+}
+
+// Next opposition of a superior planet after refDate: Earth passes between it and the Sun, so it's
+// at its biggest and brightest of the year and up all night. Relative heliocentric longitude 0 is
+// opposition for superior planets (see the vendor's SearchRelativeLongitude docs).
+export function nextOpposition(body, refDate) {
+  return Astronomy.SearchRelativeLongitude(body, 0, makeTime(refDate)).date;
+}
+
+// Next time Venus hits peak apparent brightness after refDate (~mag -4.9, between inferior
+// conjunction and greatest elongation). The vendor's search only supports Venus.
+export function nextVenusPeakMagnitude(refDate) {
+  const i = Astronomy.SearchPeakMagnitude(Body.Venus, makeTime(refDate));
+  return { date: i.time.date, mag: i.mag };
+}
+
+// Next full moon after refDate, with its geocentric distance (km) for the supermoon call.
+export function nextFullMoon(refDate) {
+  let q = Astronomy.SearchMoonQuarter(makeTime(refDate));
+  while (q.quarter !== 2) q = Astronomy.NextMoonQuarter(q);
+  return { date: q.time.date, distKm: Astronomy.GeoMoon(q.time).Length() * Astronomy.KM_PER_AU };
+}
+
 const MIN_MS = 60 * 1000;
 
 // Normalize a vendor LunarEclipseInfo into our shape: JS Dates + per-phase contact times.

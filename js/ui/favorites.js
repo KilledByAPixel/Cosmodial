@@ -25,7 +25,7 @@ export function sunRowText(ev) {
 }
 
 // Build the collapsible Favorites panel. onGoTo(rec) fires when a row is clicked; onRemove(rec)
-// when a row's × is clicked. Returns { el, setRows(rows), setEvent(event), setSunEvent(ev) } where
+// when a row's × is clicked. Returns { el, setRows(rows), setEvents(events), setSunEvent(ev) } where
 // each row is { rec, name, altaz }.
 export function buildFavoritesPanel({ onGoTo, onRemove }) {
   const el = document.createElement('div');
@@ -77,22 +77,27 @@ export function buildFavoritesPanel({ onGoTo, onRemove }) {
     }
   }
 
-  // event = { text, actionLabel, onAction } | null. Rendered as a highlighted first row inside the
-  // panel; the collapsed chip appends the event's emoji so it stays discoverable.
-  function setEvent(event) {
-    toggle.textContent = chipLabel(event);
+  // events = array of { text, actionLabel, onAction }, best-first (may be empty). Rendered as
+  // highlighted rows above the favorites list; the collapsed chip appends the TOP event's emoji
+  // so the night's headline stays discoverable while the panel is closed.
+  function setEvents(events) {
+    toggle.textContent = chipLabel(events[0] || null);
     eventEl.innerHTML = '';
-    if (!event) { eventEl.hidden = true; return; }
-    eventEl.hidden = false;
-    const span = document.createElement('span');
-    span.className = 'event-text';
-    span.textContent = event.text;
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'event-action';
-    btn.textContent = event.actionLabel;
-    btn.addEventListener('click', event.onAction);
-    eventEl.append(span, btn);
+    eventEl.hidden = !events.length;
+    for (const event of events) {
+      const row = document.createElement('div');
+      row.className = 'event-row';
+      const span = document.createElement('span');
+      span.className = 'event-text';
+      span.textContent = event.text;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'event-action';
+      btn.textContent = event.actionLabel;
+      btn.addEventListener('click', event.onAction);
+      row.append(span, btn);
+      eventEl.append(row);
+    }
   }
 
   // ev = { kind: 'sunset'|'sunrise', date } | null (hidden when null, e.g. polar day/night).
@@ -101,5 +106,5 @@ export function buildFavoritesPanel({ onGoTo, onRemove }) {
     sunEl.textContent = ev ? sunRowText(ev) : '';
   }
 
-  return { el, setRows, setEvent, setSunEvent };
+  return { el, setRows, setEvents, setSunEvent };
 }

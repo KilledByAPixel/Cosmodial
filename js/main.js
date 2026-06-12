@@ -1,5 +1,5 @@
 import { createState } from './core/state.js';
-import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, searchSolarEclipse, nextSolarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, planetMoonsAltAz, moonLibrationDeg, nextSunEvent, cometsAltAz, PLANET_MOONS, lunarShadow, nextSunBelowAlt, sunGeometricAlt } from './core/astro.js';
+import { makeObserver, altAzOfStar, altAzOfBody, makeTime, Body, bodyMagnitude, bodyAngularRadiusDeg, searchLunarEclipse, nextLunarEclipse, searchSolarEclipse, nextSolarEclipse, moonPhaseInfo, bodyPhaseAngleDeg, northPoleJ2000, planetMoonsAltAz, moonLibrationDeg, nextSunEvent, cometsAltAz, PLANET_MOONS, lunarShadow, nextSunBelowAlt, sunGeometricAlt, nextMaxElongation, nextOpposition, nextVenusPeakMagnitude, nextFullMoon } from './core/astro.js';
 import { makeStarAltAz, horToEqjRotation, eqjToGalRotation } from './core/astro.js';
 import { eqjToEnuMatrix } from './render/star-transform.js';
 import { bodyScreenOrientation, altazSepDeg, discObscuration, frameFovDeg, planetResolveFovDeg } from './core/moon.js';
@@ -28,6 +28,7 @@ import { createScreensaver, DUSK_SUN_ALT } from './ui/screensaver.js';
 import { findEclipseContext, umbralVisibility, solarVisibility } from './guide/eclipses.js';
 import { activeShower } from './guide/showers.js';
 import { findConjunctions, midpointAltAz } from './guide/conjunctions.js';
+import { HIGHLIGHT_WINDOW_DAYS, SUPERMOON_KM, withinDays, bestVisibleComet, isOccultation } from './guide/highlights.js';
 
 // Planet disc size vs true angular size. 1 = true scale (Stellarium-like): zoomed out, planets are the
 // oversized glow DOTS (visibility); the textured sphere appears exactly when its TRUE disc outgrows the
@@ -80,6 +81,7 @@ let solarEclipseCtx = { inProgress: null, next: null }; // solar, observer-local
 let eclipseObscuration = 0; // fraction of the Sun's disc the Moon covers right now (per frequent pass)
 let tonightShower = null;   // the meteor shower peaking tonight (+ radiant alt/az), or null
 let conjunctions = [];      // close Moon/planet pairs tonight, closest-first
+let skyEvents = [];         // date-window events near the viewed time (oppositions, elongations, ...), priority-ordered
 let skyDirty = true;  // next render runs the FREQUENT recompute (markers/spheres/lines/labels/DSOs)
 let fullDirty = true; // next recompute also runs the FULL pass (100k pick array, eclipse, favorites/events)
 let selected = null;        // first star picked in edit mode (a skyObjects entry)
@@ -248,10 +250,11 @@ function computeSky(full) {
       getNextAfter: (peak) => nextSolarEclipse(peak, observer),
       visibilityOf: solarVisibility,
     });
+    skyEvents = findSkyEvents(eclipseAt);
     if (favPanel) {
       favPanel.setSunEvent(nextSunEvent(observer, eclipseAt));
       favPanel.setRows(buildFavoriteRows());
-      favPanel.setEvent(buildTonightEvent());
+      favPanel.setEvents(buildTonightEvents());
     }
   }
   syncSelection();
@@ -636,36 +639,105 @@ function syncSelection() {
   const st = store.getState();
   const observer = makeObserver(st.location.lat, st.location.lng);
   const time = makeTime(st.time.instant ? new Date(st.time.instant) : new Date());
-  openCard(highlighted, cardCtx(observer, time, eclipseForCard(highlighted.kind)));
+  openCard(highlighted, cardCtx(observer, time, eclipseForCard(highlighted.kind), highlighted.kind));
 }
 
 // How far ahead a coming solar eclipse earns the banner. Solar eclipses are daytime events that a
 // night-time stargazer would otherwise never see coming, and rare enough to outrank a shower.
 const SOLAR_ECLIPSE_NOTICE_MS = 2 * 86400000;
 
-// The single most notable thing happening, for the always-visible banner. Priority: in-progress
-// solar eclipse > in-progress lunar eclipse > solar eclipse within 2 days > shower at peak >
-// closest conjunction > nothing. (The "next eclipse" readouts live on the Sun/Moon cards.)
-function buildTonightEvent() {
-  if (solarEclipseCtx.inProgress) return solarEclipseEvent(solarEclipseCtx.inProgress, true);
-  if (eclipseCtx.inProgress) {
+// The planets whose oppositions earn a highlight: the ones that visibly transform near opposition.
+// Uranus/Neptune stay out (binocular-at-best objects), matching the Pluto exclusion above.
+const OPPOSITION_PLANETS = ['Mars', 'Jupiter', 'Saturn'];
+
+// Date-window sky events near the viewed instant, in highlight priority order. Each search starts
+// a window-width BEFORE `at` so an event from earlier tonight (or yesterday, still inside its
+// window) isn't skipped as already past. Same cadence as the eclipse searches: the full pass.
+function findSkyEvents(at) {
+  const events = [];
+  const from = (days) => new Date(at.getTime() - days * 86400000);
+  for (const label of OPPOSITION_PLANETS) {
+    const days = HIGHLIGHT_WINDOW_DAYS.opposition;
+    const date = nextOpposition(Body[label], from(days));
+    if (withinDays(at, date, days)) events.push({ kind: 'opposition', label, date });
+  }
+  for (const label of ['Mercury', 'Venus']) {
+    const days = HIGHLIGHT_WINDOW_DAYS.elongation;
+    const e = nextMaxElongation(Body[label], from(days));
+    if (withinDays(at, e.date, days)) events.push({ kind: 'elongation', label, ...e });
+  }
+  {
+    const days = HIGHLIGHT_WINDOW_DAYS.venusPeak;
+    const p = nextVenusPeakMagnitude(from(days));
+    if (withinDays(at, p.date, days)) events.push({ kind: 'venusPeak', ...p });
+  }
+  {
+    const days = HIGHLIGHT_WINDOW_DAYS.fullMoon;
+    const fm = nextFullMoon(from(days));
+    if (withinDays(at, fm.date, days)) events.push({ kind: 'fullMoon', supermoon: fm.distKm <= SUPERMOON_KM });
+  }
+  return events;
+}
+
+// The Highlights rows, best-first, capped so a busy night can't swamp the panel. Priority: an
+// eclipse beats everything; a naked-eye comet is the rarest of the rest; then tonight-specific
+// events over the date-window ones (which are already priority-ordered by findSkyEvents).
+// (The "next eclipse" readouts live on the Sun/Moon cards.)
+const MAX_HIGHLIGHTS = 3;
+function buildTonightEvents() {
+  const events = [];
+  if (solarEclipseCtx.inProgress) {
+    events.push(solarEclipseEvent(solarEclipseCtx.inProgress, true));
+  } else if (eclipseCtx.inProgress) {
     const e = eclipseCtx.inProgress;
     const kindWord = e.kind === 'total' ? 'Total' : 'Partial';
-    return {
+    events.push({
       text: `🌑 ${kindWord} lunar eclipse — happening now. The Moon is in Earth's shadow.`,
       actionLabel: 'Find',
       onAction: () => onJumpToEclipse(e),
-    };
-  }
-  const soon = solarEclipseCtx.next;
-  if (soon) {
+    });
+  } else if (solarEclipseCtx.next) {
+    const soon = solarEclipseCtx.next;
     const st = store.getState();
     const at = st.time.instant ? new Date(st.time.instant) : new Date();
-    if (soon.peak.getTime() - at.getTime() <= SOLAR_ECLIPSE_NOTICE_MS) return solarEclipseEvent(soon, false);
+    if (soon.peak.getTime() - at.getTime() <= SOLAR_ECLIPSE_NOTICE_MS) events.push(solarEclipseEvent(soon, false));
   }
-  if (tonightShower) return showerEvent(tonightShower);
-  if (conjunctions.length) return conjunctionEvent(conjunctions[0]);
-  return null;
+  const comet = bestVisibleComet(cometObjects);
+  if (comet) events.push(cometEvent(comet));
+  if (tonightShower) events.push(showerEvent(tonightShower));
+  if (conjunctions.length) events.push(conjunctionEvent(conjunctions[0]));
+  for (const ev of skyEvents) events.push(skyEventRow(ev));
+  return events.slice(0, MAX_HIGHLIGHTS);
+}
+
+// Banner for a binocular-or-better comet that's up right now.
+function cometEvent(c) {
+  const where = altazToWhere(c.altaz, azToCompass);
+  return {
+    text: `☄️ Comet ${c.name} is in the sky — mag ${c.mag.toFixed(1)}, ${where}.`,
+    actionLabel: 'Find',
+    onAction: () => onGoToFavorite({ kind: 'comet', id: c.id }),
+  };
+}
+
+// Banner row for a findSkyEvents entry. All actions reuse the favorites go-to (lock on + zoom).
+function skyEventRow(ev) {
+  const goTo = (kind, label) => () => onGoToFavorite({ kind, label });
+  if (ev.kind === 'opposition') {
+    return { text: `🪐 ${ev.label} is at opposition — its biggest and brightest of the year, up all night.`, actionLabel: 'Find', onAction: goTo('planet', ev.label) };
+  }
+  if (ev.kind === 'elongation') {
+    const emoji = ev.visibility === 'evening' ? '🌆' : '🌄';
+    return { text: `${emoji} ${ev.label} is at greatest ${ev.visibility} elongation — the best ${ev.visibility}s to spot it.`, actionLabel: 'Find', onAction: goTo('planet', ev.label) };
+  }
+  if (ev.kind === 'venusPeak') {
+    return { text: `✨ Venus is at peak brilliance (mag ${ev.mag.toFixed(1)}) — about as bright as it ever gets.`, actionLabel: 'Find', onAction: goTo('planet', 'Venus') };
+  }
+  // fullMoon
+  const text = ev.supermoon
+    ? '🌕 Supermoon tonight — the full Moon near its closest to Earth, a touch bigger and brighter.'
+    : '🌕 Full Moon tonight.';
+  return { text, actionLabel: 'Find', onAction: goTo('moon', 'Moon') };
 }
 
 // Banner for a solar eclipse, live ("happening now") or imminent (peak within the notice window).
@@ -698,7 +770,10 @@ function conjunctionEvent(pair) {
     : (pair.a.mag ?? 99) <= (pair.b.mag ?? 99) ? [pair.a, pair.b] : [pair.b, pair.a];
   const sepStr = pair.sepDeg < 1 ? pair.sepDeg.toFixed(1) : String(Math.round(pair.sepDeg));
   const where = altazToWhere(midpointAltAz(pair.a.altaz, pair.b.altaz), azToCompass);
-  const text = `🌗 ${first.label} and ${second.label} are close — ${sepStr}° apart, ${where}.`;
+  // A pair this tight with the Moon is an occultation — the rarer, better show gets named as such.
+  const text = isOccultation(pair)
+    ? `🌙 The Moon is passing in front of ${first.label === 'Moon' ? second.label : first.label} — an occultation, ${where}.`
+    : `🌗 ${first.label} and ${second.label} are close — ${sepStr}° apart, ${where}.`;
   return { text, actionLabel: 'Find', onAction: () => onFindConjunction(pair) };
 }
 
