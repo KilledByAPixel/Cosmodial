@@ -1393,7 +1393,7 @@ async function boot() {
   store.subscribe(() => {
     const s = store.getState();
     const lk = `${s.location.lat},${s.location.lng}`;
-    const tk = s.time.live ? 'live' : String(s.time.instant);
+    const tk = s.time.live ? 'live' : String(s.time.instant.getTime());
     if (lk !== prevLoc) { prevLoc = lk; prevTime = tk; requestFullRecompute(); return; }
     if (tk !== prevTime) {
       prevTime = tk;
