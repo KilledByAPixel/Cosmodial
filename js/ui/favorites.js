@@ -47,6 +47,14 @@ export function buildFavoritesPanel({ onGoTo, onRemove }) {
 
   toggle.addEventListener('click', () => el.classList.toggle('collapsed'));
 
+  // Dismiss like the control-bar popovers (see popover.js): any pointerdown outside the panel
+  // puts it away — tapping the sky or an object, opening search, grabbing the time chip — and
+  // Escape too. Interactions INSIDE the panel (rows, events, its own chip) leave it open.
+  document.addEventListener('pointerdown', (e) => {
+    if (!el.contains(e.target)) el.classList.add('collapsed');
+  });
+  window.addEventListener('keydown', (e) => { if (e.key === 'Escape') el.classList.add('collapsed'); });
+
   function setRows(rows) {
     listEl.innerHTML = '';
     emptyEl.hidden = rows.length > 0;

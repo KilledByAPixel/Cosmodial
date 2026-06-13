@@ -27,10 +27,12 @@ export function toggleKeyAction(key) {
   return null;
 }
 
-// Map a key to a time-lapse action: 't' toggles the debug time-lapse, '+'/'-' change its
-// speed while it runs ('=' is unshifted '+', '_' shifted '-'). Null if the key isn't one.
+// Map a key to a time-lapse action: 't' toggles the debug time-lapse, Escape exits it (a no-op
+// when it isn't running), '+'/'-' change its speed ('=' is unshifted '+', '_' shifted '-').
+// Null if the key isn't one.
 export function timeLapseKeyAction(key) {
   if (key === 't' || key === 'T') return 'toggle';
+  if (key === 'Escape') return 'stop';
   if (key === '+' || key === '=') return 'faster';
   if (key === '-' || key === '_') return 'slower';
   return null;

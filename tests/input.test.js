@@ -49,9 +49,10 @@ test('toggleKeyAction maps c/l/g/a/e keys to flags (case-insensitive), ignores o
   assert.equal(toggleKeyAction('x'), null);
 });
 
-test('timeLapseKeyAction: t toggles, +/- (and their unshifted/shifted twins) change speed', () => {
+test('timeLapseKeyAction: t toggles, Escape stops, +/- (and their twins) change speed', () => {
   assert.equal(timeLapseKeyAction('t'), 'toggle');
   assert.equal(timeLapseKeyAction('T'), 'toggle');
+  assert.equal(timeLapseKeyAction('Escape'), 'stop', 'Escape exits the lapse');
   assert.equal(timeLapseKeyAction('+'), 'faster');
   assert.equal(timeLapseKeyAction('='), 'faster', 'unshifted plus key');
   assert.equal(timeLapseKeyAction('-'), 'slower');
