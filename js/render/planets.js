@@ -22,3 +22,15 @@ export const PLANETS = [
 export function planetRadius(mag) {
   return clamp(4 - mag * 0.6, 2.5, 6);
 }
+
+// Glow-chip opacity (0..1) as a planet zooms past the point where its true projected disc first
+// exceeds the glow dot (projectedPx == dotPx) and the 3D sphere starts drawing. Instead of popping
+// the chip off that instant, we keep it lit over the sphere and fade it out over a short zoom range
+// — until the disc is `growth` larger than the dot (default +50%) — so the chip dissolves to reveal
+// the planet underneath. Returns 1 at (and below) the resolve threshold, 0 once fully resolved, with
+// a smoothstep ease so neither end snaps. PURE — unit-tested.
+export function planetChipFade(projectedPx, dotPx, growth = 0.5) {
+  if (projectedPx <= dotPx) return 1;
+  const t = clamp((projectedPx - dotPx) / (growth * dotPx), 0, 1);
+  return 1 - t * t * (3 - 2 * t);
+}

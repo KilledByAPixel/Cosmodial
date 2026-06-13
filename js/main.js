@@ -6,7 +6,7 @@ import { bodyScreenOrientation, altazSepDeg, discObscuration, frameFovDeg, plane
 import { buildTimeControls } from './ui/time-controls.js';
 import { buildMenu, buildSkyToggles } from './ui/menu.js';
 import { screenshotName, saveComposite } from './ui/screenshot.js';
-import { PLANETS, planetRadius } from './render/planets.js';
+import { PLANETS, planetRadius, planetChipFade } from './render/planets.js';
 import { COMETS } from './core/comets.js';
 import { SATURN_RING, ringOpening } from './render/ring-math.js';
 import { drawScene, drawStarLabels, markerRadius, resizeCanvas, SUN_SCALE } from './render/sky.js';
@@ -25,7 +25,7 @@ import { createFavorites, displayName } from './core/favorites.js';
 import { buildFavoritesPanel } from './ui/favorites.js';
 import { buildSearch, buildSearchIndex } from './ui/search.js';
 import { parseShareParam } from './ui/share.js';
-import { animateSlew } from './ui/slew.js';
+import { animateSlew, cancelSlew } from './ui/slew.js';
 import { createScreensaver, DUSK_SUN_ALT } from './ui/screensaver.js';
 import { findEclipseContext, umbralVisibility, solarVisibility } from './guide/eclipses.js';
 import { activeShower } from './guide/showers.js';
@@ -418,6 +418,7 @@ function render() {
     starfield.setStarMatrix(eqjToEnu);
     const focal = focalPx(st.fov, view.width, view.height); // px per radian at screen centre
     const sphereLabels = new Set();
+    const chipFade = new Map(); // planet label -> glow-chip opacity while it crossfades into its sphere
     const bodyList = [];
     for (const bi of bodyInputs) {
       const m = markers.find((x) => x.label === bi.label);
@@ -460,6 +461,12 @@ function render() {
         ringTexKey: bi.ring ? bi.ring.TEX : null,
       });
       sphereLabels.add(bi.label);
+      // The sphere just drew; keep its glow chip lit on top and fade it out over the next bit of zoom
+      // so it dissolves to reveal the planet instead of popping. The Moon never carries a chip.
+      if (bi.label !== 'Moon') {
+        const cf = planetChipFade(rPx * span, dotR);
+        if (cf > 0) chipFade.set(bi.label, cf);
+      }
     }
     resolvedPlanets = sphereLabels;
     starfield.setBodies(bodyList);
@@ -477,10 +484,13 @@ function render() {
     // Sun/Moon/planets as glowing discs: size from markerRadius (angular for Sun/Moon, disk for
     // planets), tint from the body's colour, brightness from magnitude. Hidden in edit mode.
     const glMarkers = drawList
-      .filter((m) => !sphereLabels.has(m.label))   // spheres (Moon + zoomed-in planets) draw via the body pass
+      // Spheres (Moon + zoomed-in planets) draw via the body pass; a planet mid-crossfade keeps its
+      // glow chip drawn at a fading alpha until its sphere has fully resolved.
+      .filter((m) => !sphereLabels.has(m.label) || chipFade.has(m.label))
       .map((m) => ({
         az: m.altaz.az, alt: m.altaz.alt, color: m.color,
-        radiusPx: markerRadius(m, cam), alpha: m.alpha,
+        radiusPx: markerRadius(m, cam),
+        alpha: chipFade.has(m.label) ? m.alpha * chipFade.get(m.label) : m.alpha,
       }));
     starfield.drawMarkers(glMarkers, cam, { belowFade });
   }
@@ -1428,7 +1438,9 @@ async function boot() {
     },
   });
   attachInput(canvas, store, {
-    onTap, onAction: onEditAction, onViewDrag: () => { followTarget = null; },
+    onTap, onAction: onEditAction,
+    onViewDrag: () => { followTarget = null; cancelSlew(); }, // grabbing the view drops lock-on and stops any auto-zoom
+    onUserZoom: cancelSlew,                                   // wheel/pinch stop an auto-zoom mid-flight (lock-on, if any, stays)
     onTimeLapse: (action) => { if (!screensaverOn) timelapse[action](); },
   });
   const controls = document.getElementById('controls');

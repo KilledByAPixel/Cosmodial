@@ -150,6 +150,7 @@ export function attachInput(canvas, store, opts = {}) {
     if (downAt) downAt.moved = downAt.moved || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 5;
     pointers.set(e.pointerId, { ...prev, x: e.clientX, y: e.clientY }); // keep both fingers current so a 2->1 lift resumes drag without a jump
     if (pointers.size === 2 && pinch) { // pinch-zoom takes over from drag
+      if (opts.onUserZoom) opts.onUserZoom();
       store.setFov(pinchToFov(pinch.startFov, pinch.startDist, twoPointerDist()));
       return;
     }
@@ -181,6 +182,7 @@ export function attachInput(canvas, store, opts = {}) {
 
   const onWheel = (e) => {
     e.preventDefault(); // stop the page from scrolling
+    if (opts.onUserZoom) opts.onUserZoom();
     store.setFov(wheelToFov(store.getState().fov, e.deltaY));
   };
 
