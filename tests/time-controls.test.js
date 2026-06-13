@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   formatClock, formatDate, toLocalInputValue,
-  scrubFraction, scrubInstant, startOfDay, dayFraction, instantOnDay, MAX_DAY_FRACTION,
+  scrubFraction, scrubInstant, startOfDay, dayFraction, instantOnDay, MAX_DAY_FRACTION, dayRollInstant,
 } from '../js/ui/time-controls.js';
 
 test('formatClock is zero-padded 24h local HH:MM', () => {
@@ -49,6 +49,29 @@ test('MAX_DAY_FRACTION keeps the scrubber inside the shown day (no next-day runa
   assert.equal(top.getMinutes(), 59);
   const again = instantOnDay(Math.min(dayFraction(top), MAX_DAY_FRACTION), top);
   assert.equal(again.getTime(), top.getTime());
+});
+
+test('dayRollInstant: arrow keys roll across days at the rails, and only there', () => {
+  const endOfDay = new Date(2026, 5, 7, 23, 59, 0);
+  const midnight = new Date(2026, 5, 7, 0, 0, 0);
+  const midday = new Date(2026, 5, 7, 12, 0, 0);
+  // Right at 23:59 -> next day 00:00.
+  const fwd = dayRollInstant(1, endOfDay);
+  assert.equal(fwd.getDate(), 8);
+  assert.equal(fwd.getHours(), 0);
+  assert.equal(fwd.getMinutes(), 0);
+  // Left at 00:00 -> previous day 23:59.
+  const back = dayRollInstant(-1, midnight);
+  assert.equal(back.getDate(), 6);
+  assert.equal(back.getHours(), 23);
+  assert.equal(back.getMinutes(), 59);
+  // Rolling right then left returns to where you were.
+  assert.equal(dayRollInstant(-1, fwd).getTime(), endOfDay.getTime());
+  // Away from the matching rail the range input steps normally (null).
+  assert.equal(dayRollInstant(1, midday), null);
+  assert.equal(dayRollInstant(-1, midday), null);
+  assert.equal(dayRollInstant(-1, endOfDay), null, 'left at the right rail is a normal step');
+  assert.equal(dayRollInstant(1, midnight), null, 'right at the left rail is a normal step');
 });
 
 test('dayFraction maps midnight->0, noon->0.5, and instantOnDay inverts it', () => {

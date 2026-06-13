@@ -59,6 +59,20 @@ export function instantOnDay(fraction, refDay) {
 // slider therefore tops out at 23:59 — the last minute of the day it is scrubbing.
 export const MAX_DAY_FRACTION = 1 - 60000 / DAY;
 
+// Day-roll for the scrubber's ARROW KEYS: a deliberate keypress at a rail crosses into the
+// neighbouring day — right at 23:59 lands on the next day's 00:00, left at 00:00 on the previous
+// day's 23:59 — which a held drag deliberately never does (see MAX_DAY_FRACTION). Returns the
+// new instant, or null when not at the matching rail (the range input steps normally then).
+// The ±half-day reference before startOfDay/instantOnDay keeps DST-odd days (23/25 h) honest.
+// dir: +1 = right/up, -1 = left/down.
+export function dayRollInstant(dir, instant) {
+  const f = dayFraction(instant);
+  const start = startOfDay(instant).getTime();
+  if (dir > 0 && f >= MAX_DAY_FRACTION - 1e-9) return startOfDay(new Date(start + 1.5 * DAY));
+  if (dir < 0 && f <= 1e-9) return instantOnDay(MAX_DAY_FRACTION, new Date(start - 0.5 * DAY));
+  return null;
+}
+
 // Build the time control: a compact chip (live clock / paused date+time) that opens a popover with
 // Play/Pause, the 24h day scrubber, and a datetime field. Drives store.setTime; ticks the clock.
 export function buildTimeControls(store) {
@@ -99,6 +113,18 @@ export function buildTimeControls(store) {
   // "midnight of the next" (see MAX_DAY_FRACTION).
   scrub.addEventListener('input', () => {
     store.setTime(instantOnDay(Math.min(Number(scrub.value) / 1000, MAX_DAY_FRACTION), shownInstant()), false);
+  });
+
+  // Arrow keys roll ACROSS days at the rails (see dayRollInstant). preventDefault is essential:
+  // the range input's own step would otherwise fire 'input' after the roll and re-scrub the
+  // freshly-landed day right back toward the rail.
+  scrub.addEventListener('keydown', (e) => {
+    const dir = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 1
+      : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -1 : 0;
+    const roll = dir && dayRollInstant(dir, shownInstant());
+    if (!roll) return;
+    e.preventDefault();
+    store.setTime(roll, false);
   });
 
   // Explicit date/time entry.
