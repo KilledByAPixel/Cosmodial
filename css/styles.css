@@ -143,6 +143,8 @@ input, textarea { -webkit-user-select: text; user-select: text; }
   color: #8fa0c0; background: none; border: 0; border-radius: 6px; cursor: pointer; }
 .fav-remove:hover { color: #dce3f0; background: #243049; }
 .fav-empty { margin: 0; color: #9fb0cc; }
+.fav-loading { margin: 0; color: #9fb0cc; }
+.fav-loading[hidden] { display: none; }
 .fav-sun { margin: 0 0 6px; padding-bottom: 6px; border-bottom: 1px solid #1d2740; color: #9fb0cc; }
 .fav-sun[hidden] { display: none; }
 

@@ -1560,7 +1560,11 @@ async function boot() {
   favorites.onChange(() => { favPanel.setRows(buildFavoriteRows()); syncSelection(); });
   const favHost = document.getElementById('favorites-host');
   if (favHost) favHost.append(favPanel.el);
-  requestRender();
+  // FULL pass, not a bare render: the panel was just created, and the first render must run the
+  // favorites/events block (gated on favPanel) to populate it. An earlier full pass — e.g. the
+  // satellite-TLE recompute landing mid-boot — can have already spent fullDirty before the panel
+  // existed, which would otherwise leave this kick as a cheap pass and the panel stuck empty.
+  requestFullRecompute();
   // One frame past the first render (live arrays populated): lift the boot splash, and honor a
   // shared ?obj=kind:id link by replaying it through the search-select path — the link lands on
   // the object exactly as if it had been searched for.

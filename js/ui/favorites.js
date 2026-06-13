@@ -31,8 +31,9 @@ export function buildFavoritesPanel({ onGoTo, onRemove }) {
   const el = document.createElement('div');
   el.className = 'fav-panel collapsed';
   el.innerHTML = `
-    <button type="button" class="fav-toggle" data-toggle>★ Highlights</button>
+    <button type="button" class="fav-toggle" data-toggle>🌟 Highlights</button>
     <div class="fav-body">
+      <p class="fav-loading" data-loading>Loading highlights…</p>
       <div class="fav-sun" data-sun hidden></div>
       <div class="fav-event" data-event hidden></div>
       <ul class="fav-list" data-list></ul>
@@ -44,6 +45,7 @@ export function buildFavoritesPanel({ onGoTo, onRemove }) {
   const emptyEl = el.querySelector('[data-empty]');
   const eventEl = el.querySelector('[data-event]');
   const sunEl = el.querySelector('[data-sun]');
+  const loadingEl = el.querySelector('[data-loading]');
 
   toggle.addEventListener('click', () => el.classList.toggle('collapsed'));
 
@@ -89,6 +91,7 @@ export function buildFavoritesPanel({ onGoTo, onRemove }) {
   // highlighted rows above the favorites list; the collapsed chip appends the TOP event's emoji
   // so the night's headline stays discoverable while the panel is closed.
   function setEvents(events) {
+    loadingEl.hidden = true; // real highlight data has arrived: drop the "Loading…" placeholder for good
     toggle.textContent = chipLabel(events[0] || null);
     eventEl.innerHTML = '';
     eventEl.hidden = !events.length;
