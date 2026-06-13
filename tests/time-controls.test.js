@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   formatClock, formatDate, toLocalInputValue,
-  scrubFraction, scrubInstant, startOfDay, dayFraction, instantOnDay,
+  scrubFraction, scrubInstant, startOfDay, dayFraction, instantOnDay, MAX_DAY_FRACTION,
 } from '../js/ui/time-controls.js';
 
 test('formatClock is zero-padded 24h local HH:MM', () => {
@@ -35,6 +35,20 @@ test('startOfDay zeroes the local time-of-day', () => {
   assert.equal(s.getMinutes(), 0);
   assert.equal(s.getSeconds(), 0);
   assert.equal(s.getDate(), 7);
+});
+
+test('MAX_DAY_FRACTION keeps the scrubber inside the shown day (no next-day runaway)', () => {
+  const ref = new Date(2026, 5, 7, 22, 0, 0);
+  // Unclamped 1.0 is exactly midnight of the NEXT day — the runaway trigger.
+  assert.equal(instantOnDay(1, ref).getDate(), 8);
+  // The clamped top end is 23:59 of the SAME day, and round-trips stably: re-deriving the
+  // fraction from the landed instant and scrubbing again stays put instead of walking forward.
+  const top = instantOnDay(MAX_DAY_FRACTION, ref);
+  assert.equal(top.getDate(), 7);
+  assert.equal(top.getHours(), 23);
+  assert.equal(top.getMinutes(), 59);
+  const again = instantOnDay(Math.min(dayFraction(top), MAX_DAY_FRACTION), top);
+  assert.equal(again.getTime(), top.getTime());
 });
 
 test('dayFraction maps midnight->0, noon->0.5, and instantOnDay inverts it', () => {

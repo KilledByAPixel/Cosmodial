@@ -53,6 +53,12 @@ export function instantOnDay(fraction, refDay) {
   return scrubInstant(fraction, start, new Date(start.getTime() + DAY));
 }
 
+// The scrubber's top end must stay INSIDE the shown day: fraction 1.0 is midnight of the NEXT
+// day, so setting it moved the panel onto that day, the slider re-read as 0, and a still-held
+// pointer at the right edge walked the clock forward a day per input event (a runaway). The
+// slider therefore tops out at 23:59 — the last minute of the day it is scrubbing.
+export const MAX_DAY_FRACTION = 1 - 60000 / DAY;
+
 // Build the time control: a compact chip (live clock / paused date+time) that opens a popover with
 // Play/Pause, the 24h day scrubber, and a datetime field. Drives store.setTime; ticks the clock.
 export function buildTimeControls(store) {
@@ -89,8 +95,10 @@ export function buildTimeControls(store) {
   });
 
   // Scrubber: jump to a time within the currently-shown day (grabbing it pauses live mode).
+  // The fraction is clamped below 1.0 so the far right edge means "end of THIS day", not
+  // "midnight of the next" (see MAX_DAY_FRACTION).
   scrub.addEventListener('input', () => {
-    store.setTime(instantOnDay(Number(scrub.value) / 1000, shownInstant()), false);
+    store.setTime(instantOnDay(Math.min(Number(scrub.value) / 1000, MAX_DAY_FRACTION), shownInstant()), false);
   });
 
   // Explicit date/time entry.
