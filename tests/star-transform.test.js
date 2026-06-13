@@ -45,15 +45,34 @@ test('eqjToEnuMatrix is orthonormal', () => {
   assert.ok(Math.abs(dot(col(0), col(1))) < 1e-6 && Math.abs(dot(col(0), col(2))) < 1e-6 && Math.abs(dot(col(1), col(2))) < 1e-6, 'orthogonal');
 });
 
-test('refractAltDeg: ~0.48 deg at the horizon, ~0 at the zenith, 0 at the nadir', () => {
+test('refractAltDeg: ~0.48 deg at the horizon, ~0 at the zenith, ~0 at the nadir', () => {
   assert.ok(refractAltDeg(0) > 0.4 && refractAltDeg(0) < 0.6, `horizon ${refractAltDeg(0)}`);
   assert.ok(Math.abs(refractAltDeg(89)) < 0.001, `zenith ${refractAltDeg(89)}`);
   assert.ok(Math.abs(refractAltDeg(-90)) < 1e-12, `nadir ${refractAltDeg(-90)}`);
-  assert.ok(refractAltDeg(-45) > 0 && refractAltDeg(-45) < refractAltDeg(-1), 'taper below the horizon');
+  assert.ok(refractAltDeg(-45) >= 0 && refractAltDeg(-45) < 1e-6, 'taper ~vanished by -45 deg');
+});
+
+test('refractAltDeg is C1-smooth across the -1 deg taper boundary (no velocity snap)', () => {
+  // Value continuity at the joint (tolerance: the curve's own slope across the 2*eps gap is
+  // ~0.17 deg/deg * 2e-7 ~ 3e-8; a genuine discontinuity would be ~0.65 deg).
+  const eps = 1e-7;
+  assert.ok(Math.abs(refractAltDeg(-1 - eps) - refractAltDeg(-1 + eps)) < 1e-7, 'value continuous');
+  // Slope continuity: the vendor's linear taper jumps ~0.17 deg/deg here — that was the moon snap.
+  const h = 1e-5;
+  const slopeBelow = (refractAltDeg(-1 - h) - refractAltDeg(-1 - 3 * h)) / (2 * h);
+  const slopeAbove = (refractAltDeg(-1 + 3 * h) - refractAltDeg(-1 + h)) / (2 * h);
+  assert.ok(Math.abs(slopeBelow - slopeAbove) < 1e-3, `slope continuous (${slopeBelow} vs ${slopeAbove})`);
+  // Above the boundary the curve is untouched Saemundsson — same value the vendor/JPL would give.
+  assert.ok(Math.abs(refractAltDeg(-1) - 0.6466) < 0.001, 'boundary value matches the formula');
+  // Below: rises briefly (as the real formula does), peaks at -3, then decays monotonically.
+  assert.ok(refractAltDeg(-3) > refractAltDeg(-1), 'extrapolation peaks below the boundary');
+  for (let a = -4; a > -30; a--) {
+    assert.ok(refractAltDeg(a - 1) < refractAltDeg(a), `monotone decay at ${a}`);
+  }
 });
 
 test('REFRACTION_GLSL embeds the same constants as the JS twin', () => {
-  for (const lit of ['1.02', '10.3', '5.11', '89.0']) assert.ok(REFRACTION_GLSL.includes(lit), `missing ${lit}`);
+  for (const lit of ['1.02', '10.3', '5.11', 'exp(']) assert.ok(REFRACTION_GLSL.includes(lit), `missing ${lit}`);
 });
 
 test('buildStarAttributesJ2000: layout parity (colour/mag/alpha) + J2000 direction', () => {

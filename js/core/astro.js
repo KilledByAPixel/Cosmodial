@@ -2,6 +2,10 @@
 // Inputs/outputs are in DEGREES. RA stored in degrees; converted to hours where the library needs hours.
 import * as Astronomy from '../vendor/astronomy.js';
 import { MOON_ELEMENTS, moonOffsetEqjAu } from './planet-moons.js';
+// The app's own refraction curve (lives beside its GLSL twin so the GPU stars can't drift from
+// the CPU paths). Identical to Horizon('normal') at/above -1 deg true altitude; C1-smooth below,
+// where the vendor's linear taper kinks every velocity (see the note in star-transform.js).
+import { refractAltDeg } from '../render/star-transform.js';
 import { COMETS, activeCometSet, cometHelioEqjAu, cometMagnitude, cometCoverage } from './comets.js';
 
 // Re-export the body enum so the rest of the app never imports the vendor directly.
@@ -40,18 +44,22 @@ export function eqjToGalRotation() {
   return Astronomy.Rotation_EQJ_GAL().rot;
 }
 
-// Alt/az (degrees) for a fixed star given its J2000 RA/Dec (degrees).
-export function altAzOfStar(raDegJ2000, decDegJ2000, observer, time) {
+// Alt/az (degrees) for a fixed star given its J2000 RA/Dec (degrees). refraction: 'normal'
+// (apparent, the default — the app's refractAltDeg curve) or null for the true airless altitude.
+// Refraction shifts only altitude, so Horizon is always asked for the airless position and the
+// lift is applied here — one curve for CPU and GPU alike.
+export function altAzOfStar(raDegJ2000, decDegJ2000, observer, time, refraction = 'normal') {
   const ofDate = precessToDate(raDegJ2000, decDegJ2000, time);
-  const hor = Astronomy.Horizon(time, observer, ofDate.ra / 15, ofDate.dec, 'normal'); // precessToDate returns degrees; ÷15 converts RA back to hours for Horizon
-  return { alt: hor.altitude, az: hor.azimuth };
+  const hor = Astronomy.Horizon(time, observer, ofDate.ra / 15, ofDate.dec, null); // precessToDate returns degrees; ÷15 converts RA back to hours for Horizon
+  const alt = refraction === null ? hor.altitude : hor.altitude + refractAltDeg(hor.altitude);
+  return { alt, az: hor.azimuth };
 }
 
 // Alt/az (degrees) for Sun/Moon/planets. Equator(ofdate=true) already yields equator-of-date coords.
 export function altAzOfBody(body, observer, time) {
   const eq = Astronomy.Equator(body, time, observer, /*ofdate*/ true, /*aberration*/ true); // ra HOURS
-  const hor = Astronomy.Horizon(time, observer, eq.ra, eq.dec, 'normal');
-  return { alt: hor.altitude, az: hor.azimuth };
+  const hor = Astronomy.Horizon(time, observer, eq.ra, eq.dec, null);
+  return { alt: hor.altitude + refractAltDeg(hor.altitude), az: hor.azimuth };
 }
 
 // Apparent visual magnitude (geocentric apparent) of a body astronomy-engine illuminates — used
@@ -149,6 +157,10 @@ export function planetMoonsAltAz(observer, time) {
     const plen = Math.hypot(pv.x, pv.y, pv.z);
     const los = [pv.x / plen, pv.y / plen, pv.z / plen];
     const emit = time.AddDays(-plen * (499.00478939 / 86400));
+    // Each moon refracts at its OWN altitude, like every other object: near the horizon the
+    // system genuinely squashes vertically (differential refraction), and the app's C1 refraction
+    // curve (refractAltDeg) keeps that motion smooth — the vendor taper's -1° slope kink used to
+    // snap every moon's velocity in unison right as the planet rose or set.
     for (const { name, mag, offset } of moons(emit)) {
       // Mixing frames slightly: pv is at observation time, offset at emission time — the error is
       // ~0.02 arcsec (planet drifts ~5 arcsec/day geocentrically), far below rendering scale.
@@ -186,8 +198,8 @@ export function makeStarAltAz(observer, time) {
     const sphere = new Astronomy.Spherical(decDegJ2000, raDegJ2000, 1.0); // (lat=dec, lon=ra, dist)
     const vecEqd = Astronomy.RotateVector(rot, Astronomy.VectorFromSphere(sphere, time));
     const eqd = Astronomy.EquatorFromVector(vecEqd);                       // ra HOURS, dec deg
-    const hor = Astronomy.Horizon(time, observer, eqd.ra, eqd.dec, 'normal');
-    return { alt: hor.altitude, az: hor.azimuth };
+    const hor = Astronomy.Horizon(time, observer, eqd.ra, eqd.dec, null);
+    return { alt: hor.altitude + refractAltDeg(hor.altitude), az: hor.azimuth }; // app refraction curve, same as the GPU stars
   };
 }
 
