@@ -1,6 +1,6 @@
 # 🔭🌌 Cosmodial Sky Atlas
 
-**The whole night sky, in your browser. No app store, no signup, no clouds.**
+**The whole night sky running live in your browser.**
 
 ## [✨ Open Cosmodial →](https://killedbyapixel.github.io/Cosmodial/)
 
@@ -12,7 +12,7 @@ Cosmodial knows. Tell it where you are and it paints the actual sky above your h
 
 ## What you can do
 
-🧭 **Just look up.** Set your location and the sky matches reality. Point your phone at the sky and the view follows.
+🧭 **Watch the sky.** Set your location and the sky matches reality. Point your phone at the sky and the view follows.
 
 ⏰ **Bend time.** Scrub forward or backward by minutes or centuries.
 
@@ -20,15 +20,15 @@ Cosmodial knows. Tell it where you are and it paints the actual sky above your h
 
 ⭐ **Keep favorites.** Star the objects you love and jump back with one click.
 
-🪐 **See the solar system for real.** Everything is shown at true scale, from Jupiter's moons to Saturn's rings.
+🪐 **Explore the solar system.** Everything is shown at true scale, from Jupiter's moons to Saturn's rings.
 
 🌅 **Honest skies.** Real dusk glow and horizon haze, or turn the atmosphere off for the view from space.
 
-☀️ **Solar and lunar eclipses.** Jump to the next one and watch the corona emerge or the Moon turn coppery-red.
+☀️ **Solar and lunar eclipses.** Jump to the next one and watch the corona emerge or the Moon turn red.
 
 🛰️ **Catch a space station.** The ISS and Tiangong cross your sky live, with a heads-up when tonight has a flyover worth stepping outside for.
 
-🔴 **Night mode.** Red-on-black to protect your dark-adapted eyes.
+🔴 **Night mode.** Red-on-black to protect your night vision.
 
 ## By the numbers
 
