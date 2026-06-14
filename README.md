@@ -4,7 +4,7 @@
 
 ## [✨ Open Cosmodial →](https://killedbyapixel.github.io/Cosmodial/)
 
-![Cosmodial Screenshot](images/cosmodial-social.png)
+![Cosmodial Splash](images/cosmodial-social.png)
 
 Ever look up and wonder *"wait, is that a planet or just a really bright star?"*
 
@@ -42,6 +42,8 @@ Cosmodial knows. Tell it where you are and it paints the actual sky above your h
 
 **Install it:** Cosmodial is a PWA — "Install app" / "Add to Home Screen" in your browser menu gives you an icon and the full app offline, star catalog and all. Visiting once in the browser caches everything too.
 
+![Cosmodial Screenshot](images/screenshot.jpg)
+
 ## Credits
 
 Cosmodial stands on some wonderful shoulders:
@@ -55,7 +57,5 @@ Cosmodial stands on some wonderful shoulders:
 - Programming assisted by [Claude](https://claude.com/claude-code)
 
 Full details in [ATTRIBUTION.md](ATTRIBUTION.md). The code is **MIT**, see [LICENSE](LICENSE).
-
----
 
 *Clear skies! 🔭*
