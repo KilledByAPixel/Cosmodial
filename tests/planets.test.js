@@ -17,7 +17,7 @@ test('planetRadius: brighter (lower mag) planets are larger, within bounds', () 
   assert.ok(planetRadius(-4) > planetRadius(1), 'Venus bigger than a dim planet');
   for (const m of [-4.5, -2, 0, 2, 5]) {
     const r = planetRadius(m);
-    assert.ok(r >= 1.5 && r <= 3, `radius ${r} out of bounds for mag ${m}`);
+    assert.ok(r >= 1.5 && r <= 3.5, `radius ${r} out of bounds for mag ${m}`);
   }
 });
 

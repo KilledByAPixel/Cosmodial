@@ -20,7 +20,7 @@ export const PLANETS = [
 // Apparent magnitude -> planet disk radius (px). Brighter (smaller mag) -> larger.
 // Planets read as small disks, a bit bigger than stars so they stand out.
 export function planetRadius(mag) {
-  return clamp(2.5 - mag * .4, 1.5, 3);
+  return clamp(2.5 - mag * .4, 1.5, 3.5);
 }
 
 // Glow-chip opacity (0..1) as a planet zooms past the point where its true projected disc first
