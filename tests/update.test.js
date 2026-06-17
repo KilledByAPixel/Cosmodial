@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { watchRegistration, initUpdates } from '../js/ui/update.js';
+import { watchRegistration, initUpdates, isDevHost } from '../js/ui/update.js';
+
+const PROD = { hostname: 'cosmodial.app' };
 
 // Minimal fakes: objects that record listeners and let tests fire them by name.
 function fakeTarget(props = {}) {
@@ -50,7 +52,7 @@ test('initUpdates registers ./sw.js, reloads once on controllerchange, re-checks
   const sw = fakeTarget({ controller: {}, register: (url) => { sw.registered = url; return Promise.resolve(reg); } });
   const doc = fakeTarget({ hidden: false });
   let reloads = 0;
-  initUpdates({ serviceWorker: sw, documentRef: doc, reload: () => { reloads += 1; }, onUpdateReady: () => {} });
+  initUpdates({ serviceWorker: sw, documentRef: doc, reload: () => { reloads += 1; }, onUpdateReady: () => {}, location: PROD });
   await Promise.resolve(); await Promise.resolve(); // let register() resolve
   assert.equal(sw.registered, './sw.js');
 
@@ -82,10 +84,34 @@ test('watchRegistration keeps watching after an already-waiting worker (long ses
   assert.deepEqual(ready, [reg.waiting, worker], 'a later update in the same session is reported too');
 });
 
+test('isDevHost flags developer machines but not real domains or LAN IPs', () => {
+  for (const hostname of ['', 'localhost', '127.0.0.1', '[::1]']) {
+    assert.equal(isDevHost({ hostname }), true, `${hostname || 'file://'} is dev`);
+  }
+  assert.equal(isDevHost(undefined), true, 'a missing location reads as dev (no domain)');
+  for (const hostname of ['cosmodial.app', '192.168.1.42']) {
+    assert.equal(isDevHost({ hostname }), false, `${hostname} is not dev`);
+  }
+});
+
+test('initUpdates skips registration on a dev host and tears down a stuck worker + caches', async () => {
+  let unregistered = 0;
+  const reg = { unregister() { unregistered += 1; } };
+  const sw = fakeTarget({ controller: {}, register: () => { throw new Error('should not register in dev'); },
+    getRegistrations: () => Promise.resolve([reg, reg]) });
+  const deleted = [];
+  const cacheStorage = { keys: () => Promise.resolve(['cosmodial-v13', 'cosmodial-v12']), delete: (k) => { deleted.push(k); return Promise.resolve(true); } };
+  initUpdates({ serviceWorker: sw, documentRef: fakeTarget({ hidden: false }), reload: () => {}, onUpdateReady: () => {}, location: { hostname: 'localhost' }, cacheStorage });
+  await Promise.resolve(); await Promise.resolve();
+  assert.equal(sw.registered, undefined, 'no worker registered on localhost');
+  assert.equal(unregistered, 2, 'every existing registration is unregistered');
+  assert.deepEqual(deleted, ['cosmodial-v13', 'cosmodial-v12'], 'all caches cleared');
+});
+
 test('initUpdates survives a rejecting register() and still reloads on takeover', async () => {
   const sw = fakeTarget({ controller: {}, register: () => Promise.reject(new Error('https required')) });
   let reloads = 0;
-  initUpdates({ serviceWorker: sw, documentRef: fakeTarget({ hidden: false }), reload: () => { reloads += 1; }, onUpdateReady: () => {} });
+  initUpdates({ serviceWorker: sw, documentRef: fakeTarget({ hidden: false }), reload: () => { reloads += 1; }, onUpdateReady: () => {}, location: PROD });
   await Promise.resolve(); await Promise.resolve();
   sw.fire('controllerchange');
   assert.equal(reloads, 1, 'controllerchange wiring lives outside the register() promise');

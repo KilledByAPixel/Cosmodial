@@ -1592,6 +1592,8 @@ async function boot() {
       documentRef: document,
       reload: () => location.reload(),
       onUpdateReady: (worker) => showActionToast('Update ready — tap to apply', () => worker.postMessage('skip-waiting')),
+      location: window.location,
+      cacheStorage: window.caches,
     });
   }));
 }

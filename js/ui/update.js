@@ -19,14 +19,34 @@ export function watchRegistration(reg, serviceWorker, onReady) {
   });
 }
 
+// True on a developer's own machine, where a cache-first worker is pure friction: it serves
+// the old bytes until sw.js's CACHE is bumped, so edits don't show up on reload. Everywhere
+// else (a real domain) the worker is exactly what we want for instant offline loads.
+// Empty hostname covers file://. LAN IPs (phone testing) are intentionally NOT dev — keep them
+// on the worker so install/offline behaviour matches production.
+export function isDevHost(location) {
+  const h = location?.hostname ?? '';
+  return h === '' || h === 'localhost' || h === '127.0.0.1' || h === '[::1]';
+}
+
+// On a dev host, dismantle any worker a previous visit installed (and its caches) so the page
+// stops being served stale bytes. This is why a plain reload "doesn't pick up changes": the
+// stuck worker outlives even a browser restart until something unregisters it.
+function teardownForDev(serviceWorker, cacheStorage) {
+  serviceWorker.getRegistrations?.().then((regs) => regs.forEach((r) => r.unregister())).catch(() => {});
+  cacheStorage?.keys?.().then((keys) => keys.forEach((k) => cacheStorage.delete(k))).catch(() => {});
+}
+
 // Registers the service worker and wires the full update loop:
 //  - onUpdateReady(worker) fires when a new version is ready (main.js shows the toast;
 //    tapping it posts 'skip-waiting' to the worker),
 //  - the page reloads once when the new worker takes over (controllerchange),
 //  - returning to a visible tab re-checks for updates (screensaver sessions run for hours).
 // No serviceWorker (old browser, file://) or a failed register: silently stay a plain website.
-export function initUpdates({ serviceWorker, documentRef, reload, onUpdateReady }) {
+// On a dev host we skip registration entirely and tear down any already-installed worker.
+export function initUpdates({ serviceWorker, documentRef, reload, onUpdateReady, location, cacheStorage }) {
   if (!serviceWorker) return;
+  if (isDevHost(location)) { teardownForDev(serviceWorker, cacheStorage); return; }
   serviceWorker.register('./sw.js').then((reg) => {
     watchRegistration(reg, serviceWorker, onUpdateReady);
     documentRef.addEventListener('visibilitychange', () => {
