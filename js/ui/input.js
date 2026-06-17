@@ -82,8 +82,8 @@ export function aimApproach(current, target, dt, tau) {
 }
 
 // Attach pointer/wheel input to the canvas. Mouse + single-finger touch drag the sky
-// (grab-the-sky); the wheel and two-finger pinch zoom toward the view center. Returns a detach()
-// function that removes all listeners.
+// (grab-the-sky); the wheel zooms toward the cursor and two-finger pinch zooms toward the view
+// center. Returns a detach() function that removes all listeners.
 export function attachInput(canvas, store, opts = {}) {
   const pointers = new Map(); // pointerId -> { x, y }
   let pinch = null;           // { startDist, startFov } while two fingers are down
@@ -183,7 +183,19 @@ export function attachInput(canvas, store, opts = {}) {
   const onWheel = (e) => {
     e.preventDefault(); // stop the page from scrolling
     if (opts.onUserZoom) opts.onUserZoom();
+    // Zoom toward the cursor: grab the sky direction under the pointer, change the FOV, then
+    // re-aim so that same direction stays pinned under the cursor — the grab-the-sky solve, but
+    // driven by the FOV change instead of a drag. (Touch never fires wheel; pinch-zoom keeps the
+    // center fixed, so touch devices still zoom toward the middle.) In gyro/AR aim mode the device
+    // owns the aim, so just change the FOV about the center like before.
+    const dir = dragAimEnabled(store.getState().flags) ? unproject(e.clientX, e.clientY, camNow()) : null;
     store.setFov(wheelToFov(store.getState().fov, e.deltaY));
+    if (!dir) return;
+    const cam = camNow(); // fov now updated + clamped by setFov
+    const { az, alt } = grabAim(dir, e.clientX, e.clientY, cam);
+    const grabAlt = (Math.asin(Math.max(-1, Math.min(1, dir[2]))) * 180) / Math.PI;
+    stopChase(); // snap straight to the solved aim; don't let a residual drag glide fight it
+    store.setAim(dampedGrabAz(cam.az, az, grabAlt), alt);
   };
 
   // Touches that end while the page is hidden never deliver a pointerup; drop all gesture state
