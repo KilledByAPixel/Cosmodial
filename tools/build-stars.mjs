@@ -1,6 +1,8 @@
 // One-off data prep (NOT part of the runtime). Requires Node >=18 and internet (once).
 // Run: node tools/build-stars.mjs
-// Downloads the HYG v4.1 catalog, keeps stars with mag <= 9.6, trims fields, writes data/stars.json.
+// Downloads the HYG v4.1 catalog, keeps stars with mag <= 9.6 PLUS any named star
+// (so faint-but-famous stars — nearby red dwarfs, exoplanet hosts — stay searchable),
+// trims fields, writes data/stars.json.
 import { writeFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -47,7 +49,10 @@ for (let i = 1; i < lines.length; i++) {
   if (!line) continue;
   const f = parseCSVLine(line);
   const mag = parseFloat(f[col.mag]);
-  if (!Number.isFinite(mag) || mag > MAG_LIMIT) continue;
+  if (!Number.isFinite(mag)) continue;
+  const proper = (f[col.proper] || '').trim();
+  // Keep everything to the magnitude limit, plus any named star past it.
+  if (mag > MAG_LIMIT && !proper) continue;
   const id = parseInt(f[col.id], 10);
   if (id === 0) continue; // HYG row 0 is the Sun
   const raHours = parseFloat(f[col.ra]);
@@ -55,7 +60,6 @@ for (let i = 1; i < lines.length; i++) {
   if (!Number.isFinite(raHours) || !Number.isFinite(dec)) continue;
   const ci = parseFloat(f[col.ci]);
   const hip = parseInt(f[col.hip], 10);
-  const proper = (f[col.proper] || '').trim();
   const con = (f[col.con] || '').trim();
   const distPc = parseFloat(f[col.dist]); // parsecs; HYG uses 100000 as an "unknown" placeholder
   stars.push({
@@ -73,4 +77,5 @@ for (let i = 1; i < lines.length; i++) {
 stars.sort((a, b) => a.mag - b.mag);
 await mkdir(dirname(OUT), { recursive: true });
 await writeFile(OUT, JSON.stringify(stars));
-console.log(`Wrote ${stars.length} stars (mag <= ${MAG_LIMIT}) to ${OUT}`);
+const namedBeyondLimit = stars.filter((s) => s.name && s.mag > MAG_LIMIT).length;
+console.log(`Wrote ${stars.length} stars (mag <= ${MAG_LIMIT}, plus ${namedBeyondLimit} named beyond the limit) to ${OUT}`);

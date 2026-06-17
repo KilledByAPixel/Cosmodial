@@ -9,12 +9,16 @@ test('stars.json is a sane magnitude-limited catalog', async () => {
   for (const s of stars) {
     assert.ok(Number.isFinite(s.ra) && s.ra >= 0 && s.ra < 360, `bad ra ${s.ra}`);
     assert.ok(Number.isFinite(s.dec) && s.dec >= -90 && s.dec <= 90, `bad dec ${s.dec}`);
-    assert.ok(Number.isFinite(s.mag) && s.mag <= 9.6, `bad mag ${s.mag}`);
+    // Kept stars are within the magnitude cut, OR named (faint-but-famous stars
+    // are pulled in past the limit so they stay searchable).
+    assert.ok(Number.isFinite(s.mag) && (s.mag <= 9.6 || s.name), `bad mag ${s.mag} (unnamed)`);
     assert.ok(s.dist === null || (Number.isFinite(s.dist) && s.dist > 0), `${s.name || s.id} dist must be null or positive`);
   }
   // A few bright named stars should survive a mag<=9.6 cut.
   const names = new Set(stars.map((s) => s.name).filter(Boolean));
   assert.ok(names.has('Sirius'), 'Sirius should be present');
+  // Faint-but-named stars below the cut should be pulled in for search (e.g. Proxima Centauri at mag ~11).
+  assert.ok(names.has('Proxima Centauri'), 'Proxima Centauri should be present despite being fainter than the cut');
 
   // Each entry carries the full field schema the renderer consumes.
   for (const key of ['id', 'ra', 'dec', 'mag', 'bv', 'name', 'con', 'hip', 'dist']) {
