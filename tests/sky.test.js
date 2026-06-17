@@ -24,6 +24,7 @@ function stubCtx() {
     lineTo() { calls.lineTo++; },
     stroke() { calls.stroke++; },
     fillText(text) { calls.fillText++; calls.texts.push(text); },
+    measureText(text) { return { width: text.length * 6 }; }, // ~6px/char, enough for overlap tests
   };
 }
 
@@ -142,6 +143,30 @@ test('drawStarLabels labels the brightest named stars only', () => {
   assert.ok(ctx.calls.texts.includes('Sirius'));
   assert.ok(!ctx.calls.texts.includes('DimStar'), 'dimmer than threshold -> not labeled');
   assert.ok(!ctx.calls.texts.includes('UnderStar'), 'below horizon hidden when belowFade=0');
+});
+
+test('drawStarLabels suppresses a label overlapping a brighter one, until they separate', () => {
+  const cam = { az: 180, alt: 45, fov: 60, width: 800, height: 600 };
+  // A tight pair on (nearly) the same spot — like Rigil Kentaurus + Toliman (Alpha Cen A/B).
+  // Brightest-first order means the brighter, better-known name wins.
+  const coincident = [
+    { altaz: { alt: 50, az: 180 }, mag: 0.0, bv: 0.0, name: 'RigilKentaurus' }, // placed first
+    { altaz: { alt: 50, az: 180 }, mag: 1.3, bv: 0.9, name: 'Toliman' },        // overlaps -> skipped
+  ];
+  const tight = stubCtx();
+  drawStarLabels(tight, coincident, createProjector(cam), cam, true, 0);
+  assert.ok(tight.calls.texts.includes('RigilKentaurus'), 'the brighter name is kept');
+  assert.ok(!tight.calls.texts.includes('Toliman'), 'the overlapping dimmer name is suppressed');
+
+  // Same pair, well separated on screen (the zoomed-in case) -> both labels fit.
+  const separated = [
+    { altaz: { alt: 50, az: 195 }, mag: 0.0, bv: 0.0, name: 'RigilKentaurus' },
+    { altaz: { alt: 50, az: 165 }, mag: 1.3, bv: 0.9, name: 'Toliman' },
+  ];
+  const apart = stubCtx();
+  drawStarLabels(apart, separated, createProjector(cam), cam, true, 0);
+  assert.ok(apart.calls.texts.includes('RigilKentaurus') && apart.calls.texts.includes('Toliman'),
+    'once separated, both labels are drawn');
 });
 
 test('drawStarLabels honors belowFade and labels:false', () => {

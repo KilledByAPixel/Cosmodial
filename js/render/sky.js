@@ -11,6 +11,24 @@ const STAR_MARGIN = 22; // px; covers the largest zoomed star disc (STAR_MAX_R *
 const STAR_LABEL_MAG = 2.0; // only label the brightest named stars, to keep the view uncluttered
 const STAR_LABEL_COLOR = 'rgba(150, 190, 230, 0.9)';
 const LABEL_FONT = '11px system-ui, sans-serif';
+const LABEL_OFFSET_X = 6;  // px; text nudged up-right of the star (must match the fillText calls)
+const LABEL_OFFSET_Y = -6;
+const LABEL_BOX_H = 13;    // px; approximate height of the 11px label box for overlap tests
+
+// Labels are placed brightest-first (the catalog is mag-sorted), so when two would overlap the
+// brighter, better-known name wins and the dimmer one is suppressed. `placed` accumulates the
+// screen rect of every label drawn this frame; returns false (skip) if `text` at (px,py) would
+// overlap one already there. This is what stops Rigil Kentaurus + Toliman (Alpha Cen A/B, only a
+// few arcsec apart) from stacking — they separate and both reappear once you zoom in far enough.
+function placeLabel(ctx, placed, text, px, py) {
+  const w = ctx.measureText(text).width;
+  const r = { x: px + LABEL_OFFSET_X, y: py + LABEL_OFFSET_Y - LABEL_BOX_H, w, h: LABEL_BOX_H };
+  for (const q of placed) {
+    if (r.x < q.x + q.w && r.x + r.w > q.x && r.y < q.y + q.h && r.y + r.h > q.y) return false;
+  }
+  placed.push(r);
+  return true;
+}
 
 export function resizeCanvas(canvas) {
   const dpr = window.devicePixelRatio || 1;
@@ -37,7 +55,7 @@ function clear(ctx, width, height, transparent = false) {
   }
 }
 
-function drawStarPoint(ctx, s, projector, cam, zs, fade, labels) {
+function drawStarPoint(ctx, s, projector, cam, zs, fade, labels, placed) {
   const below = s.altaz.alt < 0;
   if (below && fade <= 0) return; // below horizon, fully faded out
   const p = projector(s.altaz.az, s.altaz.alt);
@@ -51,11 +69,12 @@ function drawStarPoint(ctx, s, projector, cam, zs, fade, labels) {
   ctx.beginPath();
   ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
   ctx.fill();
-  // Label only the brightest named stars so they can be matched against a sky chart.
-  if (labels && s.name && s.mag <= STAR_LABEL_MAG) {
+  // Label only the brightest named stars so they can be matched against a sky chart,
+  // skipping any that would overlap a brighter label already placed this frame.
+  if (labels && s.name && s.mag <= STAR_LABEL_MAG && placeLabel(ctx, placed, s.name, p.x, p.y)) {
     ctx.globalAlpha = below ? fade : 1;
     ctx.fillStyle = STAR_LABEL_COLOR;
-    ctx.fillText(s.name, p.x + 6, p.y - 6);
+    ctx.fillText(s.name, p.x + LABEL_OFFSET_X, p.y + LABEL_OFFSET_Y);
   }
 }
 
@@ -65,20 +84,21 @@ function drawStars(ctx, stars, projector, cam, edit, labels = true, belowFade = 
   ctx.font = LABEL_FONT;
   const zs = zoomScale(cam.fov);
   const fade = edit ? 1 : belowFade; // edit mode always shows the whole sphere
+  const placed = []; // label rects placed this frame, for overlap suppression
   // Stop at the first star past the cull limit: everything after it would draw below CULL_ALPHA,
   // an invisible sub-pixel speck. (WebGL mode draws the whole catalog instead — the shader's
   // identical alpha fade hides the same stars at no CPU cost.)
   const magLimit = faintMagLimit(zs);
   let i = 0;
   for (; i < stars.length && stars[i].mag <= magLimit; i++) {
-    drawStarPoint(ctx, stars[i], projector, cam, zs, fade, labels);
+    drawStarPoint(ctx, stars[i], projector, cam, zs, fade, labels, placed);
   }
   // A selected faint star (reachable via search) still draws past the cull, so its highlight
   // ring doesn't circle empty sky.
   if (selectedStarId != null) {
     for (; i < stars.length; i++) {
       if (stars[i].id !== selectedStarId) continue;
-      drawStarPoint(ctx, stars[i], projector, cam, zs, fade, labels);
+      drawStarPoint(ctx, stars[i], projector, cam, zs, fade, labels, placed);
       break;
     }
   }
@@ -92,6 +112,7 @@ export function drawStarLabels(ctx, stars, projector, cam, labels = true, belowF
   if (!labels) return;
   ctx.font = LABEL_FONT;
   ctx.fillStyle = STAR_LABEL_COLOR;
+  const placed = []; // label rects placed this frame, for overlap suppression
   for (const s of stars) {
     if (!s.name || s.mag > STAR_LABEL_MAG) continue;
     const below = s.altaz.alt < 0;
@@ -100,8 +121,9 @@ export function drawStarLabels(ctx, stars, projector, cam, labels = true, belowF
     if (!p.visible ||
         p.x < -STAR_MARGIN || p.x > cam.width + STAR_MARGIN ||
         p.y < -STAR_MARGIN || p.y > cam.height + STAR_MARGIN) continue;
+    if (!placeLabel(ctx, placed, s.name, p.x, p.y)) continue; // overlaps a brighter label
     ctx.globalAlpha = below ? belowFade : 1;
-    ctx.fillText(s.name, p.x + 6, p.y - 6);
+    ctx.fillText(s.name, p.x + LABEL_OFFSET_X, p.y + LABEL_OFFSET_Y);
   }
   ctx.globalAlpha = 1;
 }
