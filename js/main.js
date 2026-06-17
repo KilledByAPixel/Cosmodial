@@ -6,7 +6,7 @@ import { bodyScreenOrientation, altazSepDeg, discObscuration, frameFovDeg, plane
 import { buildTimeControls } from './ui/time-controls.js';
 import { buildMenu, buildSkyToggles } from './ui/menu.js';
 import { screenshotName, saveComposite } from './ui/screenshot.js';
-import { PLANETS, planetRadius, planetChipFade } from './render/planets.js';
+import { PLANETS, planetRadius, planetChipFade, PLANET_GLOW } from './render/planets.js';
 import { COMETS } from './core/comets.js';
 import { SATURN_RING, ringOpening } from './render/ring-math.js';
 import { drawScene, drawStarLabels, markerRadius, resizeCanvas, SUN_SCALE } from './render/sky.js';
@@ -185,7 +185,7 @@ function computeSky(full) {
   }
   const planetMarkers = PLANETS.map((p) => {
     const mag = bodyMagnitude(p.body, time);
-    return { altaz: altAzOfBody(p.body, observer, time), label: p.name, color: p.color, radius: planetRadius(mag), body: p.body, mag, alpha: markerAlpha(mag) };
+    return { altaz: altAzOfBody(p.body, observer, time), label: p.name, color: p.color, radius: planetRadius(mag), body: p.body, mag, alpha: markerAlpha(mag) * PLANET_GLOW };
   });
   markers = [
     { altaz: altAzOfBody(Body.Moon, observer, time), label: 'Moon', color: '#e8e8e8', angularRadiusDeg: bodyAngularRadiusDeg(Body.Moon, observer, time), body: Body.Moon, mag: bodyMagnitude(Body.Moon, time), alpha: 1 },
@@ -491,6 +491,9 @@ function render() {
         az: m.altaz.az, alt: m.altaz.alt, color: m.color,
         radiusPx: markerRadius(m, cam),
         alpha: chipFade.has(m.label) ? m.alpha * chipFade.get(m.label) : m.alpha,
+        // Point markers (planets, planet-moons, comets, satellites) render as soft star-style glows;
+        // only the Sun keeps a solid disc. The Moon never reaches here (it always draws as a sphere).
+        soft: m.label !== 'Sun',
       }));
     starfield.drawMarkers(glMarkers, cam, { belowFade });
   }

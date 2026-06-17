@@ -43,7 +43,7 @@ test('colorBrightness: white stars are brightest, saturated stars a touch dimmer
 
 test('starSize: faint stars are clamped small and dimmed via alpha', () => {
   const bright = starSize(-1, 1);
-  const mid = starSize(2, 1);
+  const mid = starSize(3, 1); // below the bright cap, so a genuine mid-size
   const faint = starSize(7, 1);
   assert.ok(bright.radius > mid.radius, 'brighter -> bigger');
   assert.equal(bright.alpha, 1, 'bright stars at full magnitude-alpha');

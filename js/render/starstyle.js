@@ -2,11 +2,14 @@ import { clamp } from '../core/angles.js';
 
 const REF_FOV = 60;           // baseline (naked-eye) FOV; zoom scale is 1 here
 const MAX_ZOOM_SCALE = 4;     // cap so zoomed-in stars don't balloon
+const MIN_ZOOM_SCALE = 0.75;  // floor for zoom-OUT shrink. Lower = tinier wide views; nearer 1 = Stellarium-
+                              // like (stays prominent when zoomed out). 0.75 keeps a mild shrink only.
 
 // --- Star size/brightness tunables (tweak to taste against a real sky chart) ---
-const STAR_BASE_R = 9.4;      // radius (px) of a magnitude-0 star at the widest FOV
+const STAR_BASE_R = 9.4;      // radius (px) of a magnitude-0 star at the reference FOV
 const STAR_MAG_SHRINK = 0.6; // radius multiplier per +1 magnitude (each fainter mag is smaller)
-const STAR_MAX_R = 5;         // cap radius (px, at base zoom) so the brightest stars pop, not bloat
+const STAR_MAX_R = 3.0;       // cap radius (px, at base zoom) for the brightest stars — keeps them from
+                             // bloating while staying a touch exaggerated (Stellarium-ward), not dwarfing planets
 const STAR_MIN_R = 1.0;       // below this, stop shrinking and fade via alpha instead
 const STAR_DIM_EXP = 1.5;     // how steeply sub-pixel (faint) stars fade out
 const CULL_ALPHA = 0.05;      // 2D fallback skips stars whose alpha would land below this
@@ -19,9 +22,11 @@ export const STAR_CONSTS = Object.freeze({
   STAR_BASE_R, STAR_MAG_SHRINK, STAR_MAX_R, STAR_MIN_R, STAR_DIM_EXP,
 });
 
-// Zoom multiplier: 1 at the widest FOV, growing sub-linearly so zooming magnifies, capped.
-export function zoomScale(fov, { refFov = REF_FOV, maxScale = MAX_ZOOM_SCALE } = {}) {
-  return clamp(Math.sqrt(refFov / fov), 1, maxScale);
+// Zoom multiplier: 1 at the reference (naked-eye) FOV, growing sub-linearly as you zoom IN (capped at
+// maxScale) and shrinking below 1 as you zoom OUT (floored at minScale) so wide views read tighter and
+// more photographic instead of freezing the dots at full size.
+export function zoomScale(fov, { refFov = REF_FOV, maxScale = MAX_ZOOM_SCALE, minScale = MIN_ZOOM_SCALE } = {}) {
+  return clamp(Math.sqrt(refFov / fov), minScale, maxScale);
 }
 
 // A star's rendered { radius, alpha } from magnitude. Brightness is conveyed mostly by SIZE: bright

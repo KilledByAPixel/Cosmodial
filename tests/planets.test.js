@@ -13,12 +13,17 @@ test('PLANETS lists Mercury..Neptune (naked-eye five + the two ice giants) with 
   }
 });
 
-test('planetRadius: brighter (lower mag) planets are larger, within bounds', () => {
-  assert.ok(planetRadius(-4) > planetRadius(1), 'Venus bigger than a dim planet');
-  for (const m of [-4.5, -2, 0, 2, 5]) {
+test('planetRadius: brighter planets are larger (down to the bright cap), monotonic and floored', () => {
+  assert.ok(planetRadius(-4) > planetRadius(6), 'the brightest planets out-size the faint ones');
+  const cap = planetRadius(-10); // saturated bright end — every brighter mag clamps here
+  let prev = Infinity;
+  for (const m of [-4.5, -2, 0, 2, 4, 6, 14]) {
     const r = planetRadius(m);
-    assert.ok(r >= 1.5 && r <= 3.5, `radius ${r} out of bounds for mag ${m}`);
+    assert.ok(r > 0 && r <= cap, `radius ${r} out of bounds for mag ${m}`);
+    assert.ok(r <= prev, `radius not monotonic at mag ${m}`);
+    prev = r;
   }
+  assert.ok(planetRadius(14) > 0 && planetRadius(14) < planetRadius(0), 'faint planets are small but visible');
 });
 
 test('planetChipFade: full chip at/below the resolve threshold, gone once the disc is +50% larger', () => {

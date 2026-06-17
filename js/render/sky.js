@@ -1,5 +1,6 @@
 import { createProjector, focalPx } from '../core/projection.js';
 import { starSize, bvToRGB, zoomScale, colorBrightness, faintMagLimit } from './starstyle.js';
+import { planetRadius } from './planets.js';
 import { drawConstellations } from './constellations.js';
 import { drawGrid } from './grid.js';
 import { drawEqGrid } from './eqgrid.js';
@@ -121,6 +122,9 @@ export function markerRadius(m, cam) {
     const scale = m.radiusScale != null ? m.radiusScale : (m.label === 'Sun' ? SUN_SCALE : MOON_SCALE);
     return focal * Math.tan(degToRad(m.angularRadiusDeg)) * scale;
   }
+  // Point-source markers (planets, moons, comets, satellites) ride the same magnitude->radius curve as
+  // stars, zoom-scaled, so they grow with the field as you zoom in — until a planet's true disc resolves.
+  if (m.mag != null && Number.isFinite(m.mag)) return planetRadius(m.mag, zoomScale(cam.fov));
   return m.radius || 4;
 }
 

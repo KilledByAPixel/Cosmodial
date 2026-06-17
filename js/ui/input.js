@@ -64,10 +64,10 @@ export function dampedGrabAz(currentAz, solvedAz, grabAltDeg, zone = 20) {
   return (((currentAz + delta * f) % 360) + 360) % 360;
 }
 
-// How quickly the aim chases the drag target (seconds). Slow drags lag by velocity·tau —
-// imperceptible — while a fast flick becomes a very quick glide instead of a jerk. Tune to taste;
-// 0 would restore the old instant-snap feel.
-const DRAG_TAU = 0.05;
+// How quickly the aim chases the drag target (seconds). 0 = instant snap: the aim pins exactly to the
+// cursor every frame, no smoothing. Raise it for a damped glide where a fast flick coasts to a stop
+// instead of jerking (slow drags then lag by velocity·tau, ~imperceptible at small values). Tune to taste.
+const DRAG_TAU = 0;
 
 // Exponential approach of the aim toward the drag target: factor 1 - exp(-dt/tau) per step, so the
 // motion is frame-rate independent (two half-steps equal one full step). Shortest-path azimuth.

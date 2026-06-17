@@ -54,8 +54,10 @@ export function hexToRgb01(hex) {
 }
 
 // Build the per-marker vertex data (Sun/Moon/planets). PURE (no GL) so it's unit-testable.
-// markerList items: { az, alt, color (hex), radiusPx (CSS px disc radius), alpha (0..1 glow gain) }.
+// markerList items: { az, alt, color (hex), radiusPx (CSS px disc radius), alpha (0..1 glow gain),
+//   soft? (true = render as a star-style soft glow instead of a solid disc) }.
 // Interleaved layout per marker (stride 8 floats): [dirX, dirY, dirZ, r, g, b, coreRadiusPx, alpha].
+// `soft` is encoded as the SIGN of coreRadiusPx (negative = soft) so no extra attribute/buffer is needed.
 export function buildMarkerAttributes(markerList) {
   const count = markerList.length;
   const data = new Float32Array(count * FLOATS_PER_MARKER);
@@ -66,7 +68,7 @@ export function buildMarkerAttributes(markerList) {
     const o = i * FLOATS_PER_MARKER;
     data[o] = d[0]; data[o + 1] = d[1]; data[o + 2] = d[2];
     data[o + 3] = rgb[0]; data[o + 4] = rgb[1]; data[o + 5] = rgb[2];
-    data[o + 6] = m.radiusPx;
+    data[o + 6] = m.soft ? -m.radiusPx : m.radiusPx;
     data[o + 7] = m.alpha;
   }
   return { data, count };
@@ -209,6 +211,7 @@ uniform float uBelowFade;
 
 out vec3 vColor;
 out float vAlpha;
+out float vSoft;   // 1.0 = render as a pure soft glow (like a star); 0.0 = solid disc + halo
 
 void main() {
   if (uBelowFade <= 0.0 && aDir.z < 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; }
@@ -221,8 +224,12 @@ void main() {
   gl_Position = vec4(sx / (uViewport.x * 0.5), sy / (uViewport.y * 0.5), 0.0, 1.0);
   vColor = aColor;
   vAlpha = aAlpha * ((aDir.z < 0.0) ? uBelowFade : 1.0); // below-horizon markers ride the fade
+  // A NEGATIVE core radius is the "soft glow" flag (unresolved planet points, comets, satellites): they
+  // render exactly like a star instead of a hard disc. The Sun (and any real disc) passes it positive.
+  vSoft = aCoreRadius < 0.0 ? 1.0 : 0.0;
+  float coreR = abs(aCoreRadius);
   // Sprite diameter = disc diameter * MARKER_GLOW_SCALE so the disc fills the central 1/scale (see fragment).
-  gl_PointSize = min(aCoreRadius * 2.0 * ${glslFloat(MARKER_GLOW_SCALE)} * uDpr, uMaxPointSize);
+  gl_PointSize = min(coreR * 2.0 * ${glslFloat(MARKER_GLOW_SCALE)} * uDpr, uMaxPointSize);
 }`;
 }
 
@@ -233,17 +240,24 @@ precision highp float;
 
 in vec3 vColor;
 in float vAlpha;
+in float vSoft;
 out vec4 fragColor;
 
 void main() {
   float d = length(gl_PointCoord - vec2(0.5)) * 2.0;       // 0 at center .. 1 at sprite edge
-  float coreEdge = 1.0 / ${glslFloat(MARKER_GLOW_SCALE)};   // solid disc occupies the central 1/scale
   float intensity;
-  if (d <= coreEdge) {
-    intensity = 1.0;                                        // inside the disc: full
+  if (vSoft > 0.5) {
+    // Pure soft glow — pixel-identical to the star fragment (same falloff, scale and brightness), so an
+    // unresolved planet point reads as a slightly-bigger coloured star rather than a hard little ball.
+    intensity = pow(clamp(1.0 - d, 0.0, 1.0), ${glslFloat(MARKER_GLOW_FALLOFF)});
   } else {
-    float h = clamp((d - coreEdge) / (1.0 - coreEdge), 0.0, 1.0);
-    intensity = pow(1.0 - h, ${glslFloat(MARKER_GLOW_FALLOFF)}); // halo fades to the sprite edge
+    float coreEdge = 1.0 / ${glslFloat(MARKER_GLOW_SCALE)};   // solid disc occupies the central 1/scale
+    if (d <= coreEdge) {
+      intensity = 1.0;                                        // inside the disc: full
+    } else {
+      float h = clamp((d - coreEdge) / (1.0 - coreEdge), 0.0, 1.0);
+      intensity = pow(1.0 - h, ${glslFloat(MARKER_GLOW_FALLOFF)}); // halo fades to the sprite edge
+    }
   }
   float a = intensity * vAlpha;
   if (a <= 0.003) discard;
