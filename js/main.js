@@ -1534,7 +1534,7 @@ async function boot() {
     },
   });
   if (controls) controls.append(menu.el, ...skyToggles, search.el, buildTimeControls(store));
-  // Thin screens: the emoji sky toggles (🌅 🌙 📱) leave the bar for the menu's Sky section so the
+  // Thin screens: the emoji sky toggles (🌅 🌙) leave the bar for the menu's Sky section so the
   // search box keeps its width; they move back when the viewport widens (rotation, window resize).
   // Moving the same DOM nodes preserves their listeners and on/off state either way.
   const thinBar = window.matchMedia('(max-width: 640px)');

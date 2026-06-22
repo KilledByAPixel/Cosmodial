@@ -26,14 +26,15 @@ export function makeToggle(store, label, flag, className = '') {
   return btn;
 }
 
-// The gyroscope/AR toggle: shown only on devices with orientation sensors. Activating it requests
-// permission (must run inside this click handler for iOS) and, if granted, streams device orientation
-// into store.setOrientation; deactivating detaches and lets setFlag('gyro', false) level the roll.
+// The gyroscope/AR aim toggle: a labelled Tools-section button, shown only on devices with
+// orientation sensors. Activating it requests permission (must run inside this click handler for
+// iOS) and, if granted, streams device orientation into store.setOrientation; deactivating detaches
+// and lets setFlag('gyro', false) level the roll.
 function makeGyroToggle(store) {
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = 'view-toggle icon-toggle';
-  btn.textContent = '📱';
+  btn.className = 'view-toggle';
+  btn.textContent = '📱 AR aim';
   btn.title = 'AR — aim by moving your phone';
   let detach = null;
   let activating = false; // guards against a second tap while the (async) permission prompt is open
@@ -128,7 +129,7 @@ export function buildMenu(store, opts = {}) {
       makeToggle(store, 'Deep sky', 'deepsky'),
       makeToggle(store, 'Horizon', 'horizon')),
   );
-  // On narrow screens main.js re-homes the bar's emoji sky toggles (🌅 🌙 📱) into this section
+  // On narrow screens main.js re-homes the bar's emoji sky toggles (🌅 🌙) into this section
   // to free bar width for the search box; it stays hidden while empty (see placeSkyToggles).
   const skySection = section('Sky');
   skySection.hidden = true;
@@ -137,6 +138,13 @@ export function buildMenu(store, opts = {}) {
   // action closes the menu first so the chrome is already gone when the tour starts.
   let pop; // assigned below
   const tools = [];
+  // AR/gyro aim lives in Tools, revealed only once detectGyro confirms a real sensor (desktop
+  // browsers define the orientation API without ever delivering data, so a plain feature check
+  // would show it everywhere). Hidden until confirmed; the rest of Tools keeps the section alive.
+  const arBtn = makeGyroToggle(store);
+  arBtn.hidden = true;
+  detectGyro((ok) => { arBtn.hidden = !ok; });
+  tools.push(arBtn);
   if (opts.onScreenshot) tools.push(makeAction('📷 Screenshot', 'Save the current view as a PNG', opts.onScreenshot));
   if (opts.onScreensaver) {
     tools.push(makeAction('🌌 Sky Tour', 'Sit back and tour the sky — a tap, Space, Enter, or Esc exits',
@@ -163,17 +171,12 @@ export function buildMenu(store, opts = {}) {
   return { el, skySection, skyRow: skySection.querySelector('.menu-row') };
 }
 
-// The sky switches as emoji-only bar buttons (the name lives in the hover tooltip): atmosphere,
-// night mode, and — only on devices with orientation sensors — the AR aim toggle. The AR button is
-// created hidden and revealed only once detectGyro confirms a real sensor (desktop browsers define
-// the orientation API without ever delivering data, so a plain feature check shows it everywhere).
+// The sky switches as emoji-only bar buttons (the name lives in the hover tooltip): atmosphere
+// and night mode. (AR aim moved to the menu's Tools section — see makeGyroToggle.)
 export function buildSkyToggles(store) {
   const atmo = makeToggle(store, '🌅', 'atmo', 'icon-toggle');
   atmo.title = 'Atmosphere';
   const night = makeToggle(store, '🌙', 'night', 'icon-toggle night-toggle');
   night.title = 'Night mode';
-  const ar = makeGyroToggle(store);
-  ar.hidden = true;
-  detectGyro((ok) => { ar.hidden = !ok; });
-  return [atmo, night, ar];
+  return [atmo, night];
 }
