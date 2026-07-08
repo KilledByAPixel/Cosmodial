@@ -10,6 +10,8 @@ Ever look up and wonder *"wait, is that a planet or just a really bright star?"*
 
 Cosmodial knows. Tell it where you are and it paints the actual sky above your head, live! The Milky Way drifting overhead, the horizon glowing at dusk, planets show up exactly where they really are. Drag to look around, zoom from a wide view all the way down to a telescopic eyepiece view where Saturn's rings resolve.
 
+![Cosmodial Splash](images/icon-192.png)
+
 ## What you can do
 
 🧭 **Watch the sky.** Set your location and the sky matches reality. Point your phone at the sky and the view follows.
