@@ -117,6 +117,18 @@ function dirSize(dir) {
     console.log(`  ✓ ${f}`);
   }
 
+  // The `hip` (Hipparcos number) field is provenance only — read nowhere at runtime — so drop it
+  // from the shipped catalogue (~1.1 MB raw). The committed data/stars.json keeps it; going forward
+  // tools/build-stars.mjs no longer emits it, at which point this loop simply finds nothing to drop.
+  {
+    const starsPath = join(DIST, 'data', 'stars.json');
+    const stars = JSON.parse(readFileSync(starsPath, 'utf8'));
+    let dropped = 0;
+    for (const s of stars) if ('hip' in s) { delete s.hip; dropped++; }
+    writeFileSync(starsPath, JSON.stringify(stars));
+    console.log(`  ✓ stars.json: stripped hip from ${dropped} records → ${(statSync(starsPath).size / 1024 / 1024).toFixed(2)} MB`);
+  }
+
   // Post-build integrity: everything the SW promises to cache must be in dist/.
   const missing = precache.filter((p) => !existsSync(join(DIST, p)));
   if (missing.length) {

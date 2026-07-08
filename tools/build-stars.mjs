@@ -39,7 +39,7 @@ const text = await res.text();
 const lines = text.split(/\r?\n/);
 const header = parseCSVLine(lines[0]);
 const col = Object.fromEntries(header.map((h, i) => [h.trim(), i]));
-for (const need of ['id', 'ra', 'dec', 'mag', 'ci', 'proper', 'con', 'hip', 'dist']) {
+for (const need of ['id', 'ra', 'dec', 'mag', 'ci', 'proper', 'con', 'dist']) {
   if (!(need in col)) throw new Error(`HYG missing column "${need}". Header: ${header.join(',')}`);
 }
 
@@ -59,7 +59,6 @@ for (let i = 1; i < lines.length; i++) {
   const dec = parseFloat(f[col.dec]);
   if (!Number.isFinite(raHours) || !Number.isFinite(dec)) continue;
   const ci = parseFloat(f[col.ci]);
-  const hip = parseInt(f[col.hip], 10);
   const con = (f[col.con] || '').trim();
   const distPc = parseFloat(f[col.dist]); // parsecs; HYG uses 100000 as an "unknown" placeholder
   stars.push({
@@ -70,7 +69,6 @@ for (let i = 1; i < lines.length; i++) {
     bv: Number.isFinite(ci) ? round(ci, 3) : null,
     name: proper || null,
     con: con || null,
-    hip: Number.isFinite(hip) ? hip : null,
     dist: (Number.isFinite(distPc) && distPc > 0 && distPc < 100000) ? round(distPc, 2) : null,
   });
 }
