@@ -9,12 +9,13 @@
 // version has finished installing. Cross-origin requests (satellite TLE fetches) are not
 // intercepted — js/core/satellites.js has its own localStorage fallback.
 
-const CACHE = 'cosmodial-v18';
+const CACHE = 'cosmodial-v19';
 
 const PRECACHE = [
   './index.html',
   './manifest.webmanifest',
   './css/styles.css',
+  './images/favicon.png',
   './images/icon-192.png',
   './images/icon-512.png',
   './images/icon-maskable-512.png',
