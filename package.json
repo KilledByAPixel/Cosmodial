@@ -10,6 +10,6 @@
   },
   "license": "MIT",
   "devDependencies": {
-    "terser": "^5.31.0"
+    "esbuild": "^0.24.0"
   }
 }
