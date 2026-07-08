@@ -2,7 +2,7 @@
 
 **The whole night sky running live in your browser.**
 
-## [✨ Open Cosmodial →](https://killedbyapixel.github.io/Cosmodial/)
+## [✨ Open Cosmodial →](https://cosmodial.3d2k.com/)
 
 ![Cosmodial Splash](images/cosmodial-social.png)
 
