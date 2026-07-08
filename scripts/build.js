@@ -117,7 +117,8 @@ const kb = (bytes) => (bytes / 1024).toFixed(1) + ' KB';
   const html = readFileSync(join(ROOT, 'index.html'), 'utf8').replace('./js/main.js', './js/app.js');
   writeFileSync(join(DIST, 'index.html'), html);
   cpSync(join(ROOT, 'manifest.webmanifest'), join(DIST, 'manifest.webmanifest'));
-  console.log('  ✓ index.html (→ js/app.js) + manifest.webmanifest');
+  cpSync(join(ROOT, 'privacy.html'), join(DIST, 'privacy.html'));
+  console.log('  ✓ index.html (→ js/app.js) + manifest.webmanifest + privacy.html');
 
   // 4. Copy assets verbatim.
   console.log('\n📦 Copying assets...\n');

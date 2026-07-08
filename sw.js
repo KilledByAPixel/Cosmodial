@@ -9,7 +9,7 @@
 // version has finished installing. Cross-origin requests (satellite TLE fetches) are not
 // intercepted — js/core/satellites.js has its own localStorage fallback.
 
-const CACHE = 'cosmodial-v21';
+const CACHE = 'cosmodial-v22';
 
 const PRECACHE = [
   './index.html',
@@ -113,9 +113,14 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   if (new URL(e.request.url).origin !== self.location.origin) return; // TLE fetches etc. pass through
   if (e.request.mode === 'navigate') {
-    // Any navigation (including share links with ?obj=... params) is the one-page app.
-    e.respondWith(caches.match('./index.html').then((r) => r || fetch(e.request)));
-    return;
+    // Standalone pages (e.g. privacy.html) are real files — serve them as-is, don't hijack with
+    // the app shell. Any other navigation (including share links with ?obj=... params) is the
+    // one-page app.
+    const path = new URL(e.request.url).pathname;
+    if (!(path.endsWith('.html') && !path.endsWith('/index.html'))) {
+      e.respondWith(caches.match('./index.html').then((r) => r || fetch(e.request)));
+      return;
+    }
   }
   e.respondWith(caches.match(e.request).then((r) => r || fetch(e.request)));
 });
