@@ -5,7 +5,11 @@
   "type": "module",
   "description": "A simple, free, offline-first telescope/stargazing web app.",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "build": "node scripts/build.js"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "terser": "^5.31.0"
+  }
 }
