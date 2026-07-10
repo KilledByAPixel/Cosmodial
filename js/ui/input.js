@@ -81,6 +81,16 @@ export function aimApproach(current, target, dt, tau) {
   };
 }
 
+// The iOS loupe: a quick double tap summons the text-magnifier bubble even with user-select:
+// none everywhere — long-standing WebKit bug, CSS can't stop it; only preventDefault() on the
+// second tap's touchend does. That also swallows the tap's synthesized click, so taps on
+// interactive elements pass through: rapid-tapping a time stepper must keep clicking. (The sky
+// canvas doesn't care — its taps are pointer events, which touchend preventDefault leaves alone.)
+// sincePrevMs: time since the previous touchend anywhere. PURE — unit-tested.
+export function swallowSecondTap(sincePrevMs, onInteractive, windowMs = 350) {
+  return !onInteractive && sincePrevMs < windowMs;
+}
+
 // Attach pointer/wheel input to the canvas. Mouse + single-finger touch drag the sky
 // (grab-the-sky); the wheel zooms toward the cursor and two-finger pinch zooms toward the view
 // center. Returns a detach() function that removes all listeners.
@@ -222,6 +232,16 @@ export function attachInput(canvas, store, opts = {}) {
     if (lapse && opts.onTimeLapse) opts.onTimeLapse(lapse);
   };
 
+  // Document-wide, not canvas-only: the loupe pops over panel text and labels too. e.cancelable
+  // guards the touchend that ends a scroll (non-cancelable; preventDefault would only warn).
+  let lastTouchEnd = -Infinity;
+  const onTouchEnd = (e) => {
+    const onInteractive = !!(e.target && e.target.closest &&
+      e.target.closest('button, input, select, textarea, a, label, summary'));
+    if (e.cancelable && swallowSecondTap(e.timeStamp - lastTouchEnd, onInteractive)) e.preventDefault();
+    lastTouchEnd = e.timeStamp;
+  };
+
   canvas.addEventListener('pointerdown', onDown);
   canvas.addEventListener('pointermove', onMove);
   canvas.addEventListener('pointerup', onEnd);
@@ -229,6 +249,7 @@ export function attachInput(canvas, store, opts = {}) {
   canvas.addEventListener('wheel', onWheel, { passive: false });
   window.addEventListener('keydown', onKey);
   document.addEventListener('visibilitychange', onHidden);
+  document.addEventListener('touchend', onTouchEnd, { passive: false });
 
   return function detach() {
     canvas.removeEventListener('pointerdown', onDown);
@@ -238,5 +259,6 @@ export function attachInput(canvas, store, opts = {}) {
     canvas.removeEventListener('wheel', onWheel);
     window.removeEventListener('keydown', onKey);
     document.removeEventListener('visibilitychange', onHidden);
+    document.removeEventListener('touchend', onTouchEnd);
   };
 }

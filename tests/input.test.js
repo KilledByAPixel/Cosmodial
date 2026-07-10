@@ -1,6 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { wheelToFov, pinchToFov, toggleKeyAction, timeLapseKeyAction, dragAimEnabled, dampedGrabAz, aimApproach, ghostPointerIds } from '../js/ui/input.js';
+import { wheelToFov, pinchToFov, toggleKeyAction, timeLapseKeyAction, dragAimEnabled, dampedGrabAz, aimApproach, ghostPointerIds, swallowSecondTap } from '../js/ui/input.js';
+
+test('swallowSecondTap: quick second tap is swallowed, unless on an interactive element', () => {
+  assert.equal(swallowSecondTap(200, false), true, 'quick second tap on plain content -> swallow (kills the iOS loupe)');
+  assert.equal(swallowSecondTap(600, false), false, 'unhurried tap -> keep');
+  assert.equal(swallowSecondTap(200, true), false, 'rapid taps on a button -> keep every click');
+  assert.equal(swallowSecondTap(Infinity, false), false, 'very first tap ever -> keep');
+});
 
 test('aimApproach eases toward the target: shortest-path azimuth, frame-rate independent', () => {
   // dt == tau -> factor 1 - 1/e ~= 0.632; az 350 -> 10 goes the short way THROUGH north

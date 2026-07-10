@@ -50,6 +50,7 @@ export function buildLocationControl(store) {
   const pop = attachPopover(cityBtn, panel);
   function pick(c) {
     store.setLocation(c.lat, c.lng, c.label);
+    input.value = ''; // leftover half-typed coords would read as the source of the new location
     pop.close();
   }
   function renderCities() {
@@ -81,7 +82,7 @@ export function buildLocationControl(store) {
     if (!navigator.geolocation) { cityBtn.textContent = 'geolocation unavailable'; return; }
     cityBtn.textContent = 'locating…';
     navigator.geolocation.getCurrentPosition(
-      (pos) => store.setLocation(pos.coords.latitude, pos.coords.longitude, 'My location'),
+      (pos) => { store.setLocation(pos.coords.latitude, pos.coords.longitude, 'My location'); input.value = ''; },
       () => { cityBtn.textContent = 'location denied'; },
       { enableHighAccuracy: false, timeout: 10000 },
     );
