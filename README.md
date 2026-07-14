@@ -4,6 +4,8 @@
 
 ## [✨ Open Cosmodial](https://cosmodial.3d2k.com/) / [🎥 Watch the Trailer](https://youtu.be/dYH-qtWoLfI?si=XBg7GWeIz2C2xW8P)
 
+## [🔭 Cosmodial is available on Google Play](https://play.google.com/store/apps/details?id=com.cosmodial.app)
+
 ![Cosmodial Splash](images/cosmodial-social.png)
 
 Ever look up and wonder *"wait, is that a planet or just a really bright star?"*
