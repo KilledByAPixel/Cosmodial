@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { compassMarks, azToCompass, drawHud } from '../js/render/hud.js';
+import { LINE_STYLES } from '../js/render/line-styles.js';
 
 test('azToCompass maps azimuth to 8-point names', () => {
   assert.equal(azToCompass(0), 'N');
@@ -66,6 +67,49 @@ test('horizon:false hides the line and its cardinal letters but keeps the compas
   assert.ok(off.calls.fillText >= 1, 'compass pill labels still draw');
   // The pill sits in the bottom strip; the on-sky cardinal letters near mid-screen are gone.
   assert.ok(off.calls.texts.every(({ y }) => y > 500), 'no cardinal letters out on the sky');
+});
+
+// The alt-az grid omits its own alt=0 ring and leans on the HUD for it, so with the Horizon toggle
+// off the line still draws — but as an ordinary grid ring, not the bright labelled reference line.
+test('plain:true strokes the horizon in grid styling with no cardinal letters', () => {
+  const makeCtx = () => {
+    const calls = { lineTo: 0, texts: [], strokes: [] };
+    let strokeStyle = '', lineWidth = 1;
+    return {
+      calls,
+      set fillStyle(_) {}, get fillStyle() { return ''; },
+      set strokeStyle(v) { strokeStyle = v; }, get strokeStyle() { return strokeStyle; },
+      set lineWidth(v) { lineWidth = v; }, get lineWidth() { return lineWidth; },
+      set font(_) {}, get font() { return ''; },
+      set textAlign(_) {}, get textAlign() { return 'left'; },
+      set textBaseline(_) {}, get textBaseline() { return 'alphabetic'; },
+      fillRect() {}, beginPath() {}, moveTo() {}, lineTo() { calls.lineTo++; }, closePath() {},
+      arc() {}, fill() {}, save() {}, restore() {}, clip() {},
+      stroke() { calls.strokes.push({ color: strokeStyle, width: lineWidth }); },
+      fillText(t, x, y) { calls.texts.push({ t, y }); },
+    };
+  };
+  const cam = { az: 180, alt: 10, fov: 60, width: 800, height: 600 };
+  const full = makeCtx(); drawHud(full, cam, { horizon: true });
+  const plain = makeCtx(); drawHud(plain, cam, { horizon: true, plain: true });
+  const bare = makeCtx(); drawHud(bare, cam, { horizon: false });
+
+  // The line itself is still there — same polyline as the full treatment, not the horizon-less HUD.
+  assert.equal(plain.calls.lineTo, full.calls.lineTo, 'plain draws the same horizon polyline');
+  assert.ok(plain.calls.lineTo - bare.calls.lineTo > 50, 'and it is genuinely drawn, not skipped');
+  // Styled as a grid ring rather than the bright reference line.
+  assert.deepEqual(plain.calls.strokes[0], { color: LINE_STYLES.grid.color, width: LINE_STYLES.grid.width });
+  assert.deepEqual(full.calls.strokes[0], { color: LINE_STYLES.horizon.color, width: LINE_STYLES.horizon.width });
+  // No N/E/S/W out on the sky; only the compass pill's own labels down in the bottom strip.
+  assert.ok(plain.calls.texts.every(({ y }) => y > 500), 'no cardinal letters in plain mode');
+  assert.ok(full.calls.texts.some(({ y }) => y <= 500), 'the full treatment does label the horizon');
+});
+
+test('the horizon reads as more prominent than any grid line', () => {
+  const alpha = (c) => Number(c.match(/([\d.]+)\)$/)[1]);
+  assert.ok(LINE_STYLES.horizon.width > LINE_STYLES.grid.width, 'thicker than the alt-az grid');
+  assert.ok(LINE_STYLES.horizon.width > LINE_STYLES.eqGrid.width, 'thicker than the equatorial grid');
+  assert.ok(alpha(LINE_STYLES.horizon.color) > alpha(LINE_STYLES.grid.color), 'and brighter');
 });
 
 test('looking nearly straight up fully zoomed out, the horizon draws as a closed ring', () => {

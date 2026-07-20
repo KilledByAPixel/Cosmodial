@@ -529,8 +529,11 @@ function render() {
   // constellation lines (so labels sit on top), matching the old single-canvas order.
   if (useGL) drawStarLabels(ctx, skyObjects, createProjector(cam), cam, st.flags.labels && !chromeOff, belowFade);
   if (!st.flags.edit) drawCorona(ctx, cam);
-  // chrome-free frame: no horizon, cardinals, or pill. The grid forces the horizon on (see gridOn).
-  if (!chromeOff) drawHud(ctx, cam, { horizon: st.flags.horizon || gridOn });
+  // chrome-free frame: no horizon, cardinals, or pill. The Horizon toggle draws the bright reference
+  // line with cardinal letters; with it off the alt-az grid still forces the line on (it skips its own
+  // alt=0 ring) but plainly, as just another grid ring. Neither off -> no line at all. The equatorial
+  // grid never forces it: declination rings have no horizon to be based on.
+  if (!chromeOff) drawHud(ctx, cam, { horizon: st.flags.horizon || gridOn, plain: !st.flags.horizon });
   if (st.flags.edit) drawEditOverlay(ctx, cam);
   if (!chromeOff) drawHighlight(ctx, cam); // a stray tap mid-recording must not ring the frame
   // Mid-fade below-horizon reveal: keep frames coming so the 1 s fade animates even while time

@@ -36,10 +36,13 @@ export function compassMarks(centerAz, width, spanDeg = STRIP_SPAN_DEG) {
 }
 
 // The horizon line + cardinal labels, drawn only where alt=0 is actually within the view.
-function drawHorizon(ctx, cam) {
+// `plain` strokes it as an ordinary alt-az grid ring and drops the cardinal letters — the grid
+// borrowing the line for its missing alt=0 ring, rather than the horizon being shown in its own right.
+function drawHorizon(ctx, cam, plain = false) {
   const projector = createProjector(cam);
-  ctx.strokeStyle = LINE_STYLES.horizon.color;
-  ctx.lineWidth = LINE_STYLES.horizon.width;
+  const style = plain ? LINE_STYLES.grid : LINE_STYLES.horizon;
+  ctx.strokeStyle = style.color;
+  ctx.lineWidth = style.width;
   ctx.beginPath();
   // Sample the horizon across the full ±180° of azimuth: zoomed out near the zenith/nadir the
   // entire horizon is a closed on-screen ring (the headline stereographic view). At narrower FOVs
@@ -52,6 +55,7 @@ function drawHorizon(ctx, cam) {
     if (!started) { ctx.moveTo(p.x, p.y); started = true; } else { ctx.lineTo(p.x, p.y); }
   }
   ctx.stroke();
+  if (plain) return; // a borrowed grid ring gets no cardinal letters
   ctx.font = '12px system-ui, sans-serif';
   ctx.fillStyle = 'rgba(150, 190, 230, 0.85)';
   ctx.textBaseline = 'top'; // sit the letters just BELOW the horizon line
@@ -109,8 +113,9 @@ function drawCompass(ctx, cam) {
 }
 
 // horizon=false (the menu's Horizon toggle) hides the line + its cardinal letters; the compass
-// pill stays — it's bar chrome, not sky furniture.
-export function drawHud(ctx, cam, { horizon = true } = {}) {
-  if (horizon) drawHorizon(ctx, cam);
+// pill stays — it's bar chrome, not sky furniture. `plain` downgrades the line to grid styling for
+// when the alt-az grid is the only reason it's on screen.
+export function drawHud(ctx, cam, { horizon = true, plain = false } = {}) {
+  if (horizon) drawHorizon(ctx, cam, plain);
   drawCompass(ctx, cam);
 }
