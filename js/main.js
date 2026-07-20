@@ -497,6 +497,10 @@ function render() {
       }));
     starfield.drawMarkers(glMarkers, cam, { belowFade });
   }
+  // Hidden in edit mode (figure clarity) and chrome-free modes (sky furniture). Hoisted because the
+  // HUD needs it too: the grid omits its own alt=0 ring (ringsInRange skips it) on the understanding
+  // that the HUD draws the horizon, so the grid must force that line on or it renders base-less.
+  const gridOn = st.flags.grid && !st.flags.edit && !chromeOff;
   drawScene(ctx, {
     stars: skyObjects,
     markers: drawList,   // hide Sun/Moon/planets in edit mode so they don't overlap stars
@@ -504,7 +508,7 @@ function render() {
     cam,
     edit: st.flags.edit,
     labels: st.flags.labels && !chromeOff, // chrome-free frames are text-free; the flag itself is untouched
-    grid: st.flags.grid && !st.flags.edit && !chromeOff, // hide the grid in edit mode (figure clarity) and chrome-free modes (sky furniture)
+    grid: gridOn,
     eqGrid: wantEqGrid ? eqjToEnu : null,    // RA/Dec grid rides the same per-frame rotation as the stars
     belowFade,                               // below-horizon content fades in as the aim dips
     drawStarPoints: !useGL,                  // GL draws the star discs; 2D only as the fallback
@@ -525,7 +529,8 @@ function render() {
   // constellation lines (so labels sit on top), matching the old single-canvas order.
   if (useGL) drawStarLabels(ctx, skyObjects, createProjector(cam), cam, st.flags.labels && !chromeOff, belowFade);
   if (!st.flags.edit) drawCorona(ctx, cam);
-  if (!chromeOff) drawHud(ctx, cam, { horizon: st.flags.horizon }); // chrome-free frame: no horizon, cardinals, or pill
+  // chrome-free frame: no horizon, cardinals, or pill. The grid forces the horizon on (see gridOn).
+  if (!chromeOff) drawHud(ctx, cam, { horizon: st.flags.horizon || gridOn });
   if (st.flags.edit) drawEditOverlay(ctx, cam);
   if (!chromeOff) drawHighlight(ctx, cam); // a stray tap mid-recording must not ring the frame
   // Mid-fade below-horizon reveal: keep frames coming so the 1 s fade animates even while time
