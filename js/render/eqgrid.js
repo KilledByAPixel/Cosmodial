@@ -12,7 +12,7 @@
 import { degToRad, radToDeg, wrap360 } from '../core/angles.js';
 import { cameraBasis, MIN_VIS_Z } from '../core/projection.js';
 import { LINE_STYLES } from './line-styles.js';
-import { niceStep } from './grid.js';
+import { niceStep, halfDiagDeg } from './grid.js';
 
 const EQ_LABEL_COLOR = 'rgba(205, 170, 130, 0.55)';
 const EQ_LABEL_FONT = '10px system-ui, sans-serif';
@@ -45,12 +45,8 @@ function raLabel(raDeg) {
   return m === 0 ? `${h}h` : `${h}h${m}m`;
 }
 
-// Half the view's diagonal angle (deg) for windowing. Unlike grid.js's 89°-capped version this
-// follows the FOV all the way out (at MAX_FOV the corners reach ~125° off-axis).
-function halfDiagDeg(cam) {
-  const aspect = cam.height / cam.width;
-  return Math.min(150, 0.5 * cam.fov * Math.sqrt(1 + aspect * aspect) * 1.15);
-}
+// Half the view's diagonal angle (deg) for windowing — shared with the alt-az grid so both cull on
+// the same true corner angle.
 
 // Draw the equatorial grid. eqjToEnu: column-major EQJ->ENU rotation for the current time/place
 // (the same matrix main.js hands the GPU star transform). belowFade as everywhere else.

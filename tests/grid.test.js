@@ -11,11 +11,13 @@ test('niceStep snaps up to the next value on the ladder', () => {
   assert.equal(niceStep(1000), 90); // clamps to the coarsest rung
 });
 
+// alt=30 keeps the zenith (60° off the aim) clear of the view. At alt=45 it sits 45° off — inside
+// the 48.1° corner reach — so every spoke's closest approach qualifies and the full wheel is drawn.
 test('gridSpec picks steps from FOV and only lists lines near the view', () => {
-  const cam = { az: 180, alt: 45, fov: 60, width: 800, height: 600 };
+  const cam = { az: 180, alt: 30, fov: 60, width: 800, height: 600 };
   const spec = gridSpec(cam);
   // azimuth step from horizontal FOV (spoke target 8) widened by 1/cos(alt); altitude step from vertical FOV
-  assert.equal(spec.azStep, niceStep(60 / (8 * Math.cos(Math.PI / 4))));
+  assert.equal(spec.azStep, niceStep(60 / (8 * Math.cos(Math.PI / 6))));
   assert.equal(spec.altStep, niceStep((60 * 600) / 800 / 4));
   // every listed line is a clean multiple of its step
   assert.ok(spec.azimuths.every((a) => Math.abs((a / spec.azStep) - Math.round(a / spec.azStep)) < 1e-9));
@@ -25,6 +27,48 @@ test('gridSpec picks steps from FOV and only lists lines near the view', () => {
   assert.ok(spec.altitudes.length <= 12, `altitudes windowed (${spec.altitudes.length})`);
   // the lines actually bracket the aim
   assert.ok(spec.azimuths.some((a) => Math.abs(((a - 180 + 540) % 360) - 180) <= spec.azStep));
+});
+
+// Regression: windowing must never cut a line that still touches the canvas. The old half-diagonal
+// normalized by WIDTH while `fov` spans the SHORTER side, so on a landscape window it under-reported
+// the corner by ~18° and left blank margins where spokes/rings should have run to the screen edge.
+test('no gridline that touches the canvas is culled (landscape windows especially)', () => {
+  const cams = [
+    { az: 180, alt: 0, fov: 60, width: 1600, height: 900 },   // wide desktop, looking level
+    { az: 42, alt: 15, fov: 45, width: 1920, height: 1080 },
+    { az: 300, alt: 35, fov: 90, width: 1440, height: 900 },
+    { az: 0, alt: 5, fov: 30, width: 900, height: 1600 },      // portrait phone
+    { az: 120, alt: 60, fov: 20, width: 800, height: 600 },
+  ];
+  const touchesCanvas = (proj, cam, pts) => pts.some(([az, alt]) => {
+    const p = proj(az, alt);
+    return p.visible && p.x >= 0 && p.x <= cam.width && p.y >= 0 && p.y <= cam.height;
+  });
+
+  for (const cam of cams) {
+    const spec = gridSpec(cam);
+    const proj = createProjector(cam);
+    const label = `fov=${cam.fov} ${cam.width}x${cam.height} alt=${cam.alt}`;
+
+    // Every spoke on the azStep lattice that reaches the canvas must be listed.
+    for (let k = 0; k < Math.round(360 / spec.azStep); k++) {
+      const az = Number((k * spec.azStep).toFixed(6));
+      const pts = [];
+      for (let h = 0; h <= 90; h += 1) pts.push([az, h]);
+      if (touchesCanvas(proj, cam, pts)) {
+        assert.ok(spec.azimuths.includes(az), `${label}: spoke ${az}° is on screen but was culled`);
+      }
+    }
+    // Same for altitude rings.
+    for (let alt = spec.altStep; alt < 90; alt += spec.altStep) {
+      const v = Number(alt.toFixed(6));
+      const pts = [];
+      for (let a = 0; a < 360; a += 1) pts.push([a, v]);
+      if (touchesCanvas(proj, cam, pts)) {
+        assert.ok(spec.altitudes.includes(v), `${label}: ring ${v}° is on screen but was culled`);
+      }
+    }
+  }
 });
 
 test('looking up draws the full wheel but widens the step so spokes do not crowd the zenith', () => {

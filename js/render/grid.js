@@ -1,4 +1,5 @@
-import { degToRad } from '../core/angles.js';
+import { degToRad, radToDeg } from '../core/angles.js';
+import { focalPx } from '../core/projection.js';
 import { LINE_STYLES } from './line-styles.js';
 
 // Alt-az grid: altitude rings (constant altitude) + azimuth lines (constant azimuth), drawn as
@@ -20,10 +21,15 @@ export function niceStep(target, ladder = STEP_LADDER) {
   return ladder[ladder.length - 1];
 }
 
-// Half the view's diagonal angle (deg) — how far from the aim the corners reach.
-function halfDiagDeg(cam) {
-  const aspect = cam.height / cam.width;
-  return Math.min(89, 0.5 * cam.fov * Math.sqrt(1 + aspect * aspect) * 1.15);
+// Half the view's diagonal angle (deg) — how far from the aim the screen CORNERS reach. Exact for
+// the stereographic mapping r = 2f·tan(θ/2), so windowing culls a line only when it is genuinely
+// off screen. Capped at the projector's own 150° visibility limit, past which every sample is
+// culled anyway. (A small-angle form normalized by WIDTH lived here once; because `fov` spans the
+// SHORTER side it under-reported the corner by ~18° at 16:9, leaving gridline gaps at the edges.)
+export function halfDiagDeg(cam) {
+  const focal = focalPx(cam.fov, cam.width, cam.height);
+  const rCorner = 0.5 * Math.hypot(cam.width, cam.height);
+  return Math.min(150, radToDeg(2 * Math.atan(rCorner / (2 * focal))));
 }
 
 // Multiples of `step` within [lo, hi], skipping the horizon (0, drawn separately) and the poles
@@ -71,9 +77,11 @@ export function gridSpec(cam, { targetLines = TARGET_LINES, below = false } = {}
   const azimuths = visibleAzimuths(cam, azStep, below);
   // Rings are windowed to the view; when a pole is on screen, extend rings out to it so the innermost
   // ring reliably caps the converging spokes. In full-sphere mode this also reaches below the horizon.
+  // Extent follows the CORNER angle (not the vertical FOV): a ring well above the aim still clips
+  // the top corners, and windowing to fovV/2 cut those off mid-screen. Density still follows fovV.
   const half = halfDiagDeg(cam);
-  let lo = Math.max(below ? -90 : 0, cam.alt - (fovV / 2 + altStep));
-  let hi = Math.min(90, cam.alt + (fovV / 2 + altStep));
+  let lo = Math.max(below ? -90 : 0, cam.alt - (half + altStep));
+  let hi = Math.min(90, cam.alt + (half + altStep));
   if (90 - cam.alt < half) hi = 90;                  // zenith in view -> rings up to the pole
   if (below && 90 + cam.alt < half) lo = -90;        // nadir in view -> rings down to the nadir
   const altitudes = ringsInRange(altStep, lo, hi);
